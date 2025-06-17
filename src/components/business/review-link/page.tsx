@@ -267,10 +267,10 @@ export default function ReviewLinkPage() {
             let reviewUrl = data.reviewLinkUrl
             if (!reviewUrl) {
               const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-              reviewUrl = `http://localhost:8081/${slug}`
+              reviewUrl = `https://rhino-reviews.vercel.app/${slug}`
             }
             setReviewLinkUrl(reviewUrl)
-            setTempBusinessSlug(reviewUrl.replace("https://reviewuplift.vercel.app/", ""))
+            setTempBusinessSlug(reviewUrl.replace("https://rhino-reviews.vercel.app/", ""))
           } else {
             const docRef = doc(db, "review_link", user.uid)
             const docSnap = await getDoc(docRef)
@@ -294,15 +294,15 @@ export default function ReviewLinkPage() {
               let reviewUrl = data.reviewLinkUrl
               if (!reviewUrl) {
                 const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-                reviewUrl = `https://reviewuplift.vercel.app/${slug}`
+                reviewUrl = `https://rhino-reviews.vercel.app/${slug}`
               }
               setReviewLinkUrl(reviewUrl)
-              setTempBusinessSlug(reviewUrl.replace("https://reviewuplift.vercel.app/", ""))
+              setTempBusinessSlug(reviewUrl.replace("https://rhino-reviews.vercel.app/", ""))
             } else {
               const slug = businessNameFromInfo
                 ? businessNameFromInfo.toLowerCase().replace(/\s+/g, "-")
                 : "your-business"
-              setReviewLinkUrl(`https://reviewuplift.vercel.app/${slug}`)
+              setReviewLinkUrl(`https://rhino-reviews.vercel.app/${slug}`)
               setTempBusinessSlug(slug)
               setBusinessName(businessNameFromInfo || "")
               setTempBusinessName(businessNameFromInfo || "")
@@ -375,7 +375,7 @@ export default function ReviewLinkPage() {
   const handleUrlEdit = () => {
     if (isEditingUrl) {
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
-      const newUrl = `https://reviewuplift.vercel.app/${newSlug}`
+      const newUrl = `https://rhino-reviews.vercel.app/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
 
@@ -394,7 +394,7 @@ export default function ReviewLinkPage() {
         })
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace("http://localhost:8081/", ""))
+      setTempBusinessSlug(reviewLinkUrl.replace("https://rhino-reviews.vercel.app/", ""))
     }
     setIsEditingUrl(!isEditingUrl)
   }
@@ -765,7 +765,7 @@ export default function ReviewLinkPage() {
                   {isEditingUrl ? (
                     <div className="space-y-4">
                       <div className="flex items-center">
-                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">https://reviewuplift.vercel.app/</span>
+                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">https://rhino-reviews.vercel.app/</span>
                         <Input
                           value={tempBusinessSlug}
                           onChange={(e) => setTempBusinessSlug(e.target.value)}
