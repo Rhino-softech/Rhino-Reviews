@@ -22,9 +22,6 @@ import { getStorage } from "firebase/storage";
 import { MIN_VALUE_REG } from "recharts/types/util/ChartUtils";
 
 const firebaseConfig = {
- 
-
-  //Api paid link
 
   apiKey: "AIzaSyCE4FHMyvKkLPTMxbNBGq-hDA4kgsOREZQ",
   authDomain: "rhino-review.firebaseapp.com",
@@ -34,7 +31,6 @@ const firebaseConfig = {
   appId: "1:129605931582:web:09b00f086664f02b70376f",
   measurementId: "G-X07GH0L017"
 };
-
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

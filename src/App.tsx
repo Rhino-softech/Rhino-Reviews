@@ -34,6 +34,10 @@ import SubscriptionPage from "./components/admin/subscriptions/[uid]";
 import AnalyticPage from "./components/business/analytics/analytics";
 import SettingsPage from "./components/admin/settings/page";
 import ContactPage from "./components/ContactPage";
+import Demo2 from "./components/demo2";
+import ChatSupportWidget from "./components/chat-support-widget";
+import QRGenerator from "./components/qr-generator";
+
 
 function useScrollToHash() {
   const location = useLocation();
@@ -76,6 +80,20 @@ return (
         <Route path="/admin" element={<BusinessForm />} />
         <Route path="/businessform" element={<BusinessForm />} />
         <Route path="/contact-page" element={<ContactPage />} />
+        <Route path="/demo2" element={<Demo2 />} />
+        <Route
+          path="/qr-generator"
+          element={
+            <QRGenerator
+              reviewUrl=""
+              businessName=""
+              hasCustomPlan={false}
+            />
+          }
+        />
+        <Route path="/chatsupportwidget" element={<ChatSupportWidget isOpen={false} onClose={function (): void {
+        throw new Error("Function not implemented.");
+      } } />} />
         <Route path="/components/business/dashboard" element={<BusinessDashboard />} />
         <Route path="/components/business/reviews" element={<BusinessReviews />} />
         <Route path="/components/business/review-link" element={<ReviewLinkPage />} />
@@ -88,7 +106,8 @@ return (
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/register" element={<AdminRegistrationForm />} />
         <Route path="/admin/analytics" element={<AnalyticsPage />} />
-        <Route path ="/admin/settings" element={<SettingsPage />} />
+        <Route path="/admin/settings" element={<SettingsPage />} />
+
         <Route path="/admin/businesses/:uid" element={<BusinessDetailsPage params={{ uid: "" }} />} />
         <Route path="/admin/subscriptions/:uid" element={<SubscriptionPage params={{ uid: "" }} />} />
         <Route path="/sidebar" element={<Sidebar />} />

@@ -5,11 +5,10 @@ import { useState, useEffect } from "react"
 import { Mountain, Star, ChevronRight, ThumbsUp, ThumbsDown, Sparkles, Heart, Award } from "lucide-react"
 import { useParams } from "react-router-dom"
 import { db } from "@/firebase/firebase"
-import { collection, doc, serverTimestamp, getDoc, addDoc, getDocs } from "firebase/firestore"
+import { collection, doc, serverTimestamp, getDoc, addDoc, getDocs, query, where } from "firebase/firestore"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
-import { updateDoc, increment } from "firebase/firestore";
-
+import { updateDoc, increment } from "firebase/firestore"
 
 interface ReviewFormData {
   name: string
@@ -20,10 +19,11 @@ interface ReviewFormData {
   rating: number
   businessId: string
   userId?: string
-  status?: "pending" | "published" | "rejected"
+  status?: "pending" | "published" | "rejected" | "incomplete" | "abandoned"
   createdAt?: any
   platform?: string
   reviewType?: "internal" | "external"
+  isComplete?: boolean
 }
 
 interface Branch {
@@ -67,6 +67,10 @@ export default function ReviewPageFixed() {
   const [hoveredStar, setHoveredStar] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [submissionMessage, setSubmissionMessage] = useState("")
+  const [reviewsLimitReached, setReviewsLimitReached] = useState(false)
+  const [subscriptionActive, setSubscriptionActive] = useState(false)
+  const [currentReviewCount, setCurrentReviewCount] = useState(0)
+  const [reviewLimit, setReviewLimit] = useState(0)
 
   // Branch selection states
   const [branches, setBranches] = useState<Branch[]>([])
@@ -76,6 +80,42 @@ export default function ReviewPageFixed() {
 
   // Check if any form is active
   const isFormActive = showForm || showBranchSelector || showGoogleForm || submitted
+
+  // Function to count reviews in current subscription period
+  const countCurrentPeriodReviews = async (userId: string, subscriptionStartDate: Date | null) => {
+    try {
+      if (!subscriptionStartDate) {
+        console.log("No subscription start date found")
+        return 0
+      }
+
+      const reviewsRef = collection(db, "users", userId, "reviews")
+      const reviewsQuery = query(reviewsRef, where("createdAt", ">=", subscriptionStartDate))
+
+      const querySnapshot = await getDocs(reviewsQuery)
+
+      // Count only valid reviews (exclude abandoned/incomplete ones)
+      let validReviewCount = 0
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        const isAbandoned =
+          data.status === "abandoned" ||
+          data.status === "incomplete" ||
+          data.isComplete === false ||
+          (data.review && data.review.includes("Rated") && data.review.includes("but left without feedback"))
+
+        if (!isAbandoned) {
+          validReviewCount++
+        }
+      })
+
+      console.log(`Found ${validReviewCount} valid reviews since ${subscriptionStartDate}`)
+      return validReviewCount
+    } catch (error) {
+      console.error("Error counting reviews:", error)
+      return 0
+    }
+  }
 
   useEffect(() => {
     const loadBusinessConfig = async () => {
@@ -112,7 +152,7 @@ export default function ReviewPageFixed() {
         setWelcomeTitle(matchedDoc.welcomeTitle || "")
         setWelcomeText(matchedDoc.welcomeText || "")
 
-        // Fix image URLs - ensure they're accessible
+        // Fix image URLs
         const fixedPreviewImage = matchedDoc.previewImage
           ? matchedDoc.previewImage
               .replace("gs://", "https://firebasestorage.googleapis.com/v0/b/")
@@ -129,47 +169,119 @@ export default function ReviewPageFixed() {
         setGoogleReviewLink(matchedDoc.googleReviewLink || "")
 
         // Fetch branches from the user document
-   // ...existing code...
-        // Fetch branches from the user document
         if (matchedDoc) {
           const userDocRef = doc(db, "users", matchedDoc.id)
           const userDocSnap = await getDoc(userDocRef)
           if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
+            const userData = userDocSnap.data()
 
-            // 🔁 Count link click once per session
-            const clickKey = `linkClicked-${matchedDoc.id}`;
+            // Check subscription and limit status
+            const now = new Date()
+            let hasActiveSubscription = false
+            let reviewLimitValue = 50 // default limit
+
+            // Check if subscription is active
+            if (userData.subscriptionActive === true) {
+              hasActiveSubscription = true
+            }
+
+            // Check subscription expiry date if subscriptionActive is true
+            if (hasActiveSubscription && userData.subscriptionEndDate) {
+              const subscriptionEndDate = userData.subscriptionEndDate.toDate
+                ? userData.subscriptionEndDate.toDate()
+                : new Date(userData.subscriptionEndDate.seconds * 1000)
+              hasActiveSubscription = subscriptionEndDate > now
+            }
+
+            // Check trial status if no active subscription
+            if (!hasActiveSubscription && userData.trialActive === true && userData.trialEndDate) {
+              const trialEndDate = userData.trialEndDate.toDate
+                ? userData.trialEndDate.toDate()
+                : new Date(userData.trialEndDate.seconds * 1000)
+              hasActiveSubscription = trialEndDate > now
+            }
+
+            // Set review limit based on subscription plan
+            if (userData.subscriptionPlan) {
+              switch (userData.subscriptionPlan.toLowerCase()) {
+                case "starter":
+                case "plan_basic":
+                  reviewLimitValue = 100
+
+                  break
+                case "professional":
+                case "plan_pro":
+                  reviewLimitValue = 500
+                  break
+                case "enterprise":
+                case "plan_premium":
+                case "custom":
+                  reviewLimitValue = 0 // unlimited
+                  break
+                default:
+                  reviewLimitValue = 50
+              }
+            }
+
+            // Get subscription start date for counting reviews
+            const subscriptionStartDate = userData.subscriptionStartDate?.toDate
+              ? userData.subscriptionStartDate.toDate()
+              : null
+
+            // Count actual reviews in current subscription period
+            const currentPeriodReviews = await countCurrentPeriodReviews(matchedDoc.id, subscriptionStartDate)
+
+            // Check if review limit is reached (only if not unlimited)
+            let reviewLimitReached = false
+            if (reviewLimitValue > 0) {
+              reviewLimitReached = currentPeriodReviews >= reviewLimitValue
+            }
+
+            console.log("Subscription Status:", {
+              hasActiveSubscription,
+              reviewLimitValue,
+              currentPeriodReviews,
+              reviewLimitReached,
+              subscriptionStartDate,
+            })
+
+            // Set states based on subscription and limit status
+            setSubscriptionActive(hasActiveSubscription)
+            setReviewsLimitReached(reviewLimitReached)
+            setCurrentReviewCount(currentPeriodReviews)
+            setReviewLimit(reviewLimitValue)
+
+            // Count link click once per session
+            const clickKey = `linkClicked-${matchedDoc.id}`
             if (!sessionStorage.getItem(clickKey)) {
               try {
                 await updateDoc(userDocRef, {
                   linkClicks: increment(1),
-                });
-                sessionStorage.setItem(clickKey, "true");
-                console.log("✅ Link click counted");
+                })
+                sessionStorage.setItem(clickKey, "true")
               } catch (error) {
-                console.error("❌ Failed to count link click", error);
+                console.error("Failed to count link click", error)
               }
             }
 
-            // Get business name from userData if available (to ensure it's up to date)
+            // Get business name from userData if available
             const updatedBusinessName = userData.businessInfo?.businessName || matchedDoc.businessName || ""
- if (updatedBusinessName && updatedBusinessName !== businessName) {
+            if (updatedBusinessName && updatedBusinessName !== businessName) {
               setBusinessName(updatedBusinessName)
             }
 
-            // Get branches and filter only active ones - FIXED: Ensure location is properly fetched
+            // Get branches and filter only active ones
             const branchesData = userData.businessInfo?.branches || []
             const activeBranches = branchesData
               .filter((branch: any) => branch.isActive !== false)
               .map((branch: any) => ({
                 id: branch.id || `branch-${Math.random().toString(36).substr(2, 9)}`,
                 name: branch.name || "Unnamed Branch",
-                location: branch.location || "No location specified", // FIXED: Ensure location is always present
+                location: branch.location || "No location specified",
                 isActive: true,
                 googleReviewLink: branch.googleReviewLink || "",
               }))
 
-            console.log("Fetched branches:", activeBranches) // Debug log
             setBranches(activeBranches)
 
             // Also get Google review link from user data if not in review_link
@@ -189,6 +301,69 @@ export default function ReviewPageFixed() {
 
     loadBusinessConfig()
   }, [businessSlug])
+
+  // Reset form states when limit is reached or subscription expired
+  useEffect(() => {
+    console.log("Effect triggered:", { reviewsLimitReached, subscriptionActive, rating })
+    if (reviewsLimitReached || !subscriptionActive) {
+      setShowForm(false)
+      if (rating > 0 && !showGoogleForm) {
+        console.log("Setting showGoogleForm to true")
+        setShowGoogleForm(true)
+      }
+    }
+  }, [reviewsLimitReached, subscriptionActive, rating, showGoogleForm])
+
+  // Track when user leaves the page after clicking stars but not completing review
+  // BUT ONLY save if subscription is active and limit not reached
+  useEffect(() => {
+    const saveAbandonedReview = async () => {
+      // Only save abandoned review if:
+      // 1. User has clicked stars but hasn't submitted
+      // 2. Subscription is active AND limit is not reached
+      if (rating > 0 && !submitted && subscriptionActive && !reviewsLimitReached) {
+        try {
+          await submitReview({
+            name: "Abandoned User",
+            email: "",
+            phone: "",
+            branchname: selectedBranch ? `${selectedBranch.name} - ${selectedBranch.location}` : "Unknown Branch",
+            review: `Rated ${rating} stars but left without completing review`,
+            rating,
+            businessId,
+            status: "abandoned",
+            isComplete: false,
+            platform: "internal",
+          })
+          console.log("Saved abandoned review for rating:", rating)
+        } catch (error) {
+          console.error("Error saving abandoned review:", error)
+        }
+      } else if (rating > 0 && !submitted && (reviewsLimitReached || !subscriptionActive)) {
+        console.log("Not saving abandoned review - limit reached or subscription inactive")
+      }
+    }
+
+    const handleBeforeUnload = () => {
+      if (rating > 0 && !submitted) {
+        saveAbandonedReview()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && rating > 0 && !submitted) {
+        saveAbandonedReview()
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [rating, submitted, selectedBranch, businessId, subscriptionActive, reviewsLimitReached])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -214,27 +389,37 @@ export default function ReviewPageFixed() {
     return !Object.values(errors).some(Boolean)
   }
 
-
-  
   const validateGoogleForm = () => {
     const errors = {
-      name: false, // Not required for Google reviews
-      phone: false, // Not required for Google reviews
-      email: false, // Not required for Google reviews
+      name: false,
+      phone: false,
+      email: false,
       branchname: !formData.branchname.trim(),
-      review: false, // Not required for Google reviews
+      review: false,
     }
     setFormErrors(errors)
     return !errors.branchname
   }
 
-  const handleSetRating = (rating: number) => {
+  const handleSetRating = async (rating: number) => {
+    console.log(
+      "Setting rating:",
+      rating,
+      "Limit reached:",
+      reviewsLimitReached,
+      "Subscription active:",
+      subscriptionActive,
+    )
     setRating(rating)
     setSubmitted(false)
     setShowForm(false)
     setShowBranchSelector(false)
     setShowGoogleForm(false)
     setSelectedBranch(null)
+
+    // DON'T save anything when just clicking stars
+    // Only save abandoned reviews when user leaves the page AND subscription allows
+
     setFormData({
       name: "",
       phone: "",
@@ -252,60 +437,113 @@ export default function ReviewPageFixed() {
   }
 
   const handleLeaveReview = async () => {
-    if (rating === 0) return
+    console.log("handleLeaveReview called:", {
+      loading,
+      rating,
+      reviewsLimitReached,
+      subscriptionActive,
+      showBranchSelector,
+      selectedBranch,
+      showGoogleForm,
+    })
 
-    // For all ratings, show branch selector first if not already selected
-    if (!selectedBranch && !showBranchSelector) {
-      setShowBranchSelector(true)
+    if (loading) {
+      toast.info("Please wait while we load your review settings...")
       return
     }
 
-    // For ratings 4-5, show Google form after branch selection
-    if (rating >= 4) {
+    if (rating === 0) return
+
+    // Always go to Google review when limit is reached or subscription inactive
+    // BUT DON'T save anything to Firebase in this case
+    if (reviewsLimitReached || !subscriptionActive) {
+      console.log("Redirecting to Google due to limit/subscription - NOT saving to Firebase")
+
+      if (!showBranchSelector && !selectedBranch) {
+        console.log("Showing branch selector")
+        setShowBranchSelector(true)
+        return
+      }
+
       if (!showGoogleForm) {
+        console.log("Showing Google form")
         setShowGoogleForm(true)
         return
       }
 
       if (!validateGoogleForm()) {
+        console.log("Google form validation failed")
         return
       }
 
-      // Track the Google review attempt
-      try {
-        await submitReview({
-          name: "Google Review User",
-          phone: "",
-          email: "",
-          branchname: formData.branchname,
-          review: `Customer went to Google Reviews - Rating: ${rating} stars - Branch: ${formData.branchname}`,
-          rating,
-          businessId,
-          platform: "Google",
-          reviewType: "external",
-        })
-      } catch (error) {
-        console.error("Error tracking Google review:", error)
-      }
-
-      // Redirect to Google Reviews - use branch-specific link if available
+      // DON'T save to Firebase when limit is reached or subscription inactive
+      // Just redirect to Google
       const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
+      console.log("Opening Google review URL (no Firebase save):", reviewUrl)
       window.open(reviewUrl, "_blank")
       setSubmitted(true)
-      setSubmissionMessage("Thank you for choosing to review us on Google!")
+      setSubmissionMessage("Thank you for your feedback!")
       return
     }
 
-    // For ratings 1-3, show form after branch selection
-    if (rating <= 3) {
+    // For 4–5 stars → Google (only if subscription active and limit not reached)
+    if (rating >= 4) {
+      console.log("High rating, redirecting to Google")
+
+      if (!showBranchSelector && !selectedBranch) {
+        setShowBranchSelector(true)
+        return
+      }
+
+      if (!showGoogleForm) {
+        setShowGoogleForm(true)
+        return
+      }
+
+      if (!validateGoogleForm()) return
+
+      // Only save to Firebase if subscription is active and limit not reached
+      if (subscriptionActive && !reviewsLimitReached) {
+        try {
+          await submitReview({
+            name: "Google Review User",
+            phone: "",
+            email: "",
+            branchname: formData.branchname,
+            review: `Customer left Google Review - Rating: ${rating}`,
+            rating,
+            businessId,
+            platform: "Google",
+            reviewType: "external",
+            isComplete: true, // This is a complete action - user was redirected to Google
+          })
+        } catch (error) {
+          console.error("Error tracking Google review:", error)
+        }
+      }
+
+      const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
+      window.open(reviewUrl, "_blank")
+      setSubmitted(true)
+      setSubmissionMessage("Thank you for reviewing us!")
+      return
+    }
+
+    // For 1–3 stars → Internal Feedback Form (only if subscription active and limit not reached)
+    if (subscriptionActive && !reviewsLimitReached) {
+      console.log("Low rating, showing internal form")
+
+      if (!showBranchSelector && !selectedBranch) {
+        setShowBranchSelector(true)
+        return
+      }
+
       if (!showForm) {
         setShowForm(true)
         return
       }
 
-      if (!validateForm()) {
-        return
-      }
+      if (!validateForm()) return
 
       try {
         await submitReview({
@@ -314,56 +552,69 @@ export default function ReviewPageFixed() {
           businessId,
           platform: "internal",
           reviewType: "internal",
+          isComplete: true, // Mark as complete since all form fields are filled
         })
-        setSubmissionMessage("We're sorry to hear about your experience. Thank you for your feedback.")
+        setSubmissionMessage("We appreciate your feedback.")
         setSubmitted(true)
       } catch (error) {
-        console.error("Error submitting review:", error)
-        toast.error("Failed to submit feedback. Please try again.")
+        console.error("Error submitting internal feedback:", error)
+        toast.error("Submission failed.")
       }
+    } else {
+      console.log("Should redirect to Google but conditions not met")
     }
   }
 
   const handleBranchSelect = (branch: Branch) => {
+    console.log("Branch selected:", branch.name)
     setSelectedBranch(branch)
-    // FIXED: Include both branch name and location in the form data
     setFormData((prev) => ({
       ...prev,
       branchname: `${branch.name} - ${branch.location}`,
     }))
     setShowBranchSelector(false)
 
-    // After selecting branch, show appropriate next step
+    // Force Google form if limit reached or subscription inactive
+    if (reviewsLimitReached || !subscriptionActive) {
+      console.log("Forcing Google form due to limit/subscription")
+      setShowForm(false)
+      setShowGoogleForm(true)
+      return
+    }
+
+    // Normal flow if subscription active and limit not reached
     if (rating >= 4) {
       setShowGoogleForm(true)
-    } else if (rating <= 3) {
+    } else {
       setShowForm(true)
     }
   }
 
   const handlePublicReview = async () => {
-    // For 3-star ratings, allow them to go to Google anyway
     if (!validateGoogleForm()) {
       return
     }
 
-    try {
-      await submitReview({
-        name: "Public Review User",
-        phone: "",
-        email: "",
-        branchname: formData.branchname,
-        review: `Customer chose public review option - Rating: ${rating} stars - Branch: ${formData.branchname}`,
-        rating,
-        businessId,
-        platform: "Google",
-        reviewType: "external",
-      })
-    } catch (error) {
-      console.error("Error tracking public review:", error)
+    // Only save to Firebase if subscription is active and limit not reached
+    if (subscriptionActive && !reviewsLimitReached) {
+      try {
+        await submitReview({
+          name: "Public Review User",
+          phone: "",
+          email: "",
+          branchname: formData.branchname,
+          review: `Customer chose public review option - Rating: ${rating} stars - Branch: ${formData.branchname}`,
+          rating,
+          businessId,
+          platform: "Google",
+          reviewType: "external",
+          isComplete: true, // This is a complete action - user chose to leave public review
+        })
+      } catch (error) {
+        console.error("Error tracking public review:", error)
+      }
     }
 
-    // Use branch-specific Google review link if available
     const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
     window.open(reviewUrl, "_blank")
     setSubmitted(true)
@@ -376,15 +627,17 @@ export default function ReviewPageFixed() {
         ...reviewData,
         businessName,
         createdAt: serverTimestamp(),
-        status: "pending",
+        status: reviewData.status || "pending",
         timestamp: Date.now(),
+        isComplete: reviewData.isComplete ?? true, // Default to true unless explicitly set to false
       }
 
       const userReviewsRef = collection(db, "users", businessId, "reviews")
-      const docRef = await addDoc(userReviewsRef, reviewToSubmit)
+      await addDoc(userReviewsRef, reviewToSubmit)
 
-      console.log("Review submitted with ID:", docRef.id)
-      toast.success("Thank you for your feedback!")
+      if (reviewToSubmit.isComplete) {
+        toast.success("Thank you for your feedback!")
+      }
     } catch (error) {
       console.error("Error submitting review:", error)
       throw error
@@ -450,9 +703,8 @@ export default function ReviewPageFixed() {
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden w-full">
-      {/* Mobile-first layout with flex-col for small screens */}
       <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
-        {/* Left Side - Image Background Section (full width on mobile, half on desktop) */}
+        {/* Left Side - Image Background Section */}
         <motion.div
           className="w-full lg:w-1/2 h-72 lg:h-auto relative overflow-hidden flex flex-col justify-center items-center p-3 lg:p-8"
           style={{
@@ -465,16 +717,11 @@ export default function ReviewPageFixed() {
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.8 }}
         >
-          {/* Dark overlay for better text readability */}
           <div className="absolute inset-0 bg-black/40" />
-
-          {/* Fallback background if no image */}
           {!previewImage && (
             <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900" />
-          )
-          }
+          )}
 
-          {/* Content inside the image section */}
           <div className="relative text-white text-center max-w-lg z-10">
             {!previewImage && (
               <motion.div
@@ -528,28 +775,10 @@ export default function ReviewPageFixed() {
                 {welcomeText || "Share your experience and help us improve"}
               </p>
             </motion.div>
-
-            {/* Floating elements */}
-            <motion.div
-              className="absolute top-10 right-10 w-4 h-4 bg-white/30 rounded-full"
-              animate={{
-                y: [0, -20, 0],
-                opacity: [0.3, 0.8, 0.3],
-              }}
-              transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
-            />
-            <motion.div
-              className="absolute bottom-20 left-10 w-6 h-6 bg-white/20 rounded-full"
-              animate={{
-                y: [0, -30, 0],
-                opacity: [0.2, 0.6, 0.2],
-              }}
-              transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY, delay: 1 }}
-            />
           </div>
         </motion.div>
 
-        {/* Right Side - Responsive Form (full width on mobile, half on desktop) */}
+        {/* Right Side - Responsive Form */}
         <motion.div
           className="w-full lg:w-1/2 bg-white flex flex-col relative lg:min-h-screen overflow-y-auto"
           initial={{ x: 100, opacity: 0 }}
@@ -770,7 +999,9 @@ export default function ReviewPageFixed() {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-center text-gray-500 text-xs lg:text-sm">No branch locations available</p>
+                            <p className="text-center text-gray-500 text-xs lg:text-sm">
+                              No branch locations available
+                            </p>
                           )}
                         </div>
                         <motion.button
@@ -784,8 +1015,8 @@ export default function ReviewPageFixed() {
                       </motion.div>
                     )}
 
-                    {/* Google Form for 4-5 star ratings */}
-                    {showGoogleForm && rating >= 4 && (
+                    {/* Google Form - Show for all ratings when limit reached or subscription inactive, or for 4-5 stars normally */}
+                    {showGoogleForm && (
                       <motion.div
                         key="google-form"
                         className="mb-4 lg:mb-6 space-y-3 lg:space-y-4"
@@ -794,20 +1025,20 @@ export default function ReviewPageFixed() {
                         exit={{ opacity: 0, x: -50 }}
                         transition={{ duration: 0.4 }}
                       >
-                        <div className="p-3 lg:p-6 rounded-xl lg:rounded-2xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
+                        <div className="p-3 lg:p-6 rounded-xl lg:rounded-2xl border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
                           <div className="text-center">
                             <motion.div
-                              className="w-12 h-12 lg:w-16 lg:h-16 mx-auto bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-3 lg:mb-4"
+                              className="w-12 h-12 lg:w-16 lg:h-16 mx-auto rounded-full flex items-center justify-center mb-3 lg:mb-4 bg-gradient-to-r from-green-400 to-emerald-500"
                               initial={{ scale: 0, rotate: -180 }}
                               animate={{ scale: 1, rotate: 0 }}
                               transition={{ type: "spring", stiffness: 200 }}
                             >
                               <Sparkles className="h-5 w-5 lg:h-8 lg:w-8 text-white" />
                             </motion.div>
-                            <p className="text-green-700 font-semibold mb-2 lg:mb-3 text-xs lg:text-base">
-                              Fantastic! You'll be redirected to Google to leave your review.
+                            <p className="font-semibold mb-2 lg:mb-3 text-xs lg:text-base text-green-700">
+                              Fantastic! You'll be redirected to leave your review.
                             </p>
-                            <p className="text-green-600 text-xs lg:text-sm">
+                            <p className="text-xs lg:text-sm text-green-600">
                               Selected Branch: <strong>{formData.branchname}</strong>
                             </p>
                           </div>
@@ -815,8 +1046,8 @@ export default function ReviewPageFixed() {
                       </motion.div>
                     )}
 
-                    {/* Form for 1-3 star ratings */}
-                    {showForm && rating <= 3 && isReviewGatingEnabled && (
+                    {/* Form for 1-3 star ratings - Only show if subscription active and limit not reached */}
+                    {showForm && rating <= 3 && isReviewGatingEnabled && subscriptionActive && !reviewsLimitReached ? (
                       <motion.div
                         key="feedback-form"
                         className="mb-4 lg:mb-6 space-y-3 lg:space-y-4"
@@ -913,21 +1144,24 @@ export default function ReviewPageFixed() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.4 }}
                         >
-                          <label htmlFor="review" className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">
-                            Your Review <span className="text-red-500">*</span>
+                          <label
+                            htmlFor="review"
+                            className="block text-xs lg:text-sm font-semibold text-gray-700 mb-1 lg:mb-2"
+                          >
+                            Your Feedback <span className="text-red-500">*</span>
                           </label>
                           <textarea
                             id="review"
                             name="review"
-                            rows={3}
                             value={formData.review}
                             onChange={handleInputChange}
-                            className={`w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-300 resize-none text-xs lg:text-sm ${
+                            rows={3}
+                            className={`w-full px-3 lg:px-4 py-2 lg:py-2.5 border-2 rounded-lg lg:rounded-xl focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-300 resize-none text-xs lg:text-sm ${
                               formErrors.review ? "border-red-500 bg-red-50" : "border-gray-200 hover:border-gray-300"
                             }`}
-                            placeholder="Please share your experience with us..."
+                            placeholder="Please tell us about your experience..."
                             required
-                          ></textarea>
+                          />
                           {formErrors.review && (
                             <motion.p
                               className="mt-2 text-xs text-red-500 font-medium"
@@ -939,89 +1173,60 @@ export default function ReviewPageFixed() {
                           )}
                         </motion.div>
                       </motion.div>
-                    )}
+                    ) : null}
                   </AnimatePresence>
 
-                  {!showBranchSelector && !showGoogleForm && !showForm && (
-                    <motion.button
-                      onClick={handleLeaveReview}
-                      disabled={rating === 0}
-                      className={`
-                        w-full py-3 lg:py-4 px-6 rounded-2xl font-semibold text-white flex items-center justify-center transition-all duration-300 shadow-lg hover:shadow-xl
-                        ${isFormActive ? "text-sm lg:text-base" : "text-base lg:text-lg"}
-                        ${
-                          rating === 0
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 transform hover:scale-105"
-                        }
-                      `}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.6 }}
-                      whileHover={rating > 0 ? { scale: 1.02 } : {}}
-                      whileTap={rating > 0 ? { scale: 0.98 } : {}}
-                    >
-                      {rating > 0 ? "Continue" : "Select a Rating to Continue"}
-                      <ChevronRight className="ml-2 h-4 w-4 lg:h-5 lg:w-5" />
-                    </motion.button>
-                  )}
+                  <motion.button
+                    onClick={handleLeaveReview}
+                    disabled={rating === 0}
+                    className={`w-full py-3 lg:py-4 px-6 rounded-xl lg:rounded-2xl font-semibold text-white flex items-center justify-center transition-all duration-300 shadow-lg hover:shadow-xl text-sm lg:text-lg ${
+                      rating === 0
+                        ? "bg-gray-300 cursor-not-allowed"
+                        : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                    }`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.9 }}
+                    whileHover={rating > 0 ? { scale: 1.02 } : {}}
+                    whileTap={rating > 0 ? { scale: 0.98 } : {}}
+                  >
+                    {rating === 0
+                      ? "Select a Rating to Continue"
+                      : showBranchSelector
+                        ? "Select Branch"
+                        : showForm
+                          ? "Submit Feedback"
+                          : showGoogleForm
+                            ? "Leave Public Review"
+                            : "Continue"}
+                    <ChevronRight className="ml-2 h-4 w-4 lg:h-5 lg:w-5" />
+                  </motion.button>
 
-                  {(showGoogleForm || showForm) && (
+                  {/* Public Review Link for 3-star ratings - Only show if subscription active and limit not reached */}
+                  {rating <= 3 && subscriptionActive && !reviewsLimitReached && showForm && (
                     <motion.div
-                      className="space-y-4"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                      className="text-center"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
                     >
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-200" />
+                        </div>
+                        <div className="relative flex justify-center text-xs lg:text-sm">
+                          <span className="px-4 bg-white text-gray-500">or</span>
+                        </div>
+                      </div>
                       <motion.button
-                        onClick={handleLeaveReview}
-                        className="w-full py-3 lg:py-4 px-6 rounded-2xl font-semibold text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center text-sm lg:text-base"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                        onClick={handlePublicReview}
+                        className="mt-4 text-xs lg:text-sm text-orange-600 hover:text-orange-800 transition-colors underline font-medium"
+                        whileHover={{ scale: 1.05 }}
                       >
-                        {rating >= 4 ? "Continue to Google" : "Submit Your Feedback"}
-                        <ChevronRight className="ml-2 h-4 w-4 lg:h-5 lg:w-5" />
+                        Leave a public review instead
                       </motion.button>
-
-                      {/* Public Review Link for 3-star ratings */}
-                      {rating <= 3 && (
-                        <motion.div
-                          className="text-center"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.4 }}
-                        >
-                          <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                              <div className="w-full border-t border-gray-200" />
-                            </div>
-                            <div className="relative flex justify-center text-xs lg:text-sm">
-                              <span className="px-4 bg-white text-gray-500">or</span>
-                            </div>
-                          </div>
-                          <motion.button
-                            onClick={handlePublicReview}
-                            className="mt-4 text-xs lg:text-sm text-orange-600 hover:text-orange-800 transition-colors underline font-medium"
-                            whileHover={{ scale: 1.05 }}
-                          >
-                            Leave a public review instead
-                          </motion.button>
-                        </motion.div>
-                      )}
                     </motion.div>
                   )}
-
-                  <motion.p
-                    className="text-xs text-gray-400 mt-8 text-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1 }}
-                  >
-                    Powered by{" "}
-                    <span className="font-semibold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                      Review Rhino
-                    </span>
-                  </motion.p>
                 </motion.div>
               )}
             </AnimatePresence>

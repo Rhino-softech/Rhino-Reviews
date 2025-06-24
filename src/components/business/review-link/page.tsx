@@ -3,26 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import {
-  Edit,
-  Mountain,
-  Star,
-  Upload,
-  ChevronRight,
-  ThumbsUp,
-  ThumbsDown,
-  Trash2,
-  Award,
-  Sparkles,
-  Heart,
-  ExternalLink,
-  Settings,
-  ImageIcon,
-  Palette,
-  Check,
-  Copy,
-  Eye,
-} from "lucide-react"
+import { Edit, Mountain, Star, Upload, ChevronRight, ThumbsUp, ThumbsDown, Trash2, Award, Sparkles, Heart, ExternalLink, Settings, ImageIcon, Palette, Check, Copy, Eye, QrCode } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,6 +35,7 @@ import { format } from "date-fns"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import QRGenerator from "@/components/qr-generator"
 
 interface BusinessInfo {
   businessName: string
@@ -98,6 +80,13 @@ interface Review {
   date: string
   replied: boolean
   status: string
+}
+
+// Helper function to check if user has custom plan
+const hasCustomPlan = (plan: string | undefined) => {
+  if (!plan) return false
+  const normalizedPlan = plan.toLowerCase()
+  return normalizedPlan.includes("custom") || normalizedPlan.includes("enterprise")
 }
 
 export default function ReviewLinkPage() {
@@ -154,6 +143,8 @@ export default function ReviewLinkPage() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [activeTab, setActiveTab] = useState("settings")
   const [copied, setCopied] = useState(false)
+  const [userPlan, setUserPlan] = useState<string>("")
+  const [hasCustomAccess, setHasCustomAccess] = useState(false)
 
   const fetchReviews = useCallback(async () => {
     if (!currentUser || reviewsLimit === null) return
@@ -183,6 +174,11 @@ export default function ReviewLinkPage() {
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         const createdAt = data.createdAt ? data.createdAt.toDate() : null
+
+        // Only include complete reviews, not partial star ratings
+        if (data.isComplete === false || data.status === "incomplete") {
+          return // Skip incomplete reviews
+        }
 
         if (!data.branchname || activeBranchNames.includes(data.branchname) || data.status === "published") {
           reviewsData.push({
@@ -226,6 +222,11 @@ export default function ReviewLinkPage() {
             setBusinessInfo(businessInfoData)
             setGoogleReviewLink(businessInfoData.googleReviewLink || "")
             businessNameFromInfo = businessInfoData.businessName || ""
+            
+            // Set user plan and custom access
+            const plan = userData.subscriptionPlan || userData.plan || ""
+            setUserPlan(plan)
+            setHasCustomAccess(hasCustomPlan(plan))
           }
 
           const userReviewLinkRef = doc(db, "users", user.uid, "review_link", "config")
@@ -267,10 +268,10 @@ export default function ReviewLinkPage() {
             let reviewUrl = data.reviewLinkUrl
             if (!reviewUrl) {
               const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-              reviewUrl = `https://rhino-reviews.vercel.app/${slug}`
+              reviewUrl = `http://localhost:8081/${slug}`
             }
             setReviewLinkUrl(reviewUrl)
-            setTempBusinessSlug(reviewUrl.replace("https://rhino-reviews.vercel.app/", ""))
+            setTempBusinessSlug(reviewUrl.replace("http://localhost:8081/", ""))
           } else {
             const docRef = doc(db, "review_link", user.uid)
             const docSnap = await getDoc(docRef)
@@ -294,15 +295,15 @@ export default function ReviewLinkPage() {
               let reviewUrl = data.reviewLinkUrl
               if (!reviewUrl) {
                 const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-                reviewUrl = `https://rhino-reviews.vercel.app/${slug}`
+                reviewUrl = `http://localhost:8081/${slug}`
               }
               setReviewLinkUrl(reviewUrl)
-              setTempBusinessSlug(reviewUrl.replace("https://rhino-reviews.vercel.app/", ""))
+              setTempBusinessSlug(reviewUrl.replace("http://localhost:8081/", ""))
             } else {
               const slug = businessNameFromInfo
                 ? businessNameFromInfo.toLowerCase().replace(/\s+/g, "-")
                 : "your-business"
-              setReviewLinkUrl(`https://rhino-reviews.vercel.app/${slug}`)
+              setReviewLinkUrl(`http://localhost:8081/${slug}`)
               setTempBusinessSlug(slug)
               setBusinessName(businessNameFromInfo || "")
               setTempBusinessName(businessNameFromInfo || "")
@@ -338,7 +339,9 @@ export default function ReviewLinkPage() {
         }
 
         await setDoc(doc(db, "users", currentUser.uid, "review_link", "config"), config, { merge: true })
-        await setDoc(doc(db, "review_link", currentUser.uid), config, { merge: true })
+        await setDoc(doc(db, "review_link", currentUser.uid), config, {
+          merge: true,
+        })
 
         const slug = tempBusinessSlug || businessName.toLowerCase().replace(/\s+/g, "-")
         await setDoc(
@@ -375,7 +378,7 @@ export default function ReviewLinkPage() {
   const handleUrlEdit = () => {
     if (isEditingUrl) {
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
-      const newUrl = `https://rhino-reviews.vercel.app/${newSlug}`
+      const newUrl = `http://localhost:8081/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
 
@@ -394,7 +397,7 @@ export default function ReviewLinkPage() {
         })
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace("https://rhino-reviews.vercel.app/", ""))
+      setTempBusinessSlug(reviewLinkUrl.replace("http://localhost:8081/", ""))
     }
     setIsEditingUrl(!isEditingUrl)
   }
@@ -574,6 +577,7 @@ export default function ReviewLinkPage() {
         userId: currentUser.uid,
         platform: "internal",
         reviewType: "internal",
+        isComplete: true, // Mark as complete since all form fields are filled
       }
 
       await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
@@ -714,23 +718,18 @@ export default function ReviewLinkPage() {
                 transition={{ duration: 0.5 }}
               >
                 Review Link
+                {hasCustomAccess && (
+                  <span className="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800">
+                    <QrCode className="h-4 w-4 mr-1" />
+                    Custom Plan
+                  </span>
+                )}
               </motion.h1>
               <p className="text-gray-600">
                 Customize your review collection page and manage how customers leave feedback
               </p>
             </div>
             <div className="mt-4 md:mt-0 flex space-x-3">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                {/* <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={navigateToPreviewPage}
-                  className="border-amber-200 hover:bg-amber-50 hover:text-amber-600 transition-all"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview
-                </Button> */}
-              </motion.div>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   size="sm"
@@ -765,7 +764,7 @@ export default function ReviewLinkPage() {
                   {isEditingUrl ? (
                     <div className="space-y-4">
                       <div className="flex items-center">
-                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">https://rhino-reviews.vercel.app/</span>
+                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">http://localhost:8081/</span>
                         <Input
                           value={tempBusinessSlug}
                           onChange={(e) => setTempBusinessSlug(e.target.value)}
@@ -799,7 +798,9 @@ export default function ReviewLinkPage() {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <motion.div
                         className="flex-1 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center"
-                        whileHover={{ boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
+                        whileHover={{
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                        }}
                       >
                         <div className="flex-1 font-medium text-gray-700 truncate">{reviewLinkUrl}</div>
                         <TooltipProvider>
@@ -844,6 +845,21 @@ export default function ReviewLinkPage() {
                   )}
                 </div>
               </motion.div>
+
+              {/* QR Code Generator - Only for Custom Plan */}
+              {hasCustomAccess && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.15 }}
+                >
+                  <QRGenerator 
+                    reviewUrl={reviewLinkUrl} 
+                    businessName={businessName} 
+                    hasCustomPlan={hasCustomAccess} 
+                  />
+                </motion.div>
+              )}
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -938,7 +954,6 @@ export default function ReviewLinkPage() {
                         <TabsList className="grid w-full grid-cols-2 mb-4">
                           <TabsTrigger value="content">Content</TabsTrigger>
                           <TabsTrigger value="images">Images</TabsTrigger>
-                          {/* <TabsTrigger value="preview">Preview</TabsTrigger> */}
                         </TabsList>
                         <TabsContent value="content" className="space-y-6">
                           <div className="space-y-4">
@@ -1146,69 +1161,6 @@ export default function ReviewLinkPage() {
                             </div>
                           </div>
                         </TabsContent>
-                        {/* <TabsContent value="preview" className="space-y-6">
-                          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <div className="bg-gray-50 p-3 border-b border-gray-200 flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                              </div>
-                              <div className="text-xs text-gray-500">Preview</div>
-                              <div className="w-16"></div>
-                            </div>
-                            <div className="h-64 overflow-hidden">
-                              <div className="flex flex-col h-full">
-                                <div
-                                  className="w-full h-1/2 relative overflow-hidden flex flex-col justify-center items-center p-4"
-                                  style={{
-                                    backgroundImage: previewImage ? `url(${previewImage})` : "none",
-                                    backgroundSize: "cover",
-                                    backgroundPosition: "center",
-                                  }}
-                                >
-                                  <div className="absolute inset-0 bg-black/40" />
-                                  {!previewImage && (
-                                    <div className="absolute inset-0 bg-gradient-to-br from-rose-700 via-amber-700 to-teal-700" />
-                                  )}
-                                  <div className="relative text-white text-center z-10">
-                                    <h3 className="font-bold text-white text-xl">
-                                      {tempWelcomeTitle || "We value your opinion!"}
-                                    </h3>
-                                    <p className="text-white/90 text-sm mt-1">
-                                      {tempWelcomeText || "Share your experience and help us improve"}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="w-full h-1/2 bg-white p-4 flex flex-col justify-start items-center">
-                                  {logoImage && (
-                                    <div className="mb-2">
-                                      <img
-                                        src={logoImage || "/placeholder.svg"}
-                                        alt="Business logo"
-                                        className="h-8 object-contain"
-                                      />
-                                    </div>
-                                  )}
-                                  <h2 className="font-bold bg-gradient-to-r from-rose-600 to-amber-600 bg-clip-text text-transparent text-lg">
-                                    Rate Your Experience
-                                  </h2>
-                                  <p className="text-gray-600 text-xs">
-                                    {tempPreviewText || "How was your experience?"}
-                                  </p>
-                                  <div className="flex justify-center space-x-1 mt-2">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                      <Star
-                                        key={star}
-                                        className={`h-5 w-5 ${star <= 3 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </TabsContent> */}
                       </Tabs>
 
                       <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
@@ -1345,7 +1297,9 @@ export default function ReviewLinkPage() {
                             {previewImage ? (
                               <div
                                 className="absolute inset-0 bg-cover bg-center"
-                                style={{ backgroundImage: `url(${previewImage})` }}
+                                style={{
+                                  backgroundImage: `url(${previewImage})`,
+                                }}
                               />
                             ) : (
                               <div className="absolute inset-0 bg-gradient-to-br from-rose-700 via-amber-700 to-teal-700" />
@@ -1371,7 +1325,11 @@ export default function ReviewLinkPage() {
                                 <div className="flex items-center justify-center gap-2 mb-4">
                                   <motion.div
                                     animate={{ scale: [1, 1.2, 1] }}
-                                    transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, repeatType: "loop" }}
+                                    transition={{
+                                      duration: 1.5,
+                                      repeat: Number.POSITIVE_INFINITY,
+                                      repeatType: "loop",
+                                    }}
                                   >
                                     <Sparkles className="h-6 w-6 text-yellow-300" />
                                   </motion.div>
@@ -1406,7 +1364,10 @@ export default function ReviewLinkPage() {
                                     className="w-20 h-20 mx-auto bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-6"
                                     initial={{ scale: 0, rotate: -180 }}
                                     animate={{ scale: 1, rotate: 0 }}
-                                    transition={{ type: "spring", stiffness: 200 }}
+                                    transition={{
+                                      type: "spring",
+                                      stiffness: 200,
+                                    }}
                                   >
                                     <Award className="h-10 w-10 text-white" />
                                   </motion.div>
@@ -1485,7 +1446,11 @@ export default function ReviewLinkPage() {
                                             ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
                                             : "bg-gradient-to-r from-amber-50 to-rose-50 border-amber-200"
                                         }`}
-                                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                        initial={{
+                                          opacity: 0,
+                                          y: 20,
+                                          scale: 0.95,
+                                        }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         transition={{ duration: 0.4 }}
                                       >

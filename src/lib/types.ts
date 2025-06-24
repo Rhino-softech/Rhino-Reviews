@@ -28,6 +28,11 @@ export interface Business {
 
 // Review types
 export interface Review {
+  createdAt: any
+  branchname: any
+  platform: string
+  status: string
+  isComplete: any
   id: number
   name: string
   rating: number

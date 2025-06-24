@@ -1,12 +1,12 @@
-// page.tsx
 "use client"
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { BarChart3, Star, LinkIcon, MessageSquare, TrendingUp } from "lucide-react"
+import { BarChart3, Star, LinkIcon, MessageSquare, TrendingUp, MapPin } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import Sidebar from "../../sidebar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Sidebar from "@/components/sidebar"
 import { auth, db } from "@/firebase/firebase"
 import { doc, getDoc, collection, query, getDocs } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
@@ -29,6 +29,20 @@ interface BusinessInfo {
   linkClicks: number
   responseRate: number
   createdAt: { seconds: number }
+}
+
+// Helper function to check if user has access to location dropdown
+const hasLocationAccess = (plan: string | undefined, trialActive: boolean) => {
+  if (trialActive) return false // Hide for free trial users
+  if (!plan) return false
+
+  const normalizedPlan = plan.toLowerCase()
+  // Hide for starter/basic plans, show for professional/premium plans
+  return !(
+    normalizedPlan.includes("starter") ||
+    normalizedPlan.includes("basic") ||
+    normalizedPlan.includes("plan_basic")
+  )
 }
 
 const useSubscriptionStatus = () => {
@@ -56,6 +70,9 @@ const useSubscriptionStatus = () => {
 
 export default function BusinessDashboard() {
   const [period, setPeriod] = useState("week")
+  const [selectedLocation, setSelectedLocation] = useState("All")
+  const [branches, setBranches] = useState<any[]>([])
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false) // Added state for location dropdown visibility
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
     businessName: "",
     linkClicks: 0,
@@ -79,6 +96,14 @@ export default function BusinessDashboard() {
 
           const userData = userDoc.data()
           const businessData = userData.businessInfo || {}
+
+          // Set branches for location dropdown
+          const branchesData = businessData.branches || []
+          setBranches(branchesData)
+
+          // Check if user has access to location dropdown
+          const hasAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
+          setShowLocationDropdown(hasAccess)
 
           setBusinessInfo({
             businessName: businessData.businessName || "",
@@ -116,15 +141,15 @@ export default function BusinessDashboard() {
           try {
             const searchRes = await fetch(
               `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
-                searchQuery
-              )}&inputtype=textquery&fields=place_id&key=YOUR_GOOGLE_API_KEY`
+                searchQuery,
+              )}&inputtype=textquery&fields=place_id&key=YOUR_GOOGLE_API_KEY`,
             )
             const searchData = await searchRes.json()
             const placeId = searchData?.candidates?.[0]?.place_id
 
             if (placeId) {
               const detailsRes = await fetch(
-                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=YOUR_GOOGLE_API_KEY`
+                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=YOUR_GOOGLE_API_KEY`,
               )
               const detailsData = await detailsRes.json()
               googleReviews = (detailsData.result?.reviews || []).map((r: any, i: number) => ({
@@ -157,25 +182,41 @@ export default function BusinessDashboard() {
     return () => unsubscribe()
   }, [navigate])
 
+  // Updated to include location filtering
   const { filteredReviews, stats } = useMemo(() => {
     const now = new Date()
     const startDate = new Date()
 
     switch (period) {
-      case "day": startDate.setDate(now.getDate() - 1); break
-      case "week": startDate.setDate(now.getDate() - 7); break
-      case "month": startDate.setDate(now.getDate() - 30); break
-      case "year": startDate.setDate(now.getDate() - 365); break
+      case "day":
+        startDate.setDate(now.getDate() - 1)
+        break
+      case "week":
+        startDate.setDate(now.getDate() - 7)
+        break
+      case "month":
+        startDate.setDate(now.getDate() - 30)
+        break
+      case "year":
+        startDate.setDate(now.getDate() - 365)
+        break
     }
 
     const startTimestamp = Math.floor(startDate.getTime() / 1000)
-    const filtered = allReviews.filter(r => r.createdAt.seconds >= startTimestamp)
+
+    // Filter by time period and location
+    const filtered = allReviews.filter((r) => {
+      const matchesTime = r.createdAt.seconds >= startTimestamp
+      const matchesLocation =
+        selectedLocation === "All" || r.branchname?.toLowerCase().includes(selectedLocation.toLowerCase())
+      return matchesTime && matchesLocation
+    })
 
     const totalRating = filtered.reduce((sum, r) => sum + r.rating, 0)
     const ratingCounts = [0, 0, 0, 0, 0]
     let repliedCount = 0
 
-    filtered.forEach(r => {
+    filtered.forEach((r) => {
       if (r.rating >= 1 && r.rating <= 5) ratingCounts[5 - r.rating]++
       if (r.replied) repliedCount++
     })
@@ -194,66 +235,7 @@ export default function BusinessDashboard() {
         ratingDistribution: ratingCounts,
       },
     }
-  },[allReviews, period, businessInfo])
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userRef = doc(db, "users", user.uid)
-          const userDoc = await getDoc(userRef)
-
-          if (!userDoc.exists()) {
-            navigate("/login")
-            return
-          }
-
-          const userData = userDoc.data()
-          const businessData = userData?.businessInfo || {}
-          
-          // FIX: Get linkClicks from root user document, not businessInfo
-          setBusinessInfo({
-            businessName: businessData.businessName || "",
-            linkClicks: userData.linkClicks || 0, // Changed from businessData.linkClicks
-            responseRate: businessData.responseRate || 0,
-            createdAt: businessData.createdAt || { seconds: 0 }
-          })
-
-          // Get reviews from subcollection
-          const reviewsQuery = query(collection(db, "users", user.uid, "reviews"))
-          const querySnapshot = await getDocs(reviewsQuery)
-          const reviewsData: Review[] = []
-
-          querySnapshot.forEach((doc) => {
-            const data = doc.data()
-            const createdAt = data.createdAt
-            const seconds = createdAt ? createdAt.seconds : 0
-
-            reviewsData.push({
-              id: doc.id,
-              name: data.name || "Anonymous",
-              rating: data.rating || 0,
-              review: data.review || data.message || "",
-              createdAt: { seconds },
-              status: data.status || "pending",
-              branchname: data.branchname || "",
-              replied: data.replied || false,
-            })
-          })
-
-          setAllReviews(reviewsData)
-        } catch (error) {
-          console.error("Error fetching data:", error)
-        } finally {
-          setLoading(false)
-        }
-      } else {
-        navigate("/login")
-      }
-    })
-
-    return () => unsubscribe()
-  }, [navigate])
+  }, [allReviews, period, businessInfo, selectedLocation]) // Added selectedLocation dependency
 
   const formatDate = (seconds: number) => {
     return new Date(seconds * 1000).toLocaleDateString("en-US", {
@@ -327,7 +309,7 @@ export default function BusinessDashboard() {
     day: "Today",
     week: "This Week",
     month: "This Month",
-    year: "This Year"
+    year: "This Year",
   }
 
   return (
@@ -343,39 +325,65 @@ export default function BusinessDashboard() {
               </h1>
               <p className="text-gray-600 text-lg mt-2">
                 {businessInfo.businessName ? `Welcome back, ${businessInfo.businessName}` : "Welcome back"}
+                {selectedLocation !== "All" && (
+                  <span className="text-orange-600 font-medium"> - {selectedLocation}</span>
+                )}
               </p>
             </div>
 
-            {/* Responsive Tabs */}
-            <div className="w-full lg:w-auto">
-              <Tabs defaultValue="week" className="w-full" onValueChange={setPeriod}>
-                <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4 bg-white shadow-md border border-orange-200">
-                  <TabsTrigger
-                    value="day"
-                    className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
-                  >
-                    Day
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="week"
-                    className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
-                  >
-                    Week
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="month"
-                    className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
-                  >
-                    Month
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="year"
-                    className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
-                  >
-                    Year
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            {/* Controls - Added Location Dropdown with conditional rendering */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Location Dropdown - Only show for Professional/Premium plans */}
+              {showLocationDropdown && (
+                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                  <SelectTrigger className="w-[200px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      <SelectValue placeholder="Select Location" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                    <SelectItem value="All">All Locations</SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.name}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Time Period Tabs */}
+              <div className="w-full lg:w-auto">
+                <Tabs defaultValue="week" className="w-full" onValueChange={setPeriod}>
+                  <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4 bg-white shadow-md border border-orange-200">
+                    <TabsTrigger
+                      value="day"
+                      className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                    >
+                      Day
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="week"
+                      className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                    >
+                      Week
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="month"
+                      className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                    >
+                      Month
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="year"
+                      className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-400 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                    >
+                      Year
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
           </div>
 
@@ -385,7 +393,7 @@ export default function BusinessDashboard() {
               title="Total Reviews"
               icon={<Star className="h-5 w-5 text-orange-500" />}
               value={stats.totalReviews}
-              description={periodLabels[period]}
+              description={`${periodLabels[period]}${selectedLocation !== "All" ? ` - ${selectedLocation}` : ""}`}
               gradient="from-blue-100 to-blue-200"
               textColor="text-blue-800"
               iconBg="bg-blue-100"
@@ -426,7 +434,7 @@ export default function BusinessDashboard() {
               title="Response Rate"
               icon={<MessageSquare className="h-5 w-5 text-orange-500" />}
               value={`${stats.responseRate}%`}
-              description={periodLabels[period]}
+              description={`${periodLabels[period]}${selectedLocation !== "All" ? ` - ${selectedLocation}` : ""}`}
               gradient="from-orange-100 to-orange-200"
               textColor="text-orange-800"
               iconBg="bg-orange-100"
@@ -444,12 +452,17 @@ export default function BusinessDashboard() {
                     <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
                       <MessageSquare className="h-6 w-6 text-orange-500" />
                       Recent Reviews
+                      {selectedLocation !== "All" && (
+                        <span className="text-sm text-orange-600 font-normal">- {selectedLocation}</span>
+                      )}
                     </CardTitle>
                     <CardDescription className="text-gray-600">Latest customer feedback</CardDescription>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <TrendingUp className="h-4 w-4" />
-                    <span>{filteredReviews.length} {periodLabels[period].toLowerCase()}</span>
+                    <span>
+                      {filteredReviews.length} {periodLabels[period].toLowerCase()}
+                    </span>
                   </div>
                 </div>
               </CardHeader>
@@ -492,8 +505,14 @@ export default function BusinessDashboard() {
                   ) : (
                     <div className="text-center py-12">
                       <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 text-lg font-medium">No reviews yet</p>
-                      <p className="text-gray-400 text-sm">Start collecting reviews to see them here</p>
+                      <p className="text-gray-500 text-lg font-medium">
+                        {selectedLocation !== "All" ? `No reviews for ${selectedLocation}` : "No reviews yet"}
+                      </p>
+                      <p className="text-gray-400 text-sm">
+                        {selectedLocation !== "All"
+                          ? "Try selecting a different location or time period"
+                          : "Start collecting reviews to see them here"}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -506,6 +525,9 @@ export default function BusinessDashboard() {
                 <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
                   <BarChart3 className="h-6 w-6 text-orange-500" />
                   Rating Distribution
+                  {selectedLocation !== "All" && (
+                    <span className="text-sm text-orange-600 font-normal">- {selectedLocation}</span>
+                  )}
                 </CardTitle>
                 <CardDescription className="text-gray-600">Breakdown of your ratings</CardDescription>
               </CardHeader>

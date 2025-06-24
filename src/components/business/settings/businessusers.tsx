@@ -25,7 +25,7 @@ import {
   UserCheck,
 } from "lucide-react"
 import { db, auth } from "@/firebase/firebase"
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
 import { toast } from "@/components/ui/use-toast"
 import { FaSpinner } from "react-icons/fa"
@@ -46,6 +46,7 @@ export default function BusinessUsersPage() {
   const usersPerPage = 6
   const [loading, setLoading] = useState(true)
   const [uid, setUid] = useState<string | null>(null)
+  const [businessOwnerName, setBusinessOwnerName] = useState("")
 
   const [searchTerm, setSearchTerm] = useState({
     name: "",
@@ -58,37 +59,66 @@ export default function BusinessUsersPage() {
     name: "",
     email: "",
     locations: "",
-    role: "Business Owner", // Default role
+    role: "Location Manager", // Default role is now Location Manager
   })
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
-  // Fetch business users from Firestore
-  const fetchBusinessUsers = async (uid: string) => {
+  // Fetch business owner name and business users from Firestore
+  const fetchBusinessData = async (uid: string) => {
     setLoading(true)
     try {
-      const businessUsersRef = collection(db, "users", uid, "businessUsers")
-      const querySnapshot = await getDocs(businessUsersRef)
-      const usersData: BusinessUser[] = []
+      // First get the business owner name from the user document
+      const userDocRef = doc(db, "users", uid)
+      const userDocSnap = await getDoc(userDocRef)
 
-      querySnapshot.forEach((doc) => {
-        usersData.push({
-          id: doc.id,
-          name: doc.data().name,
-          email: doc.data().email,
-          locations: doc.data().locations,
-          role: doc.data().role || "Business Owner", // Fallback to default
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data()
+        const businessInfo = userData.businessInfo || {}
+
+        // Set business owner name for display
+        setBusinessOwnerName(businessInfo.businessName || businessInfo.contactEmail || "Business Owner")
+
+        // Add the business owner as the first user
+        const ownerUser: BusinessUser = {
+          id: "owner",
+          name: businessInfo.businessName || "Business Owner",
+          email: businessInfo.contactEmail || userData.email || "",
+          locations: "All Locations",
+          role: "Business Owner",
+        }
+
+        // Then get the business users (Location Managers)
+        const businessUsersRef = collection(db, "users", uid, "businessUsers")
+        const querySnapshot = await getDocs(businessUsersRef)
+        const usersData: BusinessUser[] = [ownerUser]
+
+        querySnapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data()
+          usersData.push({
+            id: docSnapshot.id,
+            name: data.name || "",
+            email: data.email || "",
+            locations: data.locations || "",
+            role: data.role || "Location Manager", // Fallback to Location Manager
+          })
         })
-      })
 
-      setUsers(usersData)
-      setFilteredUsers(usersData)
+        setUsers(usersData)
+        setFilteredUsers(usersData)
+      } else {
+        toast({
+          title: "Error",
+          description: "Business information not found",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error("Error fetching business users: ", error)
+      console.error("Error fetching business data: ", error)
       toast({
         title: "Error",
-        description: "Failed to load business users",
+        description: "Failed to load business data",
         variant: "destructive",
       })
     } finally {
@@ -114,7 +144,7 @@ export default function BusinessUsersPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUid(user.uid)
-        fetchBusinessUsers(user.uid)
+        fetchBusinessData(user.uid)
       } else {
         setLoading(false)
       }
@@ -134,17 +164,19 @@ export default function BusinessUsersPage() {
     if (userForm.name && userForm.email && userForm.locations) {
       try {
         if (isEditing) {
-          // Update existing user
-          const userRef = doc(db, "users", uid, "businessUsers", userForm.id)
-          await updateDoc(userRef, {
-            name: userForm.name,
-            email: userForm.email,
-            locations: userForm.locations,
-            role: userForm.role,
-          })
+          // Update existing user (only for non-owner users)
+          if (userForm.id !== "owner") {
+            const userRef = doc(db, "users", uid, "businessUsers", userForm.id)
+            await updateDoc(userRef, {
+              name: userForm.name,
+              email: userForm.email,
+              locations: userForm.locations,
+              role: userForm.role,
+            })
 
-          // Update local state
-          setUsers(users.map((user) => (user.id === userForm.id ? { ...userForm } : user)))
+            // Update local state
+            setUsers(users.map((user) => (user.id === userForm.id ? { ...userForm } : user)))
+          }
         } else {
           // Add new user
           const businessUsersRef = collection(db, "users", uid, "businessUsers")
@@ -156,13 +188,15 @@ export default function BusinessUsersPage() {
           })
 
           // Update local state
-          setUsers([
-            ...users,
-            {
-              id: docRef.id,
-              ...userForm,
-            },
-          ])
+          const newUser: BusinessUser = {
+            id: docRef.id,
+            name: userForm.name,
+            email: userForm.email,
+            locations: userForm.locations,
+            role: userForm.role,
+          }
+
+          setUsers([...users, newUser])
         }
 
         resetForm()
@@ -180,17 +214,49 @@ export default function BusinessUsersPage() {
           variant: "destructive",
         })
       }
+    } else {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
     }
   }
 
   const handleEditUser = (user: BusinessUser) => {
-    setUserForm(user)
+    // Don't allow editing the business owner
+    if (user.id === "owner") {
+      toast({
+        title: "Info",
+        description: "Business owner details cannot be edited here. Please use Account Settings.",
+        variant: "default",
+      })
+      return
+    }
+
+    setUserForm({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      locations: user.locations,
+      role: user.role,
+    })
     setIsEditing(true)
     setIsDialogOpen(true)
   }
 
   const handleDeleteUser = async (id: string) => {
     if (!uid) return
+
+    // Don't allow deleting the business owner
+    if (id === "owner") {
+      toast({
+        title: "Info",
+        description: "Business owner cannot be deleted",
+        variant: "default",
+      })
+      return
+    }
 
     try {
       await deleteDoc(doc(db, "users", uid, "businessUsers", id))
@@ -224,7 +290,7 @@ export default function BusinessUsersPage() {
       name: "",
       email: "",
       locations: "",
-      role: "Business Owner", // Reset to default role
+      role: "Location Manager", // Reset to default role
     })
     setIsEditing(false)
   }
@@ -296,6 +362,12 @@ export default function BusinessUsersPage() {
                     Business Users
                   </h1>
                   <p className="text-gray-600 font-medium">Manage your team members and their permissions</p>
+                  {businessOwnerName && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Crown className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-semibold text-gray-700">Business Owner: {businessOwnerName}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -351,7 +423,7 @@ export default function BusinessUsersPage() {
                             transition={{ delay: 0.1 }}
                           >
                             <Label htmlFor="name" className="text-sm font-semibold text-gray-700">
-                              Full Name
+                              Full Name *
                             </Label>
                             <Input
                               id="name"
@@ -359,6 +431,7 @@ export default function BusinessUsersPage() {
                               value={userForm.name}
                               onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
                               className="rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all duration-300"
+                              required
                             />
                           </motion.div>
                           <motion.div
@@ -368,7 +441,7 @@ export default function BusinessUsersPage() {
                             transition={{ delay: 0.2 }}
                           >
                             <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
-                              Email Address
+                              Email Address *
                             </Label>
                             <Input
                               id="email"
@@ -377,6 +450,7 @@ export default function BusinessUsersPage() {
                               value={userForm.email}
                               onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                               className="rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all duration-300"
+                              required
                             />
                           </motion.div>
                           <motion.div
@@ -386,7 +460,7 @@ export default function BusinessUsersPage() {
                             transition={{ delay: 0.3 }}
                           >
                             <Label htmlFor="locations" className="text-sm font-semibold text-gray-700">
-                              Assigned Locations
+                              Assigned Locations *
                             </Label>
                             <Input
                               id="locations"
@@ -394,6 +468,7 @@ export default function BusinessUsersPage() {
                               value={userForm.locations}
                               onChange={(e) => setUserForm({ ...userForm, locations: e.target.value })}
                               className="rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all duration-300"
+                              required
                             />
                           </motion.div>
                           <motion.div
@@ -409,18 +484,26 @@ export default function BusinessUsersPage() {
                               className="grid grid-cols-1 gap-4"
                             >
                               <motion.div
-                                className="flex items-center space-x-3 border-2 rounded-2xl p-4 hover:bg-gradient-to-r hover:from-amber-50 hover:to-yellow-50 hover:border-amber-200 cursor-pointer transition-all duration-300"
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                                className="flex items-center space-x-3 border-2 rounded-2xl p-4 opacity-50 cursor-not-allowed transition-all duration-300"
+                                whileHover={{ scale: 1.01 }}
                               >
-                                <RadioGroupItem value="Business Owner" id="business-owner" />
+                                <RadioGroupItem
+                                  value="Business Owner"
+                                  id="business-owner"
+                                  disabled={true} // Disable Business Owner selection
+                                />
                                 <div className="flex items-center gap-3">
                                   <Crown className="h-5 w-5 text-amber-500" />
                                   <div>
-                                    <Label htmlFor="business-owner" className="cursor-pointer font-semibold">
+                                    <Label
+                                      htmlFor="business-owner"
+                                      className="cursor-not-allowed font-semibold text-gray-500"
+                                    >
                                       Business Owner
                                     </Label>
-                                    <p className="text-xs text-gray-500">Full access to all features and settings</p>
+                                    <p className="text-xs text-gray-400">
+                                      Full access to all features and settings (Cannot be assigned)
+                                    </p>
                                   </div>
                                 </div>
                               </motion.div>
@@ -584,32 +667,41 @@ export default function BusinessUsersPage() {
                                 </TableCell>
                                 <TableCell className="text-right py-4 px-6">
                                   <div className="flex justify-end gap-2">
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleEditUser(user)}
-                                          className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all duration-300 hover:scale-110"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Edit User</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleDeleteUser(user.id)}
-                                          className="h-10 w-10 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-300 hover:scale-110"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Delete User</TooltipContent>
-                                    </Tooltip>
+                                    {user.id !== "owner" ? (
+                                      <>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleEditUser(user)}
+                                              className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all duration-300 hover:scale-110"
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Edit User</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleDeleteUser(user.id)}
+                                              className="h-10 w-10 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-300 hover:scale-110"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Delete User</TooltipContent>
+                                        </Tooltip>
+                                      </>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <Crown className="h-3 w-3 text-amber-500" />
+                                        Owner Account
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               </motion.tr>

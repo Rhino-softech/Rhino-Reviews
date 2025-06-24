@@ -2,13 +2,14 @@
 import { useCallback, useState, useEffect } from "react"
 import type React from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, Building2, Users, Menu, X, LogOut, Star, User, BarChart2 } from "lucide-react"
+import { LayoutDashboard, Building2, Users, Menu, X, LogOut, Star, User, BarChart2, Settings, BugIcon, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { signOut, onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "@/firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
+import { FaBuilding } from "react-icons/fa"
 
 interface SimpleAdminLayoutProps {
   children: React.ReactNode
@@ -57,13 +58,15 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
     })
   }, [navigate])
 
-  const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
-    { icon: Building2, label: "Businesses", href: "/admin/businesses" },
-    { icon: BarChart2, label: "Analytics", href: "/admin/analytics" },
-    { icon: Users, label: "Users", href: "/admin/users" },
-    { icon: User, label: "Profile", href: "/admin/settings" },
-  ]
+   // simple-admin-layout.tsx (only showing the relevant changes)
+const navItems = [
+  { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
+  { icon: Building2, label: "Businesses", href: "/admin/businesses" },
+  { icon: BarChart2, label: "Analytics", href: "/admin/analytics" },
+  { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: User, label: "Profile", href: "/admin/settings" },
+ 
+]
 
   if (loading) {
     return (

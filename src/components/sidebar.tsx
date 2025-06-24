@@ -26,7 +26,7 @@ const hasProPlan = (plan: string | undefined) => {
   return (
     normalizedPlan.includes("professional") ||
     normalizedPlan.includes("pro") ||
-    normalizedPlan.includes("plan_pro") ||
+    normalizedPlan.includes("custom") ||
     normalizedPlan.includes("premium")
   )
 }
