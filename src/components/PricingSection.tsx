@@ -202,8 +202,8 @@ const PricingSection = () => {
         "3 Business Locations",
         "100 Review Requests/Month",
         "Email Support",
+        "Chat Support",
         "Mobile responsive dashboard",
-        "Basic Analytics",
         "Review Response Templates"
       ],
       cta: "Start Free Trial",
@@ -222,12 +222,12 @@ const PricingSection = () => {
         "5 Business Locations",
         "500 Review Requests/Month",
         "Priority Email Support",
+        "Priority Whatsapp Suport",
         "Advanced Analytics Dashboard",
         "Location-based Filtering",
         "Sentiment Analysis",
-        "Performance Trends",
-        "Team Management",
-        "Custom Branding"
+        "Mobile responsive dashboard",
+        
       ],
       cta: "Start Free Trial",
       popular: true,
@@ -245,15 +245,13 @@ const PricingSection = () => {
         "Unlimited Business Locations",
         "Unlimited Review Requests",
         "Advanced Analytics & Insights",
-        "AI-Powered Recommendations",
-        "Priority Phone Support",
-        "Dedicated Account Manager",
-        "White-label Solutions",
-        "API Access & Webhooks",
-        "Custom Training & Onboarding",
-        "Advanced Team Management",
-        "Custom Integrations",
-        "24/7 Priority Support"
+        "Priority Chat Support",
+        "Customized Templates"
+        "QR Generator"
+        "Location-based Filtering",
+        "Sentiment Analysis",
+        "Predicted Analysis",
+        "Mobile responsive dashboard",
       ],
       cta: "Get Custom Plan",
       popular: false,
