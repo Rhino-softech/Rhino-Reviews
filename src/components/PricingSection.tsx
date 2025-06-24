@@ -246,8 +246,8 @@ const PricingSection = () => {
         "Unlimited Review Requests",
         "Advanced Analytics & Insights",
         "Priority Chat Support",
-        "Customized Templates"
-        "QR Generator"
+        "Customized Templates",
+        "QR Generator",
         "Location-based Filtering",
         "Sentiment Analysis",
         "Predicted Analysis",
