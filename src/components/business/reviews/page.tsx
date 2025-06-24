@@ -1559,14 +1559,14 @@ export default function BusinessReviews() {
 
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <Button
+{/*                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-12 w-12 hover:bg-red-50 hover:text-red-600 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
                                     aria-label="Delete review"
                                   >
                                     <Trash2 className="h-5 w-5" />
-                                  </Button>
+                                  </Button> */}
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-3 border border-red-200 shadow-xl rounded-2xl">
                                   <Button
