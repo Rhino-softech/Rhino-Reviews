@@ -268,10 +268,10 @@ export default function ReviewLinkPage() {
             let reviewUrl = data.reviewLinkUrl
             if (!reviewUrl) {
               const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-              reviewUrl = `http://localhost:8081/${slug}`
+              reviewUrl = `https://rhino-review.rhinosoft.in/${slug}`
             }
             setReviewLinkUrl(reviewUrl)
-            setTempBusinessSlug(reviewUrl.replace("http://localhost:8081/", ""))
+            setTempBusinessSlug(reviewUrl.replace("https://rhino-review.rhinosoft.in/", ""))
           } else {
             const docRef = doc(db, "review_link", user.uid)
             const docSnap = await getDoc(docRef)
@@ -295,15 +295,15 @@ export default function ReviewLinkPage() {
               let reviewUrl = data.reviewLinkUrl
               if (!reviewUrl) {
                 const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-                reviewUrl = `http://localhost:8081/${slug}`
+                reviewUrl = `https://rhino-review.rhinosoft.in/${slug}`
               }
               setReviewLinkUrl(reviewUrl)
-              setTempBusinessSlug(reviewUrl.replace("http://localhost:8081/", ""))
+              setTempBusinessSlug(reviewUrl.replace("https://rhino-review.rhinosoft.in/", ""))
             } else {
               const slug = businessNameFromInfo
                 ? businessNameFromInfo.toLowerCase().replace(/\s+/g, "-")
                 : "your-business"
-              setReviewLinkUrl(`http://localhost:8081/${slug}`)
+              setReviewLinkUrl(`https://rhino-review.rhinosoft.in/${slug}`)
               setTempBusinessSlug(slug)
               setBusinessName(businessNameFromInfo || "")
               setTempBusinessName(businessNameFromInfo || "")
@@ -378,7 +378,7 @@ export default function ReviewLinkPage() {
   const handleUrlEdit = () => {
     if (isEditingUrl) {
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
-      const newUrl = `http://localhost:8081/${newSlug}`
+      const newUrl = `https://rhino-review.rhinosoft.in/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
 
@@ -397,7 +397,7 @@ export default function ReviewLinkPage() {
         })
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace("http://localhost:8081/", ""))
+      setTempBusinessSlug(reviewLinkUrl.replace("https://rhino-review.rhinosoft.in/", ""))
     }
     setIsEditingUrl(!isEditingUrl)
   }
@@ -764,7 +764,7 @@ export default function ReviewLinkPage() {
                   {isEditingUrl ? (
                     <div className="space-y-4">
                       <div className="flex items-center">
-                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">http://localhost:8081/</span>
+                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">https://rhino-review.rhinosoft.in/</span>
                         <Input
                           value={tempBusinessSlug}
                           onChange={(e) => setTempBusinessSlug(e.target.value)}
