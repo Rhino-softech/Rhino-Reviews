@@ -1,19 +1,19 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 
 import { useState, useEffect, useCallback } from "react"
 import { SimpleAdminLayout } from "@/components/simple-admin-layout"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Search, Star, FileText, ChevronDown, ChevronUp, Crown, Zap, Sparkles } from "lucide-react"
+import { Search, Star, FileText, Crown, Zap, Sparkles, Building2, Users, Calendar } from "lucide-react"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
 import { format } from "date-fns"
 import { useNavigate } from "react-router-dom"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface BusinessUser {
   uid: string
@@ -58,39 +58,36 @@ export default function BusinessesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [businesses, setBusinesses] = useState<BusinessUser[]>([])
-  const [expandedRows, setExpandedRows] = useState<string[]>([])
-
-  const toggleRowExpansion = (uid: string) => {
-    setExpandedRows((prev) => (prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]))
-  }
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessUser | null>(null)
+  const [modalType, setModalType] = useState<"subscription" | "businessForm" | null>(null)
 
   const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case "Active":
-        return "bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700"
+        return "bg-emerald-500 text-white shadow-emerald-200"
       case "Pending":
-        return "bg-gradient-to-r from-yellow-500 to-amber-600 text-white hover:from-yellow-600 hover:to-amber-700"
+        return "bg-amber-500 text-white shadow-amber-200"
       case "Suspended":
-        return "bg-gradient-to-r from-red-500 to-rose-600 text-white hover:from-red-600 hover:to-rose-700"
+        return "bg-red-500 text-white shadow-red-200"
       default:
-        return "bg-gradient-to-r from-gray-400 to-gray-600 text-white"
+        return "bg-slate-500 text-white shadow-slate-200"
     }
   }, [])
 
   const getPlanColor = useCallback((plan: string) => {
     switch (plan) {
       case "Premium":
-        return "bg-gradient-to-r from-purple-500 to-pink-600 text-white"
+        return "bg-gradient-to-r from-violet-600 to-purple-600 text-white"
       case "Pro":
-        return "bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
+        return "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
       case "Basic":
-        return "bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+        return "bg-gradient-to-r from-teal-600 to-cyan-600 text-white"
       case "professional":
-        return "bg-gradient-to-r from-blue-500 to-cyan-600 text-white"
+        return "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
       case "starter":
-        return "bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+        return "bg-gradient-to-r from-teal-600 to-cyan-600 text-white"
       default:
-        return "bg-gradient-to-r from-gray-400 to-gray-600 text-white"
+        return "bg-gradient-to-r from-slate-600 to-gray-600 text-white"
     }
   }, [])
 
@@ -114,11 +111,11 @@ export default function BusinessesPage() {
   const getSubscriptionStatusColor = useCallback((status: string) => {
     switch (status) {
       case "Active":
-        return "bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+        return "bg-emerald-500 text-white shadow-emerald-200"
       case "Expired":
-        return "bg-gradient-to-r from-red-500 to-rose-600 text-white"
+        return "bg-red-500 text-white shadow-red-200"
       default:
-        return "bg-gradient-to-r from-gray-400 to-gray-600 text-white"
+        return "bg-slate-500 text-white shadow-slate-200"
     }
   }, [])
 
@@ -221,284 +218,327 @@ export default function BusinessesPage() {
     navigate(`/admin/subscriptions/${uid}`)
   }
 
+  const openSubscriptionModal = (business: BusinessUser) => {
+    setSelectedBusiness(business)
+    setModalType("subscription")
+  }
+
+  const openBusinessFormModal = (business: BusinessUser) => {
+    setSelectedBusiness(business)
+    setModalType("businessForm")
+  }
+
+  const closeModal = () => {
+    setSelectedBusiness(null)
+    setModalType(null)
+  }
+
   return (
     <SimpleAdminLayout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="space-y-6 animate-fade-in p-6">
-          <div className="animate-slide-down">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-              Business Management
-            </h1>
-            <p className="text-gray-600 mt-2 text-lg">Manage all registered businesses</p>
-          </div>
+      <style jsx>{`
+  @keyframes gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 3s ease infinite;
+  }
 
-          <Card className="bg-white border-gray-200 shadow-2xl transition-all hover:shadow-3xl">
-            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between bg-gradient-to-r from-gray-50 to-blue-50 rounded-t-lg gap-4">
-              <div>
-                <CardTitle className="text-2xl font-bold text-gray-800">All Businesses</CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
-                  {businesses.length} businesses registered •{" "}
-                  {businesses.filter((b) => b.subscriptionStatus === "Active").length} active subscriptions
-                </p>
-              </div>
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-blue-500" />
-                <Input
-                  placeholder="Search businesses..."
-                  className="pl-8 bg-white border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
-                  value={searchQuery}
-                  onChange={handleSearch}
-                />
+`}</style>
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-purple-50 to-indigo-100">
+        <div className="space-y-8 p-6">
+          {/* Stats Cards */}
+          {/* Main Content Card */}
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-2xl">
+            <CardHeader className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white rounded-t-xl">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <Users className="w-6 h-6" />
+                  <div>
+                    <CardTitle className="text-2xl font-bold">Business Directory</CardTitle>
+                    <p className="text-slate-300 text-sm mt-1">Manage and monitor all registered businesses</p>
+                  </div>
+                </div>
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                  <Input
+                    placeholder="Search by name, type, or plan..."
+                    className="pl-10 h-12 bg-white/95 backdrop-blur-sm border-purple-200 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent rounded-2xl shadow-lg"
+                    value={searchQuery}
+                    onChange={handleSearch}
+                  />
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-8">
               {isLoading ? (
                 <div className="flex justify-center items-center h-64">
                   <div className="relative">
-                    <div className="w-16 h-16 border-4 border-gray-300 border-t-4 border-t-blue-500 rounded-full animate-spin"></div>
+                    <div className="w-20 h-20 border-4 border-slate-200 border-t-4 border-t-blue-600 rounded-full animate-spin animate-bounce"></div>
                     <div
-                      className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-4 border-r-purple-500 rounded-full animate-spin"
+                      className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-4 border-r-indigo-600 rounded-full animate-spin"
                       style={{ animationDelay: "0.15s" }}
                     ></div>
                   </div>
                 </div>
               ) : filteredBusinesses().length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
-                  <div className="bg-gray-100 p-4 rounded-full mb-4">
-                    <Search className="h-10 w-10 text-gray-400" />
+                <div className="flex flex-col items-center justify-center h-64 text-slate-500 p-4 text-center">
+                  <div className="bg-slate-100 p-6 rounded-2xl mb-6">
+                    <Search className="h-12 w-12 text-slate-400" />
                   </div>
-                  <h3 className="text-lg font-medium mb-1 text-gray-800">No businesses found</h3>
-                  <p className="max-w-md text-gray-600">
+                  <h3 className="text-xl font-semibold mb-2 text-slate-800">No businesses found</h3>
+                  <p className="max-w-md text-slate-600">
                     {searchQuery
-                      ? "No businesses match your search. Try different keywords."
-                      : "No businesses registered yet. New businesses will appear here once they sign up."}
+                      ? "No businesses match your search criteria. Try adjusting your filters."
+                      : "No businesses have registered yet. New registrations will appear here."}
                   </p>
                 </div>
               ) : (
-                <Table className="rounded-lg overflow-hidden">
-                  <TableHeader className="bg-gray-100">
-                    <TableRow className="hover:bg-gray-200 border-gray-200">
-                      <TableHead className="w-8"></TableHead>
-                      <TableHead className="font-bold text-orange-600">Business</TableHead>
-                      <TableHead className="font-bold text-orange-600">Owner</TableHead>
-                      <TableHead className="font-bold text-orange-600">Plan</TableHead>
-                      <TableHead className="font-bold text-orange-600">Subscription</TableHead>
-                      <TableHead className="font-bold text-orange-600">Rating</TableHead>
-                      <TableHead className="font-bold text-orange-600">Status</TableHead>
-                      <TableHead className="font-bold text-orange-600">Joined</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredBusinesses().map((business) => {
-                      const PlanIcon = getPlanIcon(business.subscriptionPlan)
-                      return (
-                        <>
-                          <TableRow
-                            key={business.uid}
-                            className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-200 ease-in-out cursor-pointer"
-                            onClick={() => toggleRowExpansion(business.uid)}
-                          >
-                            <TableCell className="py-3">
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:bg-blue-100">
-                                {expandedRows.includes(business.uid) ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TableCell>
-                            <TableCell className="font-medium group">
-                              <div>
-                                <span className="group-hover:text-blue-600 transition-colors text-gray-800">
-                                  {business.businessName}
-                                </span>
-                                <div className="flex items-center mt-1">
-                                  <Badge variant="outline" className="border-blue-300 text-blue-600 bg-blue-50 text-xs">
-                                    {business.businessType}
-                                  </Badge>
-                                  {business.businessFormFilled ? (
-                                    <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 text-xs">
-                                      <FileText className="h-3 w-3 mr-1" /> Form
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="ml-2 bg-gray-100 text-gray-600 text-xs">
-                                      No Form
-                                    </Badge>
-                                  )}
-                                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {filteredBusinesses().map((business) => {
+                    const PlanIcon = getPlanIcon(business.subscriptionPlan)
+                    return (
+                      <Card
+                        key={business.uid}
+                        className="group hover:shadow-2xl transition-all duration-500 ease-in-out border-0 bg-white/90 backdrop-blur-sm hover:scale-[1.02]"
+                      >
+                        <CardContent className="p-6">
+                          {/* Header */}
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex-1">
+                              <h3 className="text-xl font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                {business.businessName}
+                              </h3>
+                              <p className="text-sm text-slate-500 mt-1">{business.businessType}</p>
+                            </div>
+                            <Badge
+                              className={`${getStatusColor(business.status)} shadow-lg text-xs font-medium px-3 py-1`}
+                            >
+                              {business.status}
+                            </Badge>
+                          </div>
+
+                          {/* Rating & Date */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex items-center space-x-1 bg-amber-50 px-3 py-1 rounded-full">
+                                <Star className="h-4 w-4 text-amber-500 fill-current" />
+                                <span className="font-semibold text-amber-700">{business.rating}</span>
+                                <span className="text-xs text-amber-600">({business.reviewCount})</span>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-gray-800">{business.displayName}</p>
-                                <p className="text-sm text-gray-500 group-hover:text-blue-600 transition-colors truncate max-w-[160px]">
-                                  {business.email}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                className={`${getPlanColor(business.subscriptionPlan)} text-xs flex items-center space-x-1`}
-                              >
-                                <PlanIcon className="w-3 h-3" />
-                                <span>{business.subscriptionPlan}</span>
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <Badge
-                                  className={`${getSubscriptionStatusColor(business.subscriptionStatus)} text-xs mb-1 w-fit`}
-                                >
-                                  {business.subscriptionStatus}
-                                </Badge>
-                                {business.subscriptionEndDate && (
-                                  <span className="text-xs text-gray-500">
-                                    Ends: {formatSubscriptionDate(business.subscriptionEndDate)}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center space-x-1">
-                                <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                                <span className="font-semibold text-gray-800">{business.rating}</span>
-                                <span className="text-xs text-gray-500">({business.reviewCount})</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                className={`${getStatusColor(business.status)} transition-all hover:scale-105 cursor-pointer text-xs`}
-                              >
-                                {business.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-gray-600 text-sm">
+                            </div>
+                            <div className="flex items-center text-xs text-slate-500">
+                              <Calendar className="h-3 w-3 mr-1" />
                               {format(business.createdAt, "MMM d, yyyy")}
-                            </TableCell>
-                          </TableRow>
+                            </div>
+                          </div>
 
-                          {expandedRows.includes(business.uid) && (
-                            <TableRow className="bg-gray-50 border-b border-gray-200">
-                              <TableCell colSpan={8}>
-                                <div className="p-6 bg-white rounded-lg mx-4 my-2 shadow-lg">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Subscription Details */}
-                                    <div className="border border-gray-200 rounded-lg p-4 bg-blue-50">
-                                      <h3 className="font-bold text-blue-600 flex items-center">
-                                        <span className="bg-blue-100 p-1 rounded mr-2">
-                                          <Star className="h-4 w-4 text-blue-600" />
-                                        </span>
-                                        Subscription Details
-                                      </h3>
-                                      <div className="mt-3 space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-600">Plan:</span>
-                                          <Badge
-                                            className={`${getPlanColor(business.subscriptionPlan)} flex items-center space-x-1`}
-                                          >
-                                            <PlanIcon className="w-3 h-3" />
-                                            <span>{business.subscriptionPlan}</span>
-                                          </Badge>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-600">Status:</span>
-                                          <Badge
-                                            className={`${getSubscriptionStatusColor(business.subscriptionStatus)}`}
-                                          >
-                                            {business.subscriptionStatus}
-                                          </Badge>
-                                        </div>
-                                        {business.subscriptionEndDate && (
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Renewal Date:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {formatSubscriptionDate(business.subscriptionEndDate)}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Business Form Preview */}
-                                    <div className="border border-gray-200 rounded-lg p-4 bg-green-50">
-                                      <h3 className="font-bold text-green-600 flex items-center">
-                                        <span className="bg-green-100 p-1 rounded mr-2">
-                                          <FileText className="h-4 w-4 text-green-600" />
-                                        </span>
-                                        Business Form {business.businessFormFilled ? "Details" : "Not Submitted"}
-                                      </h3>
-
-                                      {business.businessFormFilled && business.businessInfo ? (
-                                        <div className="mt-3 space-y-2 text-sm">
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Contact Email:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {business.businessInfo.contactEmail || "N/A"}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Contact Phone:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {business.businessInfo.contactPhone || "N/A"}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Business Type:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {business.businessInfo.businessType || "N/A"}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Branches:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {business.businessInfo.branches?.length || 0} locations
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Last Updated:</span>
-                                            <span className="font-medium text-gray-800">
-                                              {business.businessInfo.lastUpdated
-                                                ? format(business.businessInfo.lastUpdated.toDate(), "MMM d, yyyy")
-                                                : "N/A"}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div className="mt-3 text-gray-600 italic">
-                                          This business hasn't submitted their details form yet.
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-4 flex justify-end space-x-2">
-                                    <Button
-                                      variant="outline"
-                                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                                      onClick={() => handleViewDetails(business.uid)}
-                                    >
-                                      View Full Details
-                                    </Button>
-                                    <Button
-                                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                                      onClick={() => handleManageSubscription(business.uid)}
-                                    >
-                                      Manage Subscription
-                                    </Button>
-                                  </div>
+                          {/* Info Cards */}
+                          <div className="space-y-3 mb-6">
+                            <div
+                              className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl cursor-pointer hover:from-slate-100 hover:to-blue-100 transition-all"
+                              onClick={() => openSubscriptionModal(business)}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <PlanIcon className="h-4 w-4 text-blue-600" />
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                                <span className="text-sm font-medium text-slate-700">Subscription</span>
+                              </div>
+                              <Badge
+                                className={`${getSubscriptionStatusColor(business.subscriptionStatus)} text-xs shadow-md`}
+                              >
+                                {business.subscriptionStatus}
+                              </Badge>
+                            </div>
+
+                            <div
+                              className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-emerald-50 rounded-xl cursor-pointer hover:from-slate-100 hover:to-emerald-100 transition-all"
+                              onClick={() => openBusinessFormModal(business)}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                  <FileText className="h-4 w-4 text-emerald-600" />
+                                </div>
+                                <span className="text-sm font-medium text-slate-700">Business Form</span>
+                              </div>
+                              <Badge
+                                className={`text-xs shadow-md ${
+                                  business.businessFormFilled
+                                    ? "bg-emerald-500 text-white"
+                                    : "bg-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {business.businessFormFilled ? "Complete" : "Pending"}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Footer */}
+                          <div className="pt-4 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-4">
+                              <div>
+                                <p className="text-sm font-medium text-slate-800">{business.displayName}</p>
+                                <p className="text-xs text-slate-500 truncate max-w-[200px]">{business.email}</p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 border-purple-300 text-purple-700 hover:bg-purple-50 hover:text-purple-800 rounded-lg"
+                                onClick={() => handleViewDetails(business.uid)}
+                              >
+                                View Details
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="flex-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 hover:from-pink-600 hover:via-purple-600 hover:to-indigo-600 text-white shadow-lg rounded-lg"
+                                onClick={() => handleManageSubscription(business.uid)}
+                              >
+                                Manage
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Subscription Details Modal */}
+        <Dialog open={modalType === "subscription" && selectedBusiness !== null} onOpenChange={closeModal}>
+          <DialogContent className="sm:max-w-md bg-gradient-to-br from-white via-purple-50 to-pink-50 backdrop-blur-sm border-0 shadow-2xl rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-slate-800">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                  <Star className="w-4 h-4 text-blue-600" />
+                </div>
+                Subscription Overview
+              </DialogTitle>
+            </DialogHeader>
+            {selectedBusiness && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                  <span className="text-slate-600 font-medium">Plan:</span>
+                  <Badge
+                    className={`${getPlanColor(selectedBusiness.subscriptionPlan)} flex items-center space-x-1 shadow-md`}
+                  >
+                    {React.createElement(getPlanIcon(selectedBusiness.subscriptionPlan), { className: "w-3 h-3" })}
+                    <span>{selectedBusiness.subscriptionPlan}</span>
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                  <span className="text-slate-600 font-medium">Status:</span>
+                  <Badge className={`${getSubscriptionStatusColor(selectedBusiness.subscriptionStatus)} shadow-md`}>
+                    {selectedBusiness.subscriptionStatus}
+                  </Badge>
+                </div>
+                {selectedBusiness.subscriptionEndDate && (
+                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                    <span className="text-slate-600 font-medium">Renewal Date:</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatSubscriptionDate(selectedBusiness.subscriptionEndDate)}
+                    </span>
+                  </div>
+                )}
+                <div className="pt-4 mt-6 border-t border-slate-200 flex justify-end">
+                  <Button
+                    className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 hover:from-pink-600 hover:via-purple-600 hover:to-indigo-600 text-white shadow-lg rounded-lg"
+                    onClick={() => handleManageSubscription(selectedBusiness.uid)}
+                  >
+                    Manage Subscription
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Business Form Modal */}
+        <Dialog open={modalType === "businessForm" && selectedBusiness !== null} onOpenChange={closeModal}>
+          <DialogContent className="sm:max-w-md bg-gradient-to-br from-white via-purple-50 to-pink-50 backdrop-blur-sm border-0 shadow-2xl rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-slate-800">
+                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center mr-3">
+                  <FileText className="w-4 h-4 text-emerald-600" />
+                </div>
+                Business Form Status
+              </DialogTitle>
+            </DialogHeader>
+            {selectedBusiness && (
+              <div className="space-y-4">
+                {selectedBusiness.businessFormFilled && selectedBusiness.businessInfo ? (
+                  <>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-600 font-medium">Contact Email:</span>
+                      <span className="font-semibold text-slate-800 text-sm">
+                        {selectedBusiness.businessInfo.contactEmail || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-600 font-medium">Contact Phone:</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedBusiness.businessInfo.contactPhone || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-600 font-medium">Business Type:</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedBusiness.businessInfo.businessType || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-600 font-medium">Branches:</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedBusiness.businessInfo.branches?.length || 0} locations
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-600 font-medium">Last Updated:</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedBusiness.businessInfo.lastUpdated
+                          ? format(selectedBusiness.businessInfo.lastUpdated.toDate(), "MMM d, yyyy")
+                          : "N/A"}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <p className="text-slate-600 italic">This business hasn't submitted their details form yet.</p>
+                  </div>
+                )}
+                <div className="pt-4 mt-6 border-t border-slate-200 flex justify-end">
+                  <Button
+                    variant="outline"
+                    className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 rounded-lg"
+                    onClick={() => handleViewDetails(selectedBusiness.uid)}
+                  >
+                    View Full Details
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </SimpleAdminLayout>
   )
