@@ -105,7 +105,7 @@ const Navbar = () => {
                   alt="Rhino Review Logo" 
                   className="h-8 object-contain"
                 />
-                <span className="text-orange-600 font-extrabold text-xl">Review Rhino</span>
+                <span className="text-orange-600 font-extrabold text-xl">Rhino Review</span>
               </Link>
             </div>
             <div className="hidden md:flex items-center space-x-4">
