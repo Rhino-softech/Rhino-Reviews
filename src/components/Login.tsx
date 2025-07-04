@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input"
 import { FcGoogle } from "react-icons/fc"
 import { auth, db, signInWithGoogle } from "../firebase/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { useNavigate } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RocketIcon } from "@radix-ui/react-icons"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from 'lucide-react'
 import Navbar from "./Navbar"
 
 export default function LoginForm() {
@@ -51,8 +51,30 @@ export default function LoginForm() {
     const userData = userSnap.data()
     const now = new Date()
 
-    if (userData.subscriptionActive) return true
-    if (userData.trialEndDate && userData.trialEndDate.toDate() > now) return true
+    // Admin users always have access
+    if (userData.role === "ADMIN") return true
+
+    // Check for active subscription
+    if (userData.subscriptionActive || userData.subscriptionPlan) return true
+
+    // Check trial status
+    if (userData.trialActive && userData.trialEndDate && userData.trialEndDate.toDate() > now) {
+      return true
+    }
+
+    // If user has no trial data set up (newly created by admin), set up default trial
+    if (!userData.trialEndDate && !userData.subscriptionPlan && userData.role === "BUSER") {
+      const trialEnd = new Date(now)
+      trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+
+      await updateDoc(userRef, {
+        trialActive: true,
+        trialEndDate: trialEnd,
+        subscriptionActive: false,
+      })
+
+      return true
+    }
 
     return false
   }
@@ -63,17 +85,20 @@ export default function LoginForm() {
     if (!userSnap.exists()) throw new Error("User data not found.")
     const userData = userSnap.data()
 
+    // Admin users go directly to admin dashboard
     if (userData.role === "ADMIN") {
       navigate("/admin/dashboard")
       return
     }
 
+    // Check access for business users
     const hasActiveAccess = await checkTrialStatus(uid)
     if (!hasActiveAccess) {
       setTrialExpired(true)
       return
     }
 
+    // Redirect business users based on form completion
     if (userData.businessFormFilled === true) {
       navigate("/components/business/dashboard")
     } else {
@@ -116,6 +141,8 @@ export default function LoginForm() {
       else if (err.code === "auth/wrong-password") message = "Incorrect password. Please try again."
       else if (err.code === "auth/invalid-email") message = "Invalid email format."
       else if (err.code === "auth/too-many-requests") message = "Too many attempts. Try again later."
+      else if (err.code === "auth/invalid-credential")
+        message = "Invalid email or password. Please check your credentials."
       setError(message)
     } finally {
       setLoading(false)
@@ -199,7 +226,7 @@ export default function LoginForm() {
               </Alert>
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full bg-transparent"
                 onClick={() => {
                   setAccountInactive(false)
                   setShowEmailForm(false)
@@ -233,7 +260,7 @@ export default function LoginForm() {
               </Button>
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full bg-transparent"
                 onClick={() => {
                   setTrialExpired(false)
                   setShowEmailForm(false)
@@ -310,7 +337,7 @@ export default function LoginForm() {
 
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full bg-transparent"
                 onClick={() => {
                   setShowForgotPassword(false)
                   setError("")
@@ -335,7 +362,7 @@ export default function LoginForm() {
 
             <Button
               variant="outline"
-              className="w-full mb-4 flex items-center justify-center gap-2 border-orange-500 text-orange-600 hover:bg-orange-100"
+              className="w-full mb-4 flex items-center justify-center gap-2 border-orange-500 text-orange-600 hover:bg-orange-100 bg-transparent"
               onClick={handleGoogleLogin}
               disabled={loading}
             >
@@ -355,7 +382,7 @@ export default function LoginForm() {
             {!showEmailForm && (
               <Button
                 variant="outline"
-                className="w-full mb-4 border-gray-300 text-gray-700 hover:bg-orange-100"
+                className="w-full mb-4 border-gray-300 text-gray-700 hover:bg-orange-100 bg-transparent"
                 onClick={() => setShowEmailForm(true)}
               >
                 Continue with Email

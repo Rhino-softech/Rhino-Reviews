@@ -102,10 +102,10 @@ const Navbar = () => {
               <Link to="/" className="flex items-center space-x-2">
                 <img 
                   src={logos} 
-                  alt="Review Rhino Logo" 
+                  alt="Rhino Review Logo" 
                   className="h-8 object-contain"
                 />
-                <span className="text-orange-600 font-extrabold text-xl">Review Rhino</span>
+                <span className="text-orange-600 font-extrabold text-xl">Rhino Review</span>
               </Link>
             </div>
             <div className="hidden md:flex items-center space-x-4">
@@ -139,10 +139,10 @@ const Navbar = () => {
             <Link to="/" className="flex items-center space-x-2">
               <img 
                 src={logos} 
-                alt="Review Rhino Logo" 
+                alt="Rhino Review Logo" 
                 className="h-10 object-contain"
               />
-              <span className="text-orange-600 font-extrabold text-xl">Review Rhino</span>
+              <span className="text-orange-600 font-extrabold text-xl"> Rhino Review</span>
             </Link>
           </div>
 

@@ -9,9 +9,9 @@ import { ChevronDown } from "lucide-react";
 const FaqSection = () => {
   const faqs = [
     {
-      question: "How does Review Rhino help monitor my reviews?",
-      answer:
-        "Review Rhino provides a centralized dashboard where you can track all your customer reviews from multiple platforms in one place. Get real-time notifications when new reviews are posted.",
+      question: "How does Rhino Review help monitor my reviews?",
+      answer: 
+        "Rhino Review provides a centralized dashboard where you can track all your customer reviews from multiple platforms in one place. Get real-time notifications when new reviews are posted.",
     },
     {
       question: "Which review platforms can I monitor?",
@@ -26,7 +26,7 @@ const FaqSection = () => {
     {
       question: "How do I display reviews on my website?",
       answer:
-        "Review Rhino offers simple widgets that you can easily embed on your website to showcase your best reviews. Customize which reviews to display based on rating or platform.",
+        "Rhino Review offers simple widgets that you can easily embed on your website to showcase your best reviews. Customize which reviews to display based on rating or platform.",
     },
     {
       question: "Do you offer analytics for my reviews?",
@@ -41,7 +41,7 @@ const FaqSection = () => {
     {
       question: "Can I use this for multiple business locations?",
       answer:
-        "Yes, Review Rhino supports multi-location businesses. You can monitor all locations from a single dashboard with location-specific analytics.",
+        "Yes, Rhino Review supports multi-location businesses. You can monitor all locations from a single dashboard with location-specific analytics.",
     },
     {
       question: "Is there a mobile app available?",
@@ -61,7 +61,7 @@ const FaqSection = () => {
               Frequently Asked Questions
             </h2>
             <p className="mt-4 text-lg text-gray-500 max-w-md">
-              Get answers to the most common questions about Review Rhino.
+              Get answers to the most common questions about Rhino Review.
             </p>
           </div>
 

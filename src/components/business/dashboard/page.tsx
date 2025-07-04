@@ -45,34 +45,47 @@ const hasLocationAccess = (plan: string | undefined, trialActive: boolean) => {
   )
 }
 
-const useSubscriptionStatus = () => {
-  const navigate = useNavigate()
+// Updated subscription status check - more lenient
+const checkUserAccess = async (user: any) => {
+  if (!user) return false
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userRef = doc(db, "users", user.uid)
-        const userSnap = await getDoc(userRef)
-        const userData = userSnap.data()
-        const now = new Date()
+  const userRef = doc(db, "users", user.uid)
+  const userSnap = await getDoc(userRef)
 
-        if (userData?.subscriptionActive || (userData?.trialEndDate && userData.trialEndDate.toDate() > now)) {
-          return
-        }
+  if (!userSnap.exists()) return false
 
-        navigate("/pricing")
-      }
-    })
+  const userData = userSnap.data()
+  const now = new Date()
 
-    return () => unsubscribe()
-  }, [navigate])
+  // Admin users always have access
+  if (userData.role === "ADMIN") return true
+
+  // Check account status first
+  if (userData.status !== "Active") return false
+
+  // Check for active subscription
+  if (userData.subscriptionActive || userData.subscriptionPlan) return true
+
+  // Check trial status - be more lenient
+  if (userData.trialActive) {
+    // If trial is active but no end date, give them access
+    if (!userData.trialEndDate) return true
+
+    // Check if trial end date is in the future
+    if (userData.trialEndDate.toDate() > now) return true
+  }
+
+  // If no trial data exists, they might be a newly created user - give them access
+  if (!userData.trialEndDate && !userData.subscriptionPlan) return true
+
+  return false
 }
 
 export default function BusinessDashboard() {
   const [period, setPeriod] = useState("week")
   const [selectedLocation, setSelectedLocation] = useState("All")
   const [branches, setBranches] = useState<any[]>([])
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false) // Added state for location dropdown visibility
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false)
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
     businessName: "",
     linkClicks: 0,
@@ -83,73 +96,89 @@ export default function BusinessDashboard() {
   const [allReviews, setAllReviews] = useState<Review[]>([])
   const navigate = useNavigate()
 
-  useSubscriptionStatus()
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      if (!user) {
+        navigate("/login")
+        return
+      }
+
+      // Check user access
+      const hasAccess = await checkUserAccess(user)
+      if (!hasAccess) {
+        navigate("/pricing")
+        return
+      }
+
+      try {
+        const userRef = doc(db, "users", user.uid)
+        const userDoc = await getDoc(userRef)
+
+        if (!userDoc.exists()) {
+          navigate("/login")
+          return
+        }
+
+        const userData = userDoc.data()
+        const businessData = userData.businessInfo || {}
+
+        // Set branches for location dropdown
+        const branchesData = businessData.branches || []
+        setBranches(branchesData)
+
+        // Check if user has access to location dropdown
+        const locationAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
+        setShowLocationDropdown(locationAccess)
+
+        setBusinessInfo({
+          businessName: businessData.businessName || "",
+          linkClicks: userData.linkClicks || 0,
+          responseRate: businessData.responseRate || 0,
+          createdAt: businessData.createdAt || { seconds: 0 },
+        })
+
+        const reviewsQuery = query(collection(db, "users", user.uid, "reviews"))
+        const querySnapshot = await getDocs(reviewsQuery)
+        const firebaseReviews: Review[] = []
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+          firebaseReviews.push({
+            id: doc.id,
+            name: data.name || "Anonymous",
+            rating: data.rating || 0,
+            review: data.review || data.message || "",
+            createdAt: { seconds: data.createdAt?.seconds || 0 },
+            status: data.status || "pending",
+            branchname: data.branchname || "",
+            replied: data.replied || false,
+            source: "firebase",
+          })
+        })
+
+        // Fetch Google reviews (if API key is available)
+        const businessName = businessData.businessName
+        const branchName = businessData.branches?.[0]?.branchname || ""
+        const searchQuery = `${businessName} ${branchName}`.trim()
+
+        let googleReviews: Review[] = []
+
         try {
-          const userRef = doc(db, "users", user.uid)
-          const userDoc = await getDoc(userRef)
+          // Only attempt Google API call if we have a valid API key
+          const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY || "YOUR_GOOGLE_API_KEY"
 
-          if (!userDoc.exists()) return navigate("/login")
-
-          const userData = userDoc.data()
-          const businessData = userData.businessInfo || {}
-
-          // Set branches for location dropdown
-          const branchesData = businessData.branches || []
-          setBranches(branchesData)
-
-          // Check if user has access to location dropdown
-          const hasAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
-          setShowLocationDropdown(hasAccess)
-
-          setBusinessInfo({
-            businessName: businessData.businessName || "",
-            linkClicks: userData.linkClicks || 0,
-            responseRate: businessData.responseRate || 0,
-            createdAt: businessData.createdAt || { seconds: 0 },
-          })
-
-          const reviewsQuery = query(collection(db, "users", user.uid, "reviews"))
-          const querySnapshot = await getDocs(reviewsQuery)
-          const firebaseReviews: Review[] = []
-
-          querySnapshot.forEach((doc) => {
-            const data = doc.data()
-            firebaseReviews.push({
-              id: doc.id,
-              name: data.name || "Anonymous",
-              rating: data.rating || 0,
-              review: data.review || data.message || "",
-              createdAt: { seconds: data.createdAt?.seconds || 0 },
-              status: data.status || "pending",
-              branchname: data.branchname || "",
-              replied: data.replied || false,
-              source: "firebase",
-            })
-          })
-
-          // Fetch Google reviews
-          const businessName = businessData.businessName
-          const branchName = businessData.branches?.[0]?.branchname || ""
-          const searchQuery = `${businessName} ${branchName}`.trim()
-
-          let googleReviews: Review[] = []
-
-          try {
+          if (GOOGLE_API_KEY && GOOGLE_API_KEY !== "YOUR_GOOGLE_API_KEY") {
             const searchRes = await fetch(
               `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
                 searchQuery,
-              )}&inputtype=textquery&fields=place_id&key=YOUR_GOOGLE_API_KEY`,
+              )}&inputtype=textquery&fields=place_id&key=${GOOGLE_API_KEY}`,
             )
             const searchData = await searchRes.json()
             const placeId = searchData?.candidates?.[0]?.place_id
 
             if (placeId) {
               const detailsRes = await fetch(
-                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=YOUR_GOOGLE_API_KEY`,
+                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=${GOOGLE_API_KEY}`,
               )
               const detailsData = await detailsRes.json()
               googleReviews = (detailsData.result?.reviews || []).map((r: any, i: number) => ({
@@ -164,18 +193,16 @@ export default function BusinessDashboard() {
                 source: "google",
               }))
             }
-          } catch (err) {
-            console.error("Failed to fetch Google reviews:", err)
           }
-
-          setAllReviews([...firebaseReviews, ...googleReviews])
-        } catch (error) {
-          console.error("Error fetching data:", error)
-        } finally {
-          setLoading(false)
+        } catch (err) {
+          console.error("Failed to fetch Google reviews:", err)
         }
-      } else {
-        navigate("/login")
+
+        setAllReviews([...firebaseReviews, ...googleReviews])
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setLoading(false)
       }
     })
 
@@ -235,7 +262,7 @@ export default function BusinessDashboard() {
         ratingDistribution: ratingCounts,
       },
     }
-  }, [allReviews, period, businessInfo, selectedLocation]) // Added selectedLocation dependency
+  }, [allReviews, period, businessInfo, selectedLocation])
 
   const formatDate = (seconds: number) => {
     return new Date(seconds * 1000).toLocaleDateString("en-US", {

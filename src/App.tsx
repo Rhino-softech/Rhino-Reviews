@@ -37,6 +37,8 @@ import ContactPage from "./components/ContactPage";
 import Demo2 from "./components/demo2";
 import ChatSupportWidget from "./components/chat-support-widget";
 import QRGenerator from "./components/qr-generator";
+import DemoBookingChat from "./components/admin/settings/demo-booking-chat";
+import PricingSettings from "./components/admin/settings/pricing-settings";
 
 
 function useScrollToHash() {
@@ -107,6 +109,9 @@ return (
         <Route path="/admin/register" element={<AdminRegistrationForm />} />
         <Route path="/admin/analytics" element={<AnalyticsPage />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
+        <Route path="/admin/demo-chat" element={<DemoBookingChat />} />
+        <Route path="/admin/pricing" element={<PricingSettings />} />
+
 
         <Route path="/admin/businesses/:uid" element={<BusinessDetailsPage params={{ uid: "" }} />} />
         <Route path="/admin/subscriptions/:uid" element={<SubscriptionPage params={{ uid: "" }} />} />

@@ -1,5 +1,7 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
-import { CheckIcon, StarIcon, Clock, Crown, Zap, Settings } from 'lucide-react'
+import { CheckIcon, StarIcon, Clock, Crown, Zap } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { auth, db } from "../firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
@@ -30,7 +32,7 @@ const PricingSection = () => {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>({
     starter: 49,
     professional: 99,
-    custom: 299
+    custom: 299,
   })
 
   // Map currency symbols to country codes
@@ -55,7 +57,7 @@ const PricingSection = () => {
           setPricingConfig({
             starter: data.starter || 49,
             professional: data.professional || 99,
-            custom: data.custom || 299
+            custom: data.custom || 299,
           })
         }
       } catch (error) {
@@ -120,9 +122,7 @@ const PricingSection = () => {
             const userData = userDoc.data()
             const now = new Date()
             const trialEnd = userData.trialEndDate?.toDate()
-            const trialDaysLeft = trialEnd
-              ? Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-              : 0
+            const trialDaysLeft = trialEnd ? Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0
 
             const subscriptionActive = userData.subscriptionActive || false
             const trialActive = subscriptionActive ? false : userData.trialActive || false
@@ -182,12 +182,14 @@ const PricingSection = () => {
     navigate("/payment", {
       state: {
         planName: planName,
-        price: planName.toLowerCase() === "starter" ? pricingConfig.starter : 
-               planName.toLowerCase() === "professional" ? pricingConfig.professional :
-               pricingConfig.custom,
+        price:
+          planName.toLowerCase() === "starter"
+            ? pricingConfig.starter
+            : planName.toLowerCase() === "professional"
+              ? pricingConfig.professional
+              : pricingConfig.custom,
         planId: planName.toLowerCase(),
-        monthlyLimit: planName.toLowerCase() === "starter" ? 100 : 
-                     planName.toLowerCase() === "professional" ? 500 : 0,
+        monthlyLimit: planName.toLowerCase() === "starter" ? 100 : planName.toLowerCase() === "professional" ? 500 : 0,
       },
     })
   }
@@ -204,7 +206,12 @@ const PricingSection = () => {
         "Email Support",
         "Chat Support",
         "Mobile responsive dashboard",
+<<<<<<< HEAD
         "Review Response Templates"
+=======
+        "Basic Analytics",
+        "Review Response Templates",
+>>>>>>> a9c212e (Updated the code)
       ],
       cta: "Start Free Trial",
       popular: false,
@@ -226,8 +233,14 @@ const PricingSection = () => {
         "Advanced Analytics Dashboard",
         "Location-based Filtering",
         "Sentiment Analysis",
+<<<<<<< HEAD
         "Mobile responsive dashboard",
         
+=======
+        "Performance Trends",
+        "Team Management",
+        "Custom Branding",
+>>>>>>> a9c212e (Updated the code)
       ],
       cta: "Start Free Trial",
       popular: true,
@@ -245,6 +258,7 @@ const PricingSection = () => {
         "Unlimited Business Locations",
         "Unlimited Review Requests",
         "Advanced Analytics & Insights",
+<<<<<<< HEAD
         "Priority Chat Support",
         "Customized Templates",
         "QR Generator",
@@ -252,6 +266,17 @@ const PricingSection = () => {
         "Sentiment Analysis",
         "Predicted Analysis",
         "Mobile responsive dashboard",
+=======
+        "AI-Powered Recommendations",
+        "Priority Phone Support",
+        "Dedicated Account Manager",
+        "White-label Solutions",
+        "API Access & Webhooks",
+        "Custom Training & Onboarding",
+        "Advanced Team Management",
+        "Custom Integrations",
+        "24/7 Priority Support",
+>>>>>>> a9c212e (Updated the code)
       ],
       cta: "Get Custom Plan",
       popular: false,
@@ -394,11 +419,7 @@ const PricingSection = () => {
                     }}
                     disabled={isCurrentUserPlan}
                   >
-                    {isCurrentUserPlan
-                      ? "Current Plan"
-                      : userPlan?.subscriptionActive
-                        ? "Upgrade Plan"
-                        : plan.cta}
+                    {isCurrentUserPlan ? "Current Plan" : userPlan?.subscriptionActive ? "Upgrade Plan" : plan.cta}
                   </Button>
                 </div>
 
