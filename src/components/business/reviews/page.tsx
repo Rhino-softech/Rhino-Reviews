@@ -22,10 +22,14 @@ import {
   Gift,
   ShoppingCart,
   Package,
+  Copy,
+  CreditCard,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -556,7 +560,7 @@ const getTemplateMessages = (businessName: string, customerName: string, rating:
     email: {
       positive: `Dear ${customerName},
 
-Thank you so much for your wonderful {rating}-star review! We're absolutely delighted that you had such a positive experience with {businessName}.
+Thank you so much for your wonderful ${rating}-star review! We're absolutely delighted that you had such a positive experience with ${businessName}.
 
 Your kind words motivate our entire team to continue delivering exceptional service. We look forward to serving you again soon!
 
@@ -635,6 +639,7 @@ export default function BusinessReviews() {
   const [addonCredits, setAddonCredits] = useState(0) // SEPARATE from subscription plan
   const [usedAddonCredits, setUsedAddonCredits] = useState(0) // SEPARATE from subscription plan
   const [selectedAddonPackage, setSelectedAddonPackage] = useState<any>(null)
+  const [addonPackages, setAddonPackages] = useState<any[]>([])
 
   // Enhanced template message states
   const [showTemplateDialog, setShowTemplateDialog] = useState(false)
@@ -1031,6 +1036,26 @@ export default function BusinessReviews() {
     }
   }, [currentUser, fetchReviews])
 
+  // Fetch addon packages
+  useEffect(() => {
+    const fetchAddonPackages = async () => {
+      try {
+        const configRef = doc(db, "admin", "addonPackages")
+        const configDoc = await getDoc(configRef)
+        if (configDoc.exists()) {
+          const data = configDoc.data()
+          setAddonPackages(data.packages || [])
+        }
+      } catch (error) {
+        console.error("Error fetching addon packages:", error)
+      }
+    }
+
+    if (showAddonDialog) {
+      fetchAddonPackages()
+    }
+  }, [showAddonDialog])
+
   // EXISTING HELPER FUNCTIONS - UNCHANGED
   const formatPlanName = (plan?: string) => {
     if (!plan) return "Free Trial"
@@ -1272,6 +1297,64 @@ export default function BusinessReviews() {
       })
   }, [currentSubscriptionReviews, previousSubscriptionReviews, viewMode, selectedLocation, filterOption, sortOrder])
 
+  // Template selector for custom plans
+  const renderTemplateSelector = () => {
+    if (!isCustomPlan(userPlan?.subscriptionPlan)) return null
+
+    const templates = getTemplateMessages(
+      businessName,
+      selectedReview?.name || "",
+      selectedReview?.rating || 0,
+      userPlan?.subscriptionPlan,
+    )
+
+    const relevantTemplates =
+      messageCategory === "followup" ? templates.followup?.[templateType] || [] : templates[templateType] || []
+
+    return (
+      <Tabs value={messageCategory} onValueChange={(value) => setMessageCategory(value as "response" | "followup")}>
+        <TabsList className="grid w-full grid-cols-2 bg-slate-100 rounded-2xl p-1">
+          <TabsTrigger value="response" className="rounded-xl font-semibold">
+            Response Templates
+          </TabsTrigger>
+          <TabsTrigger value="followup" className="rounded-xl font-semibold">
+            Follow-up Templates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={messageCategory} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
+            {relevantTemplates.map((template: any) => (
+              <motion.div
+                key={template.id}
+                whileHover={{ scale: 1.02 }}
+                className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                  selectedTemplateId === template.id
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+                onClick={() => handleTemplateSelect(template.id, template.template)}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{template.icon || "📝"}</span>
+                  <span className="font-semibold text-sm">{template.name}</span>
+                </div>
+                <p className="text-xs text-gray-600 line-clamp-3">{template.template.substring(0, 100)}...</p>
+              </motion.div>
+            ))}
+          </div>
+          {relevantTemplates.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <p>
+                No {messageCategory} templates found for {templateType}
+              </p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    )
+  }
+
   // RENDER PLAN DETAILS - EXISTING LOGIC WITH ADD-ON CREDIT DISPLAY
   const renderPlanDetails = () => {
     if (!userPlan) return null
@@ -1426,346 +1509,6 @@ export default function BusinessReviews() {
     )
   }
 
-  // ENHANCED ADD-ON DIALOG WITH IMPROVED UI
-  const renderAddonDialog = () => {
-    // FETCH ADD-ON PACKAGES FROM ADMIN CONFIG
-    const [addonPackages, setAddonPackages] = useState<any[]>([])
-
-    useEffect(() => {
-      const fetchAddonPackages = async () => {
-        try {
-          const configRef = doc(db, "admin", "addonPackages")
-          const configDoc = await getDoc(configRef)
-          if (configDoc.exists()) {
-            const data = configDoc.data()
-            setAddonPackages(data.packages || [])
-          }
-        } catch (error) {
-          console.error("Error fetching addon packages:", error)
-        }
-      }
-
-      if (showAddonDialog) {
-        fetchAddonPackages()
-      }
-    }, [showAddonDialog])
-
-    return (
-      <Dialog open={showAddonDialog} onOpenChange={setShowAddonDialog}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border-0 shadow-2xl bg-gradient-to-br from-white via-slate-50 to-blue-50/30">
-          <DialogHeader className="text-center pb-8 border-b border-slate-200/60">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.5, type: "spring" }}
-              className="mx-auto w-20 h-20 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-3xl flex items-center justify-center shadow-2xl mb-6"
-            >
-              <Package className="h-10 w-10 text-white" />
-            </motion.div>
-            <DialogTitle className="text-4xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent mb-4">
-              Reply Credit Packages
-            </DialogTitle>
-            <DialogDescription className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Purchase reply credits to respond to reviews from your previous subscription periods
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {addonPackages.map((pkg, index) => (
-                <motion.div
-                  key={pkg.id}
-                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: index * 0.1, type: "spring", stiffness: 200 }}
-                  className={`relative overflow-hidden rounded-3xl border-2 transition-all duration-300 hover:scale-105 hover:shadow-2xl group ${
-                    pkg.popular
-                      ? "border-gradient-to-r from-green-400 to-emerald-500 bg-gradient-to-br from-green-50 to-emerald-100 shadow-xl"
-                      : "border-slate-200 bg-white hover:border-slate-300 shadow-lg"
-                  }`}
-                >
-                  {pkg.popular && (
-                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
-                      <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg">
-                        <Crown className="h-4 w-4 inline mr-1" />
-                        MOST POPULAR
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="p-8">
-                    <div className="text-center mb-8">
-                      <div className="text-5xl mb-4">{pkg.icon}</div>
-                      <h3 className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</h3>
-                      <p className="text-slate-600 text-lg leading-relaxed">{pkg.description}</p>
-                    </div>
-
-                    <div className="text-center mb-8">
-                      <div className="text-5xl font-bold text-slate-800 mb-2">{getConvertedPrice(pkg.price)}</div>
-                      <div className="text-slate-600 text-lg">{pkg.replies} Reply Credits</div>
-                      <div className="text-sm text-slate-500 mt-2">
-                        {getConvertedPrice(pkg.price / pkg.replies)} per reply
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 mb-8">
-                      <div className="flex items-center gap-3 text-slate-700">
-                        <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
-                        <span>Works for WhatsApp & Email replies</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-slate-700">
-                        <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
-                        <span>Credits never expire</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-slate-700">
-                        <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
-                        <span>Only for previous plan reviews</span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={() => handlePurchaseAddon(pkg)}
-                      className={`w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
-                        pkg.popular
-                          ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
-                          : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
-                      }`}
-                    >
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Purchase Package
-                    </Button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {addonPackages.length === 0 && (
-              <div className="text-center py-12">
-                <Package className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                <p className="text-slate-500 text-lg">No add-on packages available at the moment.</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  // EXISTING TEMPLATE DIALOG - ENHANCED FOR CUSTOM PLANS
-  const renderTemplateDialog = () => {
-    if (!selectedReview) return null
-
-    const isCustomUser = isCustomPlan(userPlan?.subscriptionPlan)
-    const templates = getTemplateMessages(
-      businessName,
-      selectedReview.name,
-      selectedReview.rating,
-      userPlan?.subscriptionPlan,
-    )
-
-    return (
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl">
-                {templateType === "whatsapp" ? (
-                  <MessageSquare className="h-6 w-6 text-white" />
-                ) : (
-                  <Mail className="h-6 w-6 text-white" />
-                )}
-              </div>
-              Send {templateType === "whatsapp" ? "WhatsApp" : "Email"} Reply
-            </DialogTitle>
-            <DialogDescription className="text-lg">
-              Replying to {selectedReview.name}'s {selectedReview.rating}-star review
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {isCustomUser && (
-              <Tabs
-                value={messageCategory}
-                onValueChange={(value) => setMessageCategory(value as "response" | "followup")}
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="response">Response Templates</TabsTrigger>
-                  <TabsTrigger value="followup">Follow-up Templates</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="response" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
-                    {(templates[templateType] as any[])?.map((template) => (
-                      <motion.div
-                        key={template.id}
-                        whileHover={{ scale: 1.02 }}
-                        className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                          selectedTemplateId === template.id
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                        onClick={() => handleTemplateSelect(template.id, template.template)}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xl">{template.icon}</span>
-                          <span className="font-semibold text-sm">{template.name}</span>
-                        </div>
-                        <p className="text-xs text-gray-600 line-clamp-3">{template.template.substring(0, 100)}...</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="followup" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
-                    {templates.followup?.[templateType]?.map((template: any) => (
-                      <motion.div
-                        key={template.id}
-                        whileHover={{ scale: 1.02 }}
-                        className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                          selectedTemplateId === template.id
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                        onClick={() => handleTemplateSelect(template.id, template.template)}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xl">{template.icon}</span>
-                          <span className="font-semibold text-sm">{template.name}</span>
-                        </div>
-                        <p className="text-xs text-gray-600 line-clamp-3">{template.template.substring(0, 100)}...</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            )}
-
-            <div>
-              <Label htmlFor="message" className="text-lg font-semibold">
-                Message
-              </Label>
-              <Textarea
-                id="message"
-                value={customMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                rows={8}
-                className="mt-2 border-2 border-gray-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 rounded-xl"
-                placeholder="Enter your message..."
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-4">
-            <Button variant="outline" onClick={() => setShowTemplateDialog(false)} className="px-6 py-3 rounded-xl">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSendMessage}
-              disabled={!customMessage.trim()}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Send {templateType === "whatsapp" ? "WhatsApp" : "Email"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  // EXISTING CUSTOM TEMPLATE MANAGER - UNCHANGED
-  const renderCustomTemplateManager = () => (
-    <Dialog open={showCustomTemplateManager} onOpenChange={setShowCustomTemplateManager}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl">
-              <Edit className="h-6 w-6 text-white" />
-            </div>
-            Custom Template Manager
-          </DialogTitle>
-          <DialogDescription className="text-lg">Create and manage your custom message templates</DialogDescription>
-        </DialogHeader>
-
-        <Tabs defaultValue="create" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="create">Create New Template</TabsTrigger>
-            <TabsTrigger value="manage">Manage Templates ({customTemplates.length})</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="create" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="templateName">Template Name</Label>
-                <Input
-                  id="templateName"
-                  value={newTemplateName}
-                  onChange={(e) => setNewTemplateName(e.target.value)}
-                  placeholder="e.g., Grateful Response"
-                  className="mt-2"
-                />
-              </div>
-              <div>
-                <Label>Template Type</Label>
-                <Select value={templateType} onValueChange={(value: "whatsapp" | "email") => setTemplateType(value)}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="email">Email</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="templateContent">Template Content</Label>
-              <Textarea
-                id="templateContent"
-                value={newTemplateContent}
-                onChange={(e) => setNewTemplateContent(e.target.value)}
-                rows={8}
-                className="mt-2"
-                placeholder="Use {businessName}, {customerName}, and {rating} as placeholders..."
-              />
-            </div>
-
-            <Button
-              onClick={handleSaveCustomTemplate}
-              disabled={!newTemplateName.trim() || !newTemplateContent.trim()}
-              className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-xl"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Save Template
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="manage" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-              {customTemplates.map((template) => (
-                <div key={template.id} className="p-4 border rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold">{template.name}</h4>
-                    <Badge variant="outline">{template.type}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 line-clamp-3">{template.template}</p>
-                </div>
-              ))}
-            </div>
-            {customTemplates.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <Edit className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No custom templates created yet.</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
-  )
-
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
@@ -1803,616 +1546,12 @@ export default function BusinessReviews() {
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                   <div className="flex flex-wrap items-center gap-4">
-                    {showLocationDropdown && (
+                    {activeBranches.length > 0 && (
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-slate-400" />
-                        <SelectValue placeholder="Select Location" />
-                      </div>
-                    )}
-                    <SelectTrigger className="rounded-2xl border-slate-200 shadow-xl">
-                      <SelectValue placeholder="Select Location" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-slate-200 shadow-xl">
-                      <SelectItem value="All">All Locations</SelectItem>
-                      {branches.map((branch) => (
-                        <SelectItem key={branch.id} value={branch.name}>
-                          {branch.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                <Select value={filterOption} onValueChange={setFilterOption}>
-                  <SelectTrigger className="w-[200px] border-slate-200 focus:ring-2 focus:ring-blue-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 bg-white/90">
-                    <SelectValue placeholder="Filter" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-slate-200 shadow-xl">
-                    <SelectItem value="All">All Reviews</SelectItem>
-                    <SelectItem value="Above 3">Rating Above 3</SelectItem>
-                    <SelectItem value="Below 3">Rating Below 3</SelectItem>
-                    <SelectItem value="Replied">Replied</SelectItem>
-                    <SelectItem value="Not Replied">Not Replied</SelectItem>
-                    <SelectItem value="Google Reviews">Google Reviews</SelectItem>
-                    <SelectItem value="Abandoned">Abandoned</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as "asc" | "desc")}>
-                  <SelectTrigger className="w-44 border-slate-200 focus:ring-2 focus:ring-blue-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 bg-white/90">
-                    <SelectValue placeholder="Sort by Date" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-slate-200 shadow-xl">
-                    <SelectItem value="desc">Newest First</SelectItem>
-                    <SelectItem value="asc">Oldest First</SelectItem>
-                  </SelectContent>
-                </Select>
-              </motion.div>
-            </motion.div>
-
-            {renderPlanDetails()}
-
-            {showUpgradePrompt && viewMode === "current" && (
-              <motion.div
-                className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-8 rounded-3xl shadow-xl"
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-              >
-                <div className="flex items-start">
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                  >
-                    <CreditCard className="h-7 w-7 text-amber-600 mt-0.5 flex-shrink-0" />
-                  </motion.div>
-                  <div className="ml-4">
-                    <p className="text-amber-800 font-semibold text-lg">
-                      🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
-                      <button
-                        onClick={() => window.location.assign("/#pricing")}
-                        className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
-                      >
-                        Upgrade your plan
-                      </button>{" "}
-                      to unlock unlimited reviews and premium features.
-                    </p>
-                    <div className="mt-4 flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
-                      <p className="text-sm text-amber-700 font-medium">
-                        New review requests will be redirected to Google Reviews.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {viewMode === "previous" && (
-              <motion.div
-                className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-8 rounded-3xl shadow-xl"
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-              >
-                <div className="flex items-start">
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                  >
-                    <Calendar className="h-7 w-7 text-blue-600 mt-0.5 flex-shrink-0" />
-                  </motion.div>
-                  <div className="ml-4">
-                    <p className="text-blue-800 font-semibold text-lg">
-                      You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These are
-                      sorted by plan duration and don't count toward your current subscription's limit.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            <div className="space-y-4">
-              {filteredReviews.length === 0 ? (
-                <motion.div
-                  className="bg-white/90 backdrop-blur-sm p-16 rounded-3xl border border-slate-200/60 text-center shadow-xl"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
-                >
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  >
-                    <FolderOpen className="h-20 w-20 mx-auto text-slate-300 mb-8" />
-                  </motion.div>
-                  <h3 className="text-2xl font-bold mb-4 text-slate-700">No reviews found</h3>
-                  <p className="text-slate-500 max-w-md mx-auto text-lg leading-relaxed">
-                    {selectedLocation !== "All"
-                      ? "No reviews found for the selected location. Try selecting a different location or filter."
-                      : "Start collecting reviews from your customers to see them here"}
-                  </p>
-                  <div className="mt-8">
-                    <Button
-                      onClick={handleStartReviewProcess}
-                      variant={isReviewLimitReached ? "default" : "outline"}
-                      className={`${
-                        isReviewLimitReached
-                          ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                          : "border-slate-300 hover:bg-slate-50"
-                      } px-8 py-3 rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300`}
-                    >
-                      {isReviewLimitReached ? (
-                        <>
-                          <Globe className="w-5 h-5 mr-2" />
-                          Leave a Google Review
-                        </>
-                      ) : (
-                        "Request a Review"
-                      )}
-                    </Button>
-                  </div>
-                </motion.div>
-              ) : (
-                <AnimatePresence mode="popLayout">
-                  {filteredReviews.map((review, index) => (
-                    <motion.div
-                      key={review.id}
-                      className={`group bg-white/95 backdrop-blur-sm p-6 rounded-3xl shadow-xl border border-slate-200/60 hover:shadow-2xl transition-all duration-300 relative overflow-hidden ${
-                        viewMode === "previous" ? "opacity-90" : ""
-                      }`}
-                      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -30, scale: 0.95, height: 0 }}
-                      transition={{
-                        duration: 0.4,
-                        delay: index * 0.05,
-                        type: "spring",
-                        stiffness: 100,
-                      }}
-                      whileHover={{
-                        scale: 1.01,
-                        transition: { duration: 0.2 },
-                      }}
-                    >
-                      {viewMode === "previous" && (
-                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 pointer-events-none rounded-3xl" />
-                      )}
-
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-3xl" />
-
-                      {review.replied && (
-                        <motion.div
-                          className="absolute right-6 top-6 z-10"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 260,
-                            damping: 20,
-                            delay: 0.3,
-                          }}
-                        >
-                          <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-full shadow-xl">
-                            <Check className="h-5 w-5 text-white" />
-                          </div>
-                        </motion.div>
-                      )}
-
-                      <div className="relative">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex-1">
-                            <motion.div
-                              className="flex items-center gap-4 mb-3"
-                              initial={{ x: -20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.2 }}
-                            >
-                              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-xl text-lg">
-                                {review.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="font-bold text-slate-800 text-xl">{review.name}</div>
-                                <div className="text-slate-500 text-sm font-medium">{review.date}</div>
-                              </div>
-                              {review.platform === "Google" && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-blue-50 border-blue-200 text-blue-700 font-semibold px-3 py-1"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {getPlatformIcon(review.platform)}
-                                    <span>Google Review</span>
-                                  </div>
-                                </Badge>
-                              )}
-                              {!review.isComplete && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-amber-50 border-amber-200 text-amber-700 ml-2 px-3 py-1"
-                                >
-                                  Partial Feedback
-                                </Badge>
-                              )}
-                            </motion.div>
-                            <motion.div
-                              initial={{ x: -20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.3 }}
-                            >
-                              {renderStars(review.rating)}
-                            </motion.div>
-                          </div>
-                        </div>
-
-                        <motion.div
-                          className="text-slate-700 py-4 text-base leading-relaxed bg-slate-50/80 rounded-2xl p-6 border border-slate-100 mb-6"
-                          initial={{ y: 20, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          transition={{ delay: 0.4 }}
-                        >
-                          {review.message}
-                        </motion.div>
-
-                        {!review.isComplete && (
-                          <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.5 }}
-                            className="mt-3 p-4 bg-amber-50 rounded-2xl border border-amber-200"
-                          >
-                            <p className="text-sm text-amber-800 flex items-center gap-2 font-medium">
-                              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                              <span>
-                                {review.message.includes("Rated")
-                                  ? review.message
-                                  : `Left after rating ${review.rating} stars`}
-                              </span>
-                            </p>
-                          </motion.div>
-                        )}
-
-                        <motion.div
-                          className="flex gap-3 mb-6"
-                          initial={{ y: 20, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          transition={{ delay: 0.5 }}
-                        >
-                          {review.branchname && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-12 w-12 hover:bg-orange-50 hover:text-orange-600 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
-                                  aria-label="View branch"
-                                  disabled={viewMode === "previous"}
-                                >
-                                  <MapPin className="h-5 w-5" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-4 border border-orange-200 shadow-xl rounded-2xl">
-                                <p className="text-sm font-semibold">{review.branchname}</p>
-                              </PopoverContent>
-                            </Popover>
-                          )}
-
-                          {review.email && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-12 w-12 hover:bg-blue-50 hover:text-blue-600 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
-                                  aria-label="Send email template"
-                                  onClick={() => handleOpenTemplateDialog(review, "email")}
-                                  disabled={viewMode === "previous"}
-                                >
-                                  <MailOpen className="h-5 w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-slate-800 text-white rounded-xl">
-                                {review.email || "No email"}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-
-                          {review.phone && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-12 w-12 hover:bg-green-50 hover:text-green-600 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
-                                  aria-label="Send WhatsApp template"
-                                  onClick={() => handleOpenTemplateDialog(review, "whatsapp")}
-                                  disabled={viewMode === "previous"}
-                                >
-                                  <MessageSquare className="h-5 w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="bg-slate-800 text-white rounded-xl">
-                                {review.phone || "No Number"}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </motion.div>
-
-                        {viewMode === "current" && (
-                          <motion.div
-                            className="flex justify-end items-center pt-4 border-t border-slate-100"
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.6 }}
-                          >
-                            <div className="flex gap-3">
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-12 w-12 hover:bg-emerald-50 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
-                                    aria-label="Toggle reply status"
-                                  >
-                                    <Check
-                                      className={`h-5 w-5 ${review.replied ? "text-emerald-600" : "text-slate-400"}`}
-                                    />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-3 border border-emerald-200 shadow-xl rounded-2xl">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-emerald-600 hover:bg-emerald-50 rounded-xl font-medium"
-                                    onClick={() => handleToggleReply(review.id)}
-                                  >
-                                    {review.replied ? "Unmark as replied" : "Mark as replied"}
-                                  </Button>
-                                </PopoverContent>
-                              </Popover>
-
-                              <Popover>
-                                <PopoverTrigger asChild>
-{/*                                   <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-12 w-12 hover:bg-red-50 hover:text-red-600 rounded-2xl transition-all duration-300 hover:scale-110 shadow-sm"
-                                    aria-label="Delete review"
-                                  >
-                                    <Trash2 className="h-5 w-5" />
-                                  </Button> */}
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-3 border border-red-200 shadow-xl rounded-2xl">
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => setReviewToDelete(review)}
-                                    className="rounded-xl font-medium"
-                                  >
-                                    Delete
-                                  </Button>
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-                          </motion.div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              )}
-            </div>
-
-            {/* Enhanced Template Message Dialog for Custom Plan Users */}
-            <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-              <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto rounded-3xl">
-                <DialogHeader className="pb-6">
-                  <DialogTitle className="flex items-center gap-3 text-2xl">
-                    {templateType === "whatsapp" ? (
-                      <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg">
-                        <MessageSquare className="h-6 w-6 text-white" />
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                        <MailOpen className="h-6 w-6 text-white" />
-                      </div>
-                    )}
-                    <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
-                      {templateType === "whatsapp" ? "WhatsApp Message" : "Email Template"}
-                    </span>
-                    {isCustomPlan(userPlan?.subscriptionPlan) && (
-                      <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 text-sm font-bold shadow-lg">
-                        <Crown className="h-4 w-4 mr-2" />
-                        Premium Templates
-                      </Badge>
-                    )}
-                  </DialogTitle>
-                  <DialogDescription className="text-lg text-slate-600">
-                    {isCustomPlan(userPlan?.subscriptionPlan)
-                      ? `Choose from multiple professional templates or create custom responses for ${selectedReview?.name}'s ${selectedReview?.rating}-star review`
-                      : `Customize your response to ${selectedReview?.name}'s ${selectedReview?.rating}-star review`}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-8">
-                  {isCustomPlan(userPlan?.subscriptionPlan) && renderTemplateSelector()}
-
-                  <div>
-                    <Label htmlFor="message" className="text-lg font-semibold text-slate-700 mb-3 block">
-                      Message Content
-                    </Label>
-                    <Textarea
-                      id="message"
-                      value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={10}
-                      className="mt-2 rounded-2xl border-slate-200 focus:ring-2 focus:ring-blue-300 text-base leading-relaxed"
-                      placeholder={
-                        isCustomPlan(userPlan?.subscriptionPlan)
-                          ? "Select a template above or write your custom message..."
-                          : "Enter your message..."
-                      }
-                    />
-                    <div className="flex items-center justify-between mt-3">
-                      <p className="text-sm text-slate-500 font-medium">{customMessage.length} characters</p>
-                      {isCustomPlan(userPlan?.subscriptionPlan) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            navigator.clipboard.writeText(customMessage)
-                          }}
-                          className="text-slate-500 hover:text-slate-700 rounded-xl"
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Message
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <DialogFooter className="flex-col sm:flex-row gap-3 pt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTemplateDialog(false)}
-                    className="rounded-2xl border-slate-200 hover:bg-slate-50 px-8 py-3"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSendMessage}
-                    className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 rounded-2xl px-8 py-3 font-semibold"
-                    disabled={!customMessage.trim()}
-                  >
-                    <Send className="h-5 w-5 mr-2" />
-                    Send {templateType === "whatsapp" ? "WhatsApp" : "Email"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Custom Template Manager Dialog for Custom Plan Users */}
-            <Dialog open={showCustomTemplateManager} onOpenChange={setShowCustomTemplateManager}>
-              <DialogContent className="sm:max-w-[1100px] max-h-[95vh] rounded-3xl">
-                <DialogHeader className="pb-6">
-                  <DialogTitle className="flex items-center gap-3 text-2xl">
-                    <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg">
-                      <Crown className="h-6 w-6 text-white" />
-                    </div>
-                    <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
-                      Template Manager
-                    </span>
-                    <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 font-bold shadow-lg">
-                      Custom Plan Feature
-                    </Badge>
-                  </DialogTitle>
-                  <DialogDescription className="text-lg text-slate-600">
-                    Create and manage your custom message templates for different review scenarios
-                  </DialogDescription>
-                </DialogHeader>
-
-                <Tabs defaultValue="existing" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 bg-slate-100 rounded-2xl p-1">
-                    <TabsTrigger value="existing" className="rounded-xl font-semibold">
-                      Existing Templates
-                    </TabsTrigger>
-                    <TabsTrigger value="create" className="rounded-xl font-semibold">
-                      Create New
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="existing" className="space-y-6 mt-6">
-                    <div className="grid gap-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                      {customTemplates.length === 0 ? (
-                        <div className="text-center py-12 text-slate-500">
-                          <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-4">
-                            <MessageSquare className="h-12 w-12 text-slate-300" />
-                          </div>
-                          <p className="text-lg font-medium">No custom templates yet</p>
-                          <p className="text-sm">Create your first template to get started!</p>
-                        </div>
-                      ) : (
-                        customTemplates.map((template) => (
-                          <Card key={template.id} className="p-6 rounded-2xl shadow-lg border-slate-200">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
-                                    <span className="text-white text-sm">
-                                      {template.type === "whatsapp" ? "📱" : "📧"}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-bold text-lg text-slate-800">{template.name}</h4>
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        {template.type === "whatsapp" ? "WhatsApp" : "Email"}
-                                      </Badge>
-                                      <Badge variant="secondary" className="text-xs">
-                                        {template.category === "followup" ? "Follow-up" : "Response"}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                </div>
-                                <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-4 rounded-xl">
-                                  {template.template}
-                                </p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const updatedTemplates = customTemplates.filter((t) => t.id !== template.id)
-                                  setCustomTemplates(updatedTemplates)
-                                  if (currentUser) {
-                                    updateDoc(doc(db, "users", currentUser.uid), {
-                                      customTemplates: updatedTemplates,
-                                    })
-                                  }
-                                }}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl ml-4"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="create" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="template-name" className="text-sm font-semibold text-slate-700">
-                          Template Name
-                        </Label>
-                        <Input
-                          id="template-name"
-                          value={newTemplateName}
-                          onChange={(e) => setNewTemplateName(e.target.value)}
-                          placeholder="e.g., Friendly Thank You"
-                          className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-semibold text-slate-700">Template Type</Label>
-                        <Select
-                          value={templateType}
-                          onValueChange={(value: "whatsapp" | "email") => setTemplateType(value)}
-                        >
-                          <SelectTrigger className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300">
-                            <SelectValue />
-=======
                         <MapPin className="h-4 w-4 text-slate-500" />
                         <Select value={selectedLocation} onValueChange={setSelectedLocation}>
                           <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
                             <SelectValue placeholder="Select location" />
->>>>>>> a9c212e (Updated the code)
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="All">All Locations</SelectItem>
@@ -2465,6 +1604,68 @@ export default function BusinessReviews() {
                   </div>
                 </div>
               </motion.div>
+
+              {showUpgradePrompt && viewMode === "current" && (
+                <motion.div
+                  className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-8 rounded-3xl shadow-xl"
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                >
+                  <div className="flex items-start">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                    >
+                      <CreditCard className="h-7 w-7 text-amber-600 mt-0.5 flex-shrink-0" />
+                    </motion.div>
+                    <div className="ml-4">
+                      <p className="text-amber-800 font-semibold text-lg">
+                        🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
+                        <button
+                          onClick={() => window.location.assign("/#pricing")}
+                          className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
+                        >
+                          Upgrade your plan
+                        </button>{" "}
+                        to unlock unlimited reviews and premium features.
+                      </p>
+                      <div className="mt-4 flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-amber-600" />
+                        <p className="text-sm text-amber-700 font-medium">
+                          New review requests will be redirected to Google Reviews.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {viewMode === "previous" && (
+                <motion.div
+                  className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-8 rounded-3xl shadow-xl"
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                >
+                  <div className="flex items-start">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                    >
+                      <Calendar className="h-7 w-7 text-blue-600 mt-0.5 flex-shrink-0" />
+                    </motion.div>
+                    <div className="ml-4">
+                      <p className="text-blue-800 font-semibold text-lg">
+                        You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These are
+                        sorted by plan duration and don't count toward your current subscription's limit.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* EXISTING REVIEWS GRID - UNCHANGED */}
               <AnimatePresence>
@@ -2607,7 +1808,7 @@ export default function BusinessReviews() {
                     transition={{ delay: 0.4 }}
                   >
                     <div className="w-24 h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                      <Star className="h-12 w-12 text-slate-400" />
+                      <FolderOpen className="h-12 w-12 text-slate-400" />
                     </div>
                     <h3 className="text-2xl font-bold text-slate-700 mb-2">No Reviews Found</h3>
                     <p className="text-slate-500 text-lg mb-8">
@@ -2630,9 +1831,359 @@ export default function BusinessReviews() {
         </div>
 
         {/* DIALOGS */}
-        {renderAddonDialog()}
-        {renderTemplateDialog()}
-        {renderCustomTemplateManager()}
+
+        {/* Add-on Dialog */}
+        <Dialog open={showAddonDialog} onOpenChange={setShowAddonDialog}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border-0 shadow-2xl bg-gradient-to-br from-white via-slate-50 to-blue-50/30">
+            <DialogHeader className="text-center pb-8 border-b border-slate-200/60">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, type: "spring" }}
+                className="mx-auto w-20 h-20 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-3xl flex items-center justify-center shadow-2xl mb-6"
+              >
+                <Package className="h-10 w-10 text-white" />
+              </motion.div>
+              <DialogTitle className="text-4xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent mb-4">
+                Reply Credit Packages
+              </DialogTitle>
+              <DialogDescription className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                Purchase reply credits to respond to reviews from your previous subscription periods
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {addonPackages.map((pkg, index) => (
+                  <motion.div
+                    key={pkg.id}
+                    initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: index * 0.1, type: "spring", stiffness: 200 }}
+                    className={`relative overflow-hidden rounded-3xl border-2 transition-all duration-300 hover:scale-105 hover:shadow-2xl group ${
+                      pkg.popular
+                        ? "border-gradient-to-r from-green-400 to-emerald-500 bg-gradient-to-br from-green-50 to-emerald-100 shadow-xl"
+                        : "border-slate-200 bg-white hover:border-slate-300 shadow-lg"
+                    }`}
+                  >
+                    {pkg.popular && (
+                      <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
+                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg">
+                          <Crown className="h-4 w-4 inline mr-1" />
+                          MOST POPULAR
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-8">
+                      <div className="text-center mb-8">
+                        <div className="text-5xl mb-4">{pkg.icon}</div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</h3>
+                        <p className="text-slate-600 text-lg leading-relaxed">{pkg.description}</p>
+                      </div>
+
+                      <div className="text-center mb-8">
+                        <div className="text-5xl font-bold text-slate-800 mb-2">{getConvertedPrice(pkg.price)}</div>
+                        <div className="text-slate-600 text-lg">{pkg.replies} Reply Credits</div>
+                        <div className="text-sm text-slate-500 mt-2">
+                          {getConvertedPrice(pkg.price / pkg.replies)} per reply
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                        <div className="flex items-center gap-3 text-slate-700">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                          <span>Works for WhatsApp & Email replies</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-slate-700">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                          <span>Credits never expire</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-slate-700">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                          <span>Only for previous plan reviews</span>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => handlePurchaseAddon(pkg)}
+                        className={`w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
+                          pkg.popular
+                            ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                            : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                        }`}
+                      >
+                        <ShoppingCart className="w-5 h-5 mr-2" />
+                        Purchase Package
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {addonPackages.length === 0 && (
+                <div className="text-center py-12">
+                  <Package className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500 text-lg">No add-on packages available at the moment.</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Template Dialog */}
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto rounded-3xl">
+            <DialogHeader className="pb-6">
+              <DialogTitle className="flex items-center gap-3 text-2xl">
+                {templateType === "whatsapp" ? (
+                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg">
+                    <MessageSquare className="h-6 w-6 text-white" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+                    <Mail className="h-6 w-6 text-white" />
+                  </div>
+                )}
+                <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
+                  {templateType === "whatsapp" ? "WhatsApp Message" : "Email Template"}
+                </span>
+                {isCustomPlan(userPlan?.subscriptionPlan) && (
+                  <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 text-sm font-bold shadow-lg">
+                    <Crown className="h-4 w-4 mr-2" />
+                    Premium Templates
+                  </Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-lg text-slate-600">
+                {isCustomPlan(userPlan?.subscriptionPlan)
+                  ? `Choose from multiple professional templates or create custom responses for ${selectedReview?.name}'s ${selectedReview?.rating}-star review`
+                  : `Customize your response to ${selectedReview?.name}'s ${selectedReview?.rating}-star review`}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-8">
+              {isCustomPlan(userPlan?.subscriptionPlan) && renderTemplateSelector()}
+
+              <div>
+                <Label htmlFor="message" className="text-lg font-semibold text-slate-700 mb-3 block">
+                  Message Content
+                </Label>
+                <Textarea
+                  id="message"
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  rows={10}
+                  className="mt-2 rounded-2xl border-slate-200 focus:ring-2 focus:ring-blue-300 text-base leading-relaxed"
+                  placeholder={
+                    isCustomPlan(userPlan?.subscriptionPlan)
+                      ? "Select a template above or write your custom message..."
+                      : "Enter your message..."
+                  }
+                />
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-sm text-slate-500 font-medium">{customMessage.length} characters</p>
+                  {isCustomPlan(userPlan?.subscriptionPlan) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(customMessage)
+                      }}
+                      className="text-slate-500 hover:text-slate-700 rounded-xl"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Message
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex-col sm:flex-row gap-3 pt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowTemplateDialog(false)}
+                className="rounded-2xl border-slate-200 hover:bg-slate-50 px-8 py-3"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendMessage}
+                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 rounded-2xl px-8 py-3 font-semibold"
+                disabled={!customMessage.trim()}
+              >
+                <Send className="h-5 w-5 mr-2" />
+                Send {templateType === "whatsapp" ? "WhatsApp" : "Email"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Custom Template Manager Dialog */}
+        <Dialog open={showCustomTemplateManager} onOpenChange={setShowCustomTemplateManager}>
+          <DialogContent className="sm:max-w-[1100px] max-h-[95vh] rounded-3xl">
+            <DialogHeader className="pb-6">
+              <DialogTitle className="flex items-center gap-3 text-2xl">
+                <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg">
+                  <Crown className="h-6 w-6 text-white" />
+                </div>
+                <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
+                  Template Manager
+                </span>
+                <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 font-bold shadow-lg">
+                  Custom Plan Feature
+                </Badge>
+              </DialogTitle>
+              <DialogDescription className="text-lg text-slate-600">
+                Create and manage your custom message templates for different review scenarios
+              </DialogDescription>
+            </DialogHeader>
+
+            <Tabs defaultValue="existing" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-100 rounded-2xl p-1">
+                <TabsTrigger value="existing" className="rounded-xl font-semibold">
+                  Existing Templates
+                </TabsTrigger>
+                <TabsTrigger value="create" className="rounded-xl font-semibold">
+                  Create New
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="existing" className="space-y-6 mt-6">
+                <div className="grid gap-4 max-h-96 overflow-y-auto pr-2">
+                  {customTemplates.length === 0 ? (
+                    <div className="text-center py-12 text-slate-500">
+                      <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-4">
+                        <MessageSquare className="h-12 w-12 text-slate-300" />
+                      </div>
+                      <p className="text-lg font-medium">No custom templates yet</p>
+                      <p className="text-sm">Create your first template to get started!</p>
+                    </div>
+                  ) : (
+                    customTemplates.map((template) => (
+                      <Card key={template.id} className="p-6 rounded-2xl shadow-lg border-slate-200">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+                                <span className="text-white text-sm">{template.type === "whatsapp" ? "📱" : "📧"}</span>
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-lg text-slate-800">{template.name}</h4>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {template.type === "whatsapp" ? "WhatsApp" : "Email"}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {template.category === "followup" ? "Follow-up" : "Response"}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-4 rounded-xl">
+                              {template.template}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const updatedTemplates = customTemplates.filter((t) => t.id !== template.id)
+                              setCustomTemplates(updatedTemplates)
+                              if (currentUser) {
+                                updateDoc(doc(db, "users", currentUser.uid), {
+                                  customTemplates: updatedTemplates,
+                                })
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl ml-4"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="create" className="space-y-6 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label htmlFor="template-name" className="text-sm font-semibold text-slate-700">
+                      Template Name
+                    </Label>
+                    <Input
+                      id="template-name"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      placeholder="e.g., Friendly Thank You"
+                      className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold text-slate-700">Template Type</Label>
+                    <Select
+                      value={templateType}
+                      onValueChange={(value: "whatsapp" | "email") => setTemplateType(value)}
+                    >
+                      <SelectTrigger className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold text-slate-700">Message Category</Label>
+                  <Select
+                    value={messageCategory}
+                    onValueChange={(value: "response" | "followup") => setMessageCategory(value)}
+                  >
+                    <SelectTrigger className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="response">Response Template</SelectItem>
+                      <SelectItem value="followup">Follow-up Template</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="template-content" className="text-sm font-semibold text-slate-700">
+                    Template Content
+                  </Label>
+                  <Textarea
+                    id="template-content"
+                    value={newTemplateContent}
+                    onChange={(e) => setNewTemplateContent(e.target.value)}
+                    rows={8}
+                    className="mt-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-300"
+                    placeholder="Use {businessName}, {customerName}, and {rating} as placeholders..."
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Available placeholders: {"{businessName}"}, {"{customerName}"}, {"{rating}"}
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSaveCustomTemplate}
+                  disabled={!newTemplateName.trim() || !newTemplateContent.trim()}
+                  className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Save Template
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </DialogContent>
+        </Dialog>
 
         <ConfirmDialog
           isOpen={!!reviewToDelete}
