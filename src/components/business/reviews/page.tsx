@@ -1805,10 +1805,12 @@ export default function BusinessReviews() {
                   <div className="flex flex-wrap items-center gap-4">
                     {showLocationDropdown && (
                       <div className="flex items-center gap-2">
-<<<<<<< HEAD
                         <MapPin className="h-4 w-4 text-slate-400" />
                         <SelectValue placeholder="Select Location" />
                       </div>
+                    )}
+                    <SelectTrigger className="rounded-2xl border-slate-200 shadow-xl">
+                      <SelectValue placeholder="Select Location" />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-slate-200 shadow-xl">
                       <SelectItem value="All">All Locations</SelectItem>
