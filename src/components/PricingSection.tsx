@@ -200,19 +200,16 @@ const PricingSection = () => {
       price: getConvertedPrice(pricingConfig.starter),
       basePrice: pricingConfig.starter,
       description: "Perfect for small businesses just getting started with review management.",
-      features: [
-        "3 Business Locations",
-        "100 Review Requests/Month",
-        "Email Support",
-        "Chat Support",
-        "Mobile responsive dashboard",
-<<<<<<< HEAD
-        "Review Response Templates"
-=======
-        "Basic Analytics",
-        "Review Response Templates",
->>>>>>> a9c212e (Updated the code)
-      ],
+features: [
+  "3 Business Locations",
+  "100 Review Requests/Month",
+  "Email Support",
+  "Chat Support",
+  "Mobile responsive dashboard",
+  "Basic Analytics",
+  "Review Response Templates"
+],
+
       cta: "Start Free Trial",
       popular: false,
       monthlyLimit: 100,
@@ -233,14 +230,12 @@ const PricingSection = () => {
         "Advanced Analytics Dashboard",
         "Location-based Filtering",
         "Sentiment Analysis",
-<<<<<<< HEAD
+
         "Mobile responsive dashboard",
         
-=======
         "Performance Trends",
         "Team Management",
         "Custom Branding",
->>>>>>> a9c212e (Updated the code)
       ],
       cta: "Start Free Trial",
       popular: true,
@@ -258,7 +253,6 @@ const PricingSection = () => {
         "Unlimited Business Locations",
         "Unlimited Review Requests",
         "Advanced Analytics & Insights",
-<<<<<<< HEAD
         "Priority Chat Support",
         "Customized Templates",
         "QR Generator",
@@ -266,17 +260,8 @@ const PricingSection = () => {
         "Sentiment Analysis",
         "Predicted Analysis",
         "Mobile responsive dashboard",
-=======
-        "AI-Powered Recommendations",
-        "Priority Phone Support",
-        "Dedicated Account Manager",
-        "White-label Solutions",
-        "API Access & Webhooks",
-        "Custom Training & Onboarding",
-        "Advanced Team Management",
-        "Custom Integrations",
-        "24/7 Priority Support",
->>>>>>> a9c212e (Updated the code)
+        
+
       ],
       cta: "Get Custom Plan",
       popular: false,
