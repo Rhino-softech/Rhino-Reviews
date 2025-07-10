@@ -62,7 +62,7 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
   // Updated navigation with separated pages
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
-    { icon: Star, label: "Reviews", href: "/admin/reviews" },
+    // { icon: Star, label: "Reviews", href: "/admin/reviews" },
     { icon: Building2, label: "Businesses", href: "/admin/businesses" },
     { icon: BarChart2, label: "Analytics", href: "/admin/analytics" },
     { icon: Users, label: "Users", href: "/admin/users" },

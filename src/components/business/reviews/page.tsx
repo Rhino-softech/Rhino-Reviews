@@ -1514,6 +1514,8 @@ export default function BusinessReviews() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
         <div className="flex">
           <Sidebar />
+          <div className="flex-1 md:ml-64 p-8 flex items-center justify-center">
+          <div className="text-center">
           <main className="flex-1 p-8 ml-8">
             <motion.div
               className="max-w-7xl mx-auto space-y-8"
@@ -1828,6 +1830,8 @@ export default function BusinessReviews() {
               </AnimatePresence>
             </motion.div>
           </main>
+          </div>
+          </div>
         </div>
 
         {/* DIALOGS */}
