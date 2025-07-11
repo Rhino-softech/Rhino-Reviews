@@ -62,13 +62,13 @@ const FooterSection = () => {
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Support</h3>
             <ul className="mt-4 space-y-2">
               <li>
-                <a href="/contact" className="text-gray-300 hover:text-white text-sm">Help Center</a>
+                <a href="/demo2" className="text-gray-300 hover:text-white text-sm">Help Center</a>
               </li>
               <li>
                 <a href="#faq" className="text-gray-300 hover:text-white text-sm">FAQ</a>
               </li>
               <li>
-                <a href="/chatsupportwidget" className="text-gray-300 hover:text-white text-sm">Contact Us</a>
+                <a href="/demo2" className="text-gray-300 hover:text-white text-sm">Contact Us</a>
               </li>
               {/* <li>
                 <a href="#" className="text-gray-300 hover:text-white text-sm">Status</a>

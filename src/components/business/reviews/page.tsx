@@ -1717,7 +1717,7 @@ export default function BusinessReviews() {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                {/* <div className="flex items-center gap-2">
                                   {getPlatformIcon(review.platform)}
                                   <Tooltip>
                                     <TooltipTrigger asChild>
@@ -1732,7 +1732,7 @@ export default function BusinessReviews() {
                                     </TooltipTrigger>
                                     <TooltipContent>Delete review</TooltipContent>
                                   </Tooltip>
-                                </div>
+                                </div> */}
                               </div>
 
                               <div className="space-y-3 mb-6">
