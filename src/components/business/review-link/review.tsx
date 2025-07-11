@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Mountain, Star, ChevronRight, ThumbsUp, ThumbsDown, Sparkles, Heart, Award } from "lucide-react"
+import { Mountain, Star, ChevronRight, ThumbsUp, ThumbsDown, Sparkles, Heart, Award } from 'lucide-react'
 import { useParams } from "react-router-dom"
 import { db } from "@/firebase/firebase"
 import { collection, doc, serverTimestamp, getDoc, addDoc, getDocs, query, where } from "firebase/firestore"
@@ -22,7 +22,7 @@ interface ReviewFormData {
   status?: "pending" | "published" | "rejected" | "incomplete" | "abandoned"
   createdAt?: any
   platform?: string
-  reviewType?: "internal" | "external"
+  reviewType?: "internal" | "external" | "Google"
   isComplete?: boolean
 }
 
@@ -94,10 +94,18 @@ export default function ReviewPageFixed() {
 
       const querySnapshot = await getDocs(reviewsQuery)
 
-      // Count only valid reviews (exclude abandoned/incomplete ones)
+      // FIXED: Count only valid reviews - Google Reviews should ALWAYS be counted as valid
       let validReviewCount = 0
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        
+        // FIXED: Google Reviews are ALWAYS valid and should never be considered abandoned
+        if (data.platform === "Google" || data.reviewType === "Google") {
+          validReviewCount++
+          return
+        }
+        
+        // For internal reviews, apply the existing abandoned logic
         const isAbandoned =
           data.status === "abandoned" ||
           data.status === "incomplete" ||
@@ -207,7 +215,6 @@ export default function ReviewPageFixed() {
                 case "starter":
                 case "plan_basic":
                   reviewLimitValue = 100
-
                   break
                 case "professional":
                 case "plan_pro":
@@ -314,14 +321,16 @@ export default function ReviewPageFixed() {
     }
   }, [reviewsLimitReached, subscriptionActive, rating, showGoogleForm])
 
-  // Track when user leaves the page after clicking stars but not completing review
-  // BUT ONLY save if subscription is active and limit not reached
+  // FIXED: Track when user leaves the page after clicking stars but not completing review
+  // Only save abandoned review if subscription is active and limit not reached
+  // NEVER save Google Reviews as abandoned
   useEffect(() => {
     const saveAbandonedReview = async () => {
       // Only save abandoned review if:
       // 1. User has clicked stars but hasn't submitted
       // 2. Subscription is active AND limit is not reached
-      if (rating > 0 && !submitted && subscriptionActive && !reviewsLimitReached) {
+      // 3. This is NOT a Google Review flow (rating >= 4)
+      if (rating > 0 && !submitted && subscriptionActive && !reviewsLimitReached && rating <= 3) {
         try {
           await submitReview({
             name: "Abandoned User",
@@ -333,7 +342,8 @@ export default function ReviewPageFixed() {
             businessId,
             status: "abandoned",
             isComplete: false,
-            platform: "internal",
+            platform: "internal", // FIXED: Ensure abandoned reviews are marked as internal, not Google
+            reviewType: "internal",
           })
           console.log("Saved abandoned review for rating:", rating)
         } catch (error) {
@@ -341,6 +351,8 @@ export default function ReviewPageFixed() {
         }
       } else if (rating > 0 && !submitted && (reviewsLimitReached || !subscriptionActive)) {
         console.log("Not saving abandoned review - limit reached or subscription inactive")
+      } else if (rating >= 4) {
+        console.log("Not saving abandoned review - this would be a Google Review flow")
       }
     }
 
@@ -502,7 +514,8 @@ export default function ReviewPageFixed() {
 
       if (!validateGoogleForm()) return
 
-      // Only save to Firebase if subscription is active and limit not reached
+      // FIXED: Only save to Firebase if subscription is active and limit not reached
+      // Mark as Google Review with proper platform and reviewType
       if (subscriptionActive && !reviewsLimitReached) {
         try {
           await submitReview({
@@ -513,10 +526,12 @@ export default function ReviewPageFixed() {
             review: `Customer left Google Review - Rating: ${rating}`,
             rating,
             businessId,
-            platform: "Google",
-            reviewType: "external",
+            platform: "Google", // FIXED: Explicitly mark as Google platform
+            reviewType: "Google", // FIXED: Explicitly mark as Google reviewType
             isComplete: true, // This is a complete action - user was redirected to Google
+            status: "published", // FIXED: Mark Google reviews as published, not pending
           })
+          console.log("Successfully saved Google Review tracking")
         } catch (error) {
           console.error("Error tracking Google review:", error)
         }
@@ -550,9 +565,10 @@ export default function ReviewPageFixed() {
           ...formData,
           rating,
           businessId,
-          platform: "internal",
+          platform: "internal", // FIXED: Ensure internal reviews are marked as internal
           reviewType: "internal",
           isComplete: true, // Mark as complete since all form fields are filled
+          status: "pending", // Internal reviews start as pending
         })
         setSubmissionMessage("We appreciate your feedback.")
         setSubmitted(true)
@@ -595,7 +611,8 @@ export default function ReviewPageFixed() {
       return
     }
 
-    // Only save to Firebase if subscription is active and limit not reached
+    // FIXED: Only save to Firebase if subscription is active and limit not reached
+    // Mark as Google Review with proper categorization
     if (subscriptionActive && !reviewsLimitReached) {
       try {
         await submitReview({
@@ -606,10 +623,12 @@ export default function ReviewPageFixed() {
           review: `Customer chose public review option - Rating: ${rating} stars - Branch: ${formData.branchname}`,
           rating,
           businessId,
-          platform: "Google",
-          reviewType: "external",
+          platform: "Google", // FIXED: Explicitly mark as Google platform
+          reviewType: "Google", // FIXED: Explicitly mark as Google reviewType
           isComplete: true, // This is a complete action - user chose to leave public review
+          status: "published", // FIXED: Mark Google reviews as published
         })
+        console.log("Successfully saved public Google Review tracking")
       } catch (error) {
         console.error("Error tracking public review:", error)
       }
@@ -630,6 +649,9 @@ export default function ReviewPageFixed() {
         status: reviewData.status || "pending",
         timestamp: Date.now(),
         isComplete: reviewData.isComplete ?? true, // Default to true unless explicitly set to false
+        // FIXED: Ensure platform and reviewType are properly set
+        platform: reviewData.platform || "internal",
+        reviewType: reviewData.reviewType || "internal",
       }
 
       const userReviewsRef = collection(db, "users", businessId, "reviews")

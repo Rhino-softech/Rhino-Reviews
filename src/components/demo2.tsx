@@ -1,5 +1,7 @@
 import ChatSupportWidget from "@/components/chat-support-widget"
 import Navbar from "./Navbar"
+import ContactPanel from "./ContactPanel"
+import ContactWidget from "./ContactWidget"
 
 export default function Demo2() {
   return (
@@ -81,7 +83,7 @@ export default function Demo2() {
         </div>
       </div>
 
-      <ChatSupportWidget />
+      <ContactWidget />
     </div>
     </>
   )

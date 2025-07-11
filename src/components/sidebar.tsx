@@ -198,7 +198,18 @@ export default function Sidebar() {
 
   const handleLogout = useCallback(() => {
     signOut(auth).then(() => {
-      window.location.href = "/login"
+      // FIX: Use proper domain instead of localhost
+      const currentDomain = window.location.hostname
+      const protocol = window.location.protocol
+      const port = window.location.port ? `:${window.location.port}` : ''
+      
+      // Check if we're in development or production
+      if (currentDomain === 'localhost' || currentDomain === '127.0.0.1') {
+        window.location.href = "/login"
+      } else {
+        // Use the current domain for production
+        window.location.href = `${protocol}//${currentDomain}${port}/login`
+      }
     })
   }, [])
 

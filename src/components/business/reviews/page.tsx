@@ -752,159 +752,163 @@ export default function BusinessReviews() {
   const fetchUserData = useCallback(async (user: any) => {
     try {
       const userRef = doc(db, "users", user.uid)
-      const userDoc = await getDoc(userRef)
-      if (userDoc.exists()) {
-        const userData = userDoc.data()
+      const userSnap = await getDoc(userRef)
 
-        // Check if this is the first subscription - EXISTING LOGIC
-        const isFirstSubscription = !userData.firstSubscriptionDone
+      if (!userSnap.exists()) {
+        console.log("No user document found")
+        return
+      }
 
-        setUserPlan({
-          ...userData,
-          firstSubscriptionDone: userData.firstSubscriptionDone || false,
-          isFirstSubscription,
-        })
+      const userData = userSnap.data()
 
-        // Show bonus prompt for first-time subscribers - EXISTING LOGIC
-        if (isFirstSubscription && userData.subscriptionPlan) {
-          setShowBonusPrompt(true)
-          await updateDoc(userRef, { firstSubscriptionDone: true })
+      // Check if this is the first subscription - EXISTING LOGIC
+      const isFirstSubscription = !userData.firstSubscriptionDone
+
+      setUserPlan({
+        ...userData,
+        firstSubscriptionDone: userData.firstSubscriptionDone || false,
+        isFirstSubscription,
+      })
+
+      // Show bonus prompt for first-time subscribers - EXISTING LOGIC
+      if (isFirstSubscription && userData.subscriptionPlan) {
+        setShowBonusPrompt(true)
+        await updateDoc(userRef, { firstSubscriptionDone: true })
+      }
+
+      // LOAD ADD-ON CREDITS - COMPLETELY SEPARATE FROM SUBSCRIPTION PLAN
+      // These are stored separately and don't affect subscription plan logic
+      setAddonCredits(userData.addonCredits || 0)
+      setUsedAddonCredits(userData.usedAddonCredits || 0)
+
+      const businessInfo = userData.businessInfo || {}
+      const branchesData = businessInfo.branches || []
+      setBranches(branchesData)
+      setBusinessName(businessInfo.businessName || "Your Business")
+
+      const hasAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
+      setShowLocationDropdown(hasAccess)
+
+      const activeBranchNames = branchesData
+        .filter((branch: any) => branch.isActive !== false)
+        .map((branch: any) => branch.name)
+      setActiveBranches(activeBranchNames)
+
+      // Get subscription history and sort by start date (newest first) - EXISTING LOGIC
+      const subscriptionHistoryData = userData.subscriptionHistory || []
+      const sortedHistory = subscriptionHistoryData.sort((a: any, b: any) => {
+        const aDate = a.startDate?.toDate()?.getTime() || 0
+        const bDate = b.startDate?.toDate()?.getTime() || 0
+        return bDate - aDate
+      })
+
+      // Filter out current subscription from history - EXISTING LOGIC
+      const currentStart = userData.subscriptionStartDate?.toDate()
+      const currentEnd = userData.subscriptionEndDate?.toDate()
+
+      const filteredHistory = sortedHistory.filter((item: any) => {
+        const itemStart = item.startDate?.toDate()
+        const itemEnd = item.endDate?.toDate()
+
+        // Exclude if it matches current subscription dates
+        return !(itemStart?.getTime() === currentStart?.getTime() && itemEnd?.getTime() === currentEnd?.getTime())
+      })
+
+      setSubscriptionHistory(filteredHistory)
+
+      // Load custom templates for custom plan users - EXISTING LOGIC
+      if (isCustomPlan(userData.subscriptionPlan)) {
+        setCustomTemplates(userData.customTemplates || [])
+      }
+
+      // CALCULATE REVIEW LIMITS WITH FIRST-TIME BONUS - SUBSCRIPTION PLAN ONLY (UNCHANGED)
+      let limit = 50
+      let bonus = 0
+
+      if (userData.subscriptionPlan) {
+        setSubscriptionPlan(userData.subscriptionPlan)
+        switch (userData.subscriptionPlan.toLowerCase()) {
+          case "starter":
+          case "plan_basic":
+            limit = 100
+            bonus = isFirstSubscription ? 25 : 0
+            break
+          case "professional":
+          case "plan_pro":
+            limit = 500
+            bonus = isFirstSubscription ? 25 : 0
+            break
+          case "custom":
+          case "plan_premium":
+          case "enterprise":
+            limit = 0 // Unlimited
+            bonus = 0
+            break
+          default:
+            limit = 50
+            bonus = 0
         }
+      }
 
-        // LOAD ADD-ON CREDITS - COMPLETELY SEPARATE FROM SUBSCRIPTION PLAN
-        // These are stored separately and don't affect subscription plan logic
-        setAddonCredits(userData.addonCredits || 0)
-        setUsedAddonCredits(userData.usedAddonCredits || 0)
+      setBonusReviews(bonus)
+      setReviewsLimit(limit + bonus) // SUBSCRIPTION PLAN LIMIT ONLY
 
-        const businessInfo = userData.businessInfo || {}
-        const branchesData = businessInfo.branches || []
-        setBranches(branchesData)
-        setBusinessName(businessInfo.businessName || "Your Business")
-
-        const hasAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
-        setShowLocationDropdown(hasAccess)
-
-        const activeBranchNames = branchesData
-          .filter((branch: any) => branch.isActive !== false)
-          .map((branch: any) => branch.name)
-        setActiveBranches(activeBranchNames)
-
-        // Get subscription history and sort by start date (newest first) - EXISTING LOGIC
-        const subscriptionHistoryData = userData.subscriptionHistory || []
-        const sortedHistory = subscriptionHistoryData.sort((a: any, b: any) => {
-          const aDate = a.startDate?.toDate()?.getTime() || 0
-          const bDate = b.startDate?.toDate()?.getTime() || 0
-          return bDate - aDate
+      if (userData.trialActive) {
+        const now = new Date()
+        const trialEnd = userData.trialEndDate?.toDate()
+        const trialDaysLeft = trialEnd ? Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0
+        setTrialInfo({
+          active: true,
+          daysLeft: trialDaysLeft > 0 ? trialDaysLeft : 0,
         })
+      }
 
-        // Filter out current subscription from history - EXISTING LOGIC
-        const currentStart = userData.subscriptionStartDate?.toDate()
-        const currentEnd = userData.subscriptionEndDate?.toDate()
+      // Fetch Google Reviews - EXISTING LOGIC
+      const businessNameStr = businessInfo.businessName || ""
+      const branchName = branchesData[0]?.name || ""
+      const searchQuery = `${businessNameStr} ${branchName}`.trim()
+      const googleReviews: Review[] = []
 
-        const filteredHistory = sortedHistory.filter((item: any) => {
-          const itemStart = item.startDate?.toDate()
-          const itemEnd = item.endDate?.toDate()
+      try {
+        const searchRes = await fetch(
+          `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
+            searchQuery,
+          )}&inputtype=textquery&fields=place_id&key=${GOOGLE_API_KEY}`,
+        )
+        const searchData = await searchRes.json()
+        const placeId = searchData?.candidates?.[0]?.place_id
 
-          // Exclude if it matches current subscription dates
-          return !(itemStart?.getTime() === currentStart?.getTime() && itemEnd?.getTime() === currentEnd?.getTime())
-        })
+        if (placeId) {
+          const detailsRes = await fetch(
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=${GOOGLE_API_KEY}`,
+          )
+          const detailsData = await detailsRes.json()
+          const reviewsArray = detailsData.result?.reviews || []
 
-        setSubscriptionHistory(filteredHistory)
-
-        // Load custom templates for custom plan users - EXISTING LOGIC
-        if (isCustomPlan(userData.subscriptionPlan)) {
-          setCustomTemplates(userData.customTemplates || [])
-        }
-
-        // CALCULATE REVIEW LIMITS WITH FIRST-TIME BONUS - SUBSCRIPTION PLAN ONLY (UNCHANGED)
-        let limit = 50
-        let bonus = 0
-
-        if (userData.subscriptionPlan) {
-          setSubscriptionPlan(userData.subscriptionPlan)
-          switch (userData.subscriptionPlan.toLowerCase()) {
-            case "starter":
-            case "plan_basic":
-              limit = 100
-              bonus = isFirstSubscription ? 25 : 0
-              break
-            case "professional":
-            case "plan_pro":
-              limit = 500
-              bonus = isFirstSubscription ? 25 : 0
-              break
-            case "custom":
-            case "plan_premium":
-            case "enterprise":
-              limit = 0 // Unlimited
-              bonus = 0
-              break
-            default:
-              limit = 50
-              bonus = 0
-          }
-        }
-
-        setBonusReviews(bonus)
-        setReviewsLimit(limit + bonus) // SUBSCRIPTION PLAN LIMIT ONLY
-
-        if (userData.trialActive) {
-          const now = new Date()
-          const trialEnd = userData.trialEndDate?.toDate()
-          const trialDaysLeft = trialEnd ? Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0
-          setTrialInfo({
-            active: true,
-            daysLeft: trialDaysLeft > 0 ? trialDaysLeft : 0,
+          reviewsArray.forEach((r: any, i: number) => {
+            googleReviews.push({
+              id: `google-${i}`,
+              name: r.author_name || "Google User",
+              email: "",
+              phone: "",
+              branchname: branchName,
+              message: r.text || "",
+              rating: r.rating || 0,
+              date: new Date().toLocaleDateString(),
+              replied: false,
+              status: "published",
+              platform: "Google",
+              reviewType: "Google",
+              createdAt: new Date(),
+            })
           })
         }
-
-        // Fetch Google Reviews - EXISTING LOGIC
-        const businessNameStr = businessInfo.businessName || ""
-        const branchName = branchesData[0]?.name || ""
-        const searchQuery = `${businessNameStr} ${branchName}`.trim()
-        const googleReviews: Review[] = []
-
-        try {
-          const searchRes = await fetch(
-            `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
-              searchQuery,
-            )}&inputtype=textquery&fields=place_id&key=${GOOGLE_API_KEY}`,
-          )
-          const searchData = await searchRes.json()
-          const placeId = searchData?.candidates?.[0]?.place_id
-
-          if (placeId) {
-            const detailsRes = await fetch(
-              `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=${GOOGLE_API_KEY}`,
-            )
-            const detailsData = await detailsRes.json()
-            const reviewsArray = detailsData.result?.reviews || []
-
-            reviewsArray.forEach((r: any, i: number) => {
-              googleReviews.push({
-                id: `google-${i}`,
-                name: r.author_name || "Google User",
-                email: "",
-                phone: "",
-                branchname: branchName,
-                message: r.text || "",
-                rating: r.rating || 0,
-                date: new Date().toLocaleDateString(),
-                replied: false,
-                status: "published",
-                platform: "Google",
-                reviewType: "Google",
-                createdAt: new Date(),
-              })
-            })
-          }
-        } catch (error) {
-          console.error("Failed to fetch Google reviews:", error)
-        }
-
-        // Store Google reviews separately to be merged in fetchReviews
-        setReviews(googleReviews)
+      } catch (error) {
+        console.error("Failed to fetch Google reviews:", error)
       }
+
+      // Store Google reviews separately to be merged in fetchReviews
+      setReviews(googleReviews)
     } catch (error) {
       console.error("Error fetching user data:", error)
     }
@@ -999,10 +1003,15 @@ export default function BusinessReviews() {
       setCurrentSubscriptionReviews(limitedCurrentSubscriptionReviews)
       setPreviousSubscriptionReviews(previousSubscriptionReviewsData)
 
-      // Count valid reviews (excluding abandoned/incomplete) - EXISTING LOGIC
-      const countedReviews = currentSubscriptionReviewsData.filter(
-        (r) => r.status !== "abandoned" && r.isComplete !== false && !(r.message && r.message.startsWith("Rated")),
-      )
+      // FIXED: Count valid reviews (excluding abandoned/incomplete) - GOOGLE REVIEWS REMAIN AS GOOGLE REVIEWS
+      const countedReviews = currentSubscriptionReviewsData.filter((r) => {
+        // Google Reviews should always be counted as valid Google Reviews, not abandoned
+        if (r.platform === "Google") {
+          return true
+        }
+        // For internal reviews, apply the existing abandoned logic
+        return r.status !== "abandoned" && r.isComplete !== false && !(r.message && r.message.startsWith("Rated"))
+      })
 
       setAbandonedCount(currentSubscriptionReviewsData.length - countedReviews.length)
       setCurrentSubscriptionCount(countedReviews.length)
@@ -1269,13 +1278,15 @@ export default function BusinessReviews() {
     })
   }
 
-  // FILTERED REVIEWS - EXISTING LOGIC UNCHANGED
+  // FILTERED REVIEWS - FIXED LOGIC TO PROPERLY HANDLE GOOGLE REVIEWS
   const filteredReviews = useMemo(() => {
     const sourceReviews = viewMode === "current" ? currentSubscriptionReviews : previousSubscriptionReviews
     return sourceReviews
       .filter((review) => {
         const matchesLocation =
           selectedLocation === "All" || review.branchname?.toLowerCase().includes(selectedLocation.toLowerCase())
+
+        // FIXED: Google Reviews filter logic - when plan is active, Google Reviews should remain as Google Reviews
         const matchesFilter =
           filterOption === "All" ||
           (filterOption === "Above 3" && review.rating > 3) ||
@@ -1284,6 +1295,8 @@ export default function BusinessReviews() {
           (filterOption === "Not Replied" && !review.replied) ||
           (filterOption === "Google Reviews" && review.platform === "Google") ||
           (filterOption === "Abandoned" &&
+            // FIXED: Google Reviews should NEVER be considered abandoned, only internal reviews
+            review.platform !== "Google" &&
             (review.status === "abandoned" ||
               review.isComplete === false ||
               (review.message && review.message.startsWith("Rated"))))
@@ -1515,322 +1528,324 @@ export default function BusinessReviews() {
         <div className="flex">
           <Sidebar />
           <div className="flex-1 md:ml-64 p-8 flex items-center justify-center">
-          <div className="text-center">
-          <main className="flex-1 p-8 ml-8">
-            <motion.div
-              className="max-w-7xl mx-auto space-y-8"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <motion.div
-                className="text-center mb-12"
-                initial={{ opacity: 0, y: -30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-                  Business Reviews
-                </h1>
-                <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                  Manage and respond to your customer reviews with intelligent templates and comprehensive analytics
-                </p>
-              </motion.div>
-
-              {renderPlanDetails()}
-
-              {/* EXISTING FILTERS AND CONTROLS - UNCHANGED */}
-              <motion.div
-                className="bg-white/90 border border-slate-200/60 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                  <div className="flex flex-wrap items-center gap-4">
-                    {activeBranches.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-slate-500" />
-                        <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                          <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                            <SelectValue placeholder="Select location" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="All">All Locations</SelectItem>
-                            {activeBranches.map((branch) => (
-                              <SelectItem key={branch} value={branch}>
-                                {branch}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-slate-500" />
-                      <Select value={filterOption} onValueChange={setFilterOption}>
-                        <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                          <SelectValue placeholder="Filter reviews" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="All">All Reviews</SelectItem>
-                          <SelectItem value="Above 3">Above 3 Stars</SelectItem>
-                          <SelectItem value="Below 3">3 Stars & Below</SelectItem>
-                          <SelectItem value="Replied">Replied</SelectItem>
-                          <SelectItem value="Not Replied">Not Replied</SelectItem>
-                          <SelectItem value="Google Reviews">Google Reviews</SelectItem>
-                          <SelectItem value="Abandoned">Abandoned Reviews</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-slate-500" />
-                      <Select value={sortOrder} onValueChange={(value: "desc" | "asc") => setSortOrder(value)}>
-                        <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                          <SelectValue placeholder="Sort by date" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="desc">Newest First</SelectItem>
-                          <SelectItem value="asc">Oldest First</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-slate-600 bg-slate-100 px-4 py-2 rounded-xl font-medium">
-                    Showing {filteredReviews.length} of{" "}
-                    {viewMode === "current" ? currentSubscriptionReviews.length : previousSubscriptionReviews.length}{" "}
-                    reviews
-                  </div>
-                </div>
-              </motion.div>
-
-              {showUpgradePrompt && viewMode === "current" && (
+            <div className="text-center">
+              <main className="flex-1 p-8 ml-8">
                 <motion.div
-                  className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-8 rounded-3xl shadow-xl"
-                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                  className="max-w-7xl mx-auto space-y-8"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
                 >
-                  <div className="flex items-start">
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                    >
-                      <CreditCard className="h-7 w-7 text-amber-600 mt-0.5 flex-shrink-0" />
-                    </motion.div>
-                    <div className="ml-4">
-                      <p className="text-amber-800 font-semibold text-lg">
-                        🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
-                        <button
-                          onClick={() => window.location.assign("/#pricing")}
-                          className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
-                        >
-                          Upgrade your plan
-                        </button>{" "}
-                        to unlock unlimited reviews and premium features.
-                      </p>
-                      <div className="mt-4 flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5 text-amber-600" />
-                        <p className="text-sm text-amber-700 font-medium">
-                          New review requests will be redirected to Google Reviews.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {viewMode === "previous" && (
-                <motion.div
-                  className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-8 rounded-3xl shadow-xl"
-                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-                >
-                  <div className="flex items-start">
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                    >
-                      <Calendar className="h-7 w-7 text-blue-600 mt-0.5 flex-shrink-0" />
-                    </motion.div>
-                    <div className="ml-4">
-                      <p className="text-blue-800 font-semibold text-lg">
-                        You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These are
-                        sorted by plan duration and don't count toward your current subscription's limit.
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* EXISTING REVIEWS GRID - UNCHANGED */}
-              <AnimatePresence>
-                {filteredReviews.length > 0 ? (
                   <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.4 }}
+                    className="text-center mb-12"
+                    initial={{ opacity: 0, y: -30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
                   >
-                    {filteredReviews.map((review, index) => (
+                    <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+                      Business Reviews
+                    </h1>
+                    <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                      Manage and respond to your customer reviews with intelligent templates and comprehensive analytics
+                    </p>
+                  </motion.div>
+
+                  {renderPlanDetails()}
+
+                  {/* EXISTING FILTERS AND CONTROLS - UNCHANGED */}
+                  <motion.div
+                    className="bg-white/90 border border-slate-200/60 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                      <div className="flex flex-wrap items-center gap-4">
+                        {activeBranches.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-slate-500" />
+                            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                              <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
+                                <SelectValue placeholder="Select location" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="All">All Locations</SelectItem>
+                                {activeBranches.map((branch) => (
+                                  <SelectItem key={branch} value={branch}>
+                                    {branch}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-slate-500" />
+                          <Select value={filterOption} onValueChange={setFilterOption}>
+                            <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
+                              <SelectValue placeholder="Filter reviews" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="All">All Reviews</SelectItem>
+                              <SelectItem value="Above 3">Above 3 Stars</SelectItem>
+                              <SelectItem value="Below 3">3 Stars & Below</SelectItem>
+                              <SelectItem value="Replied">Replied</SelectItem>
+                              <SelectItem value="Not Replied">Not Replied</SelectItem>
+                              <SelectItem value="Google Reviews">Google Reviews</SelectItem>
+                              <SelectItem value="Abandoned">Abandoned Reviews</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-slate-500" />
+                          <Select value={sortOrder} onValueChange={(value: "desc" | "asc") => setSortOrder(value)}>
+                            <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
+                              <SelectValue placeholder="Sort by date" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="desc">Newest First</SelectItem>
+                              <SelectItem value="asc">Oldest First</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="text-sm text-slate-600 bg-slate-100 px-4 py-2 rounded-xl font-medium">
+                        Showing {filteredReviews.length} of{" "}
+                        {viewMode === "current"
+                          ? currentSubscriptionReviews.length
+                          : previousSubscriptionReviews.length}{" "}
+                        reviews
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {showUpgradePrompt && viewMode === "current" && (
+                    <motion.div
+                      className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-8 rounded-3xl shadow-xl"
+                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                    >
+                      <div className="flex items-start">
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        >
+                          <CreditCard className="h-7 w-7 text-amber-600 mt-0.5 flex-shrink-0" />
+                        </motion.div>
+                        <div className="ml-4">
+                          <p className="text-amber-800 font-semibold text-lg">
+                            🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
+                            <button
+                              onClick={() => window.location.assign("/#pricing")}
+                              className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
+                            >
+                              Upgrade your plan
+                            </button>{" "}
+                            to unlock unlimited reviews and premium features.
+                          </p>
+                          <div className="mt-4 flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-amber-600" />
+                            <p className="text-sm text-amber-700 font-medium">
+                              New review requests will be redirected to Google Reviews.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {viewMode === "previous" && (
+                    <motion.div
+                      className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-8 rounded-3xl shadow-xl"
+                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                    >
+                      <div className="flex items-start">
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        >
+                          <Calendar className="h-7 w-7 text-blue-600 mt-0.5 flex-shrink-0" />
+                        </motion.div>
+                        <div className="ml-4">
+                          <p className="text-blue-800 font-semibold text-lg">
+                            You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These
+                            are sorted by plan duration and don't count toward your current subscription's limit.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* EXISTING REVIEWS GRID - UNCHANGED */}
+                  <AnimatePresence>
+                    {filteredReviews.length > 0 ? (
                       <motion.div
-                        key={review.id}
-                        initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -30, scale: 0.9 }}
-                        transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
-                        className="group relative bg-white/95 border border-slate-200/60 rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.4 }}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        <div className="relative">
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                                {review.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <h3 className="font-bold text-slate-800 text-lg">{review.name}</h3>
+                        {filteredReviews.map((review, index) => (
+                          <motion.div
+                            key={review.id}
+                            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -30, scale: 0.9 }}
+                            transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
+                            className="group relative bg-white/95 border border-slate-200/60 rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="relative">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                    {review.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-slate-800 text-lg">{review.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                      {renderStars(review.rating)}
+                                      <span className="text-sm text-slate-500">({review.rating}/5)</span>
+                                    </div>
+                                  </div>
+                                </div>
                                 <div className="flex items-center gap-2">
-                                  {renderStars(review.rating)}
-                                  <span className="text-sm text-slate-500">({review.rating}/5)</span>
+                                  {getPlatformIcon(review.platform)}
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setReviewToDelete(review)}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Delete review</TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3 mb-6">
+                                <p className="text-slate-700 leading-relaxed line-clamp-4">{review.message}</p>
+                                <div className="flex items-center gap-4 text-sm text-slate-500">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {review.date}
+                                  </span>
+                                  {review.branchname && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {review.branchname}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {review.replied && (
+                                    <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1 rounded-full">
+                                      <Check className="h-3 w-3 mr-1" />
+                                      Replied
+                                    </Badge>
+                                  )}
+                                  {review.platform === "Google" && (
+                                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1 rounded-full">
+                                      <Globe className="h-3 w-3 mr-1" />
+                                      Google
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {review.phone && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleOpenTemplateDialog(review, "whatsapp")}
+                                          className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                                        >
+                                          <MessageSquare className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Send WhatsApp message</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {review.email && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleOpenTemplateDialog(review, "email")}
+                                          className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                                        >
+                                          <Mail className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Send email</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleToggleReply(review.id)}
+                                        className="border-slate-200 hover:bg-slate-50 rounded-xl"
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {review.replied ? "Mark as not replied" : "Mark as replied"}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {getPlatformIcon(review.platform)}
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setReviewToDelete(review)}
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Delete review</TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3 mb-6">
-                            <p className="text-slate-700 leading-relaxed line-clamp-4">{review.message}</p>
-                            <div className="flex items-center gap-4 text-sm text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {review.date}
-                              </span>
-                              {review.branchname && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {review.branchname}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {review.replied && (
-                                <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1 rounded-full">
-                                  <Check className="h-3 w-3 mr-1" />
-                                  Replied
-                                </Badge>
-                              )}
-                              {review.platform === "Google" && (
-                                <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1 rounded-full">
-                                  <Globe className="h-3 w-3 mr-1" />
-                                  Google
-                                </Badge>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {review.phone && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleOpenTemplateDialog(review, "whatsapp")}
-                                      className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                                    >
-                                      <MessageSquare className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Send WhatsApp message</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {review.email && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleOpenTemplateDialog(review, "email")}
-                                      className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                                    >
-                                      <Mail className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Send email</TooltipContent>
-                                </Tooltip>
-                              )}
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleToggleReply(review.id)}
-                                    className="border-slate-200 hover:bg-slate-50 rounded-xl"
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  {review.replied ? "Mark as not replied" : "Mark as replied"}
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </div>
-                        </div>
+                          </motion.div>
+                        ))}
                       </motion.div>
-                    ))}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    className="text-center py-16"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 }}
-                  >
-                    <div className="w-24 h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                      <FolderOpen className="h-12 w-12 text-slate-400" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-slate-700 mb-2">No Reviews Found</h3>
-                    <p className="text-slate-500 text-lg mb-8">
-                      {viewMode === "current"
-                        ? "No reviews found for your current subscription period with the selected filters."
-                        : "No reviews found from your previous subscription periods with the selected filters."}
-                    </p>
-                    <Button
-                      onClick={handleStartReviewProcess}
-                      className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-8 py-3 rounded-2xl font-bold text-lg"
-                    >
-                      <Plus className="w-5 h-5 mr-2" />
-                      Get Your First Review
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </main>
-          </div>
+                    ) : (
+                      <motion.div
+                        className="text-center py-16"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        <div className="w-24 h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                          <FolderOpen className="h-12 w-12 text-slate-400" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-700 mb-2">No Reviews Found</h3>
+                        <p className="text-slate-500 text-lg mb-8">
+                          {viewMode === "current"
+                            ? "No reviews found for your current subscription period with the selected filters."
+                            : "No reviews found from your previous subscription periods with the selected filters."}
+                        </p>
+                        <Button
+                          onClick={handleStartReviewProcess}
+                          className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-8 py-3 rounded-2xl font-bold text-lg"
+                        >
+                          <Plus className="w-5 h-5 mr-2" />
+                          Get Your First Review
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </main>
+            </div>
           </div>
         </div>
 

@@ -46,14 +46,14 @@ const FooterSection = () => {
               <li>
                 <a href="#features" className="text-gray-300 hover:text-white text-sm">Features</a>
               </li>
-              <li>
+              {/* <li>
                 <a href="#" className="text-gray-300 hover:text-white text-sm">Integrations</a>
-              </li>
+              </li> */}
               <li>
                 <a href="#pricing" className="text-gray-300 hover:text-white text-sm">Pricing</a>
               </li>
               <li>
-                <a href="#" className="text-gray-300 hover:text-white text-sm">Updates</a>
+                <a href="#cta" className="text-gray-300 hover:text-white text-sm">Updates</a>
               </li>
             </ul>
           </div>
@@ -62,17 +62,17 @@ const FooterSection = () => {
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Support</h3>
             <ul className="mt-4 space-y-2">
               <li>
-                <a href="#" className="text-gray-300 hover:text-white text-sm">Help Center</a>
+                <a href="/contact" className="text-gray-300 hover:text-white text-sm">Help Center</a>
               </li>
               <li>
                 <a href="#faq" className="text-gray-300 hover:text-white text-sm">FAQ</a>
               </li>
               <li>
-                <a href="#" className="text-gray-300 hover:text-white text-sm">Contact Us</a>
+                <a href="/chatsupportwidget" className="text-gray-300 hover:text-white text-sm">Contact Us</a>
               </li>
-              <li>
+              {/* <li>
                 <a href="#" className="text-gray-300 hover:text-white text-sm">Status</a>
-              </li>
+              </li> */}
             </ul>
           </div>
           
@@ -80,26 +80,26 @@ const FooterSection = () => {
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Company</h3>
             <ul className="mt-4 space-y-2">
               <li>
-                <a href="#" className="text-gray-300 hover:text-white text-sm">About Us</a>
+                <a href="/about" className="text-gray-300 hover:text-white text-sm">About Us</a>
               </li>
-              <li>
+              {/* <li>
                 <a href="#" className="text-gray-300 hover:text-white text-sm">Blog</a>
-              </li>
+              </li> */}
               <li>
-                <a href="#" className="text-gray-300 hover:text-white text-sm">Careers</a>
+                <a href="/careers" className="text-gray-300 hover:text-white text-sm">Careers</a>
               </li>
-              <li>
+              {/* <li>
                 <a href="#" className="text-gray-300 hover:text-white text-sm">Press</a>
-              </li>
+              </li> */}
             </ul>
           </div>
         </div>
         
         <div className="border-t border-gray-800 pt-8 mt-8 flex flex-col md:flex-row justify-between items-center">
           <div className="flex space-x-6 md:order-2">
-            <a href="#" className="text-gray-400 hover:text-white text-sm">Privacy Policy</a>
-            <a href="#" className="text-gray-400 hover:text-white text-sm">Terms of Service</a>
-            <a href="#" className="text-gray-400 hover:text-white text-sm">Cookie Policy</a>
+            <a href="/privacy" className="text-gray-400 hover:text-white text-sm">Privacy Policy</a>
+            <a href="/terms" className="text-gray-400 hover:text-white text-sm">Terms of Service</a>
+            <a href="/cookies" className="text-gray-400 hover:text-white text-sm">Cookie Policy</a>
           </div>
           <p className="mt-8 md:mt-0 text-base text-gray-400 md:order-1">
             &copy; {new Date().getFullYear()} Rhino Review. All rights reserved.

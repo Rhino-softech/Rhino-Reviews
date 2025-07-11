@@ -243,7 +243,7 @@ const PaymentPage = () => {
             if (isAddon) {
               // ADD-ON PURCHASE - ONLY UPDATE ADD-ON CREDITS
               await updateAddonCredits()
-              navigate("/components/business/business-reviews", {
+              navigate("/components/business/reviews", {
                 state: {
                   paymentId: response.razorpay_payment_id,
                   planName,

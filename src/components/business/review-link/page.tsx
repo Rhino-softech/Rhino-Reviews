@@ -25,6 +25,7 @@ import {
   getDocs,
   orderBy,
   limit,
+  where,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { onAuthStateChanged } from "firebase/auth"
@@ -89,6 +90,69 @@ const hasCustomPlan = (plan: string | undefined) => {
   return normalizedPlan.includes("custom") || normalizedPlan.includes("enterprise")
 }
 
+// FIX: Get proper base URL to avoid localhost issues
+const getBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    // Client-side: use window.location.origin
+    return window.location.origin
+  }
+  
+  // Server-side: check environment variables in order of preference
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+  }
+  
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`
+  }
+  
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+  
+  // Development fallback
+  return process.env.NODE_ENV === "development" ? "http://localhost:8081" : "https://rhino-review.rhinosoft.in"
+}
+
+// FIX: Check business name uniqueness before saving
+const checkBusinessNameUniqueness = async (businessName: string, currentUserId: string) => {
+  try {
+    // Check if any other user has this business name
+    const slugToCheck = businessName.toLowerCase().replace(/\s+/g, "-")
+    
+    // Query the slug_to_uid collection to see if this slug exists for another user
+    const slugDocRef = doc(db, "slug_to_uid", slugToCheck)
+    const slugDocSnap = await getDoc(slugDocRef)
+    
+    if (slugDocSnap.exists()) {
+      const existingUid = slugDocSnap.data().uid
+      // If the existing UID is different from current user, name is taken
+      if (existingUid !== currentUserId) {
+        return false // Name is taken
+      }
+    }
+    
+    // Also check in users collection for business names
+    const usersQuery = query(
+      collection(db, "users"),
+      where("businessInfo.businessName", "==", businessName)
+    )
+    const usersSnapshot = await getDocs(usersQuery)
+    
+    // Check if any other user has this business name
+    for (const userDoc of usersSnapshot.docs) {
+      if (userDoc.id !== currentUserId) {
+        return false // Name is taken by another user
+      }
+    }
+    
+    return true // Name is available
+  } catch (error) {
+    console.error("Error checking business name uniqueness:", error)
+    return false // Assume taken on error for safety
+  }
+}
+
 export default function ReviewLinkPage() {
   const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -145,6 +209,8 @@ export default function ReviewLinkPage() {
   const [copied, setCopied] = useState(false)
   const [userPlan, setUserPlan] = useState<string>("")
   const [hasCustomAccess, setHasCustomAccess] = useState(false)
+  const [nameCheckLoading, setNameCheckLoading] = useState(false)
+  const [nameAvailable, setNameAvailable] = useState<boolean | null>(null)
 
   const fetchReviews = useCallback(async () => {
     if (!currentUser || reviewsLimit === null) return
@@ -265,13 +331,14 @@ export default function ReviewLinkPage() {
             setOldPreviewImageUrl(data.previewImage || null)
             setOldLogoImageUrl(data.logoImage || null)
 
+            // FIX: Use proper base URL instead of hardcoded localhost
             let reviewUrl = data.reviewLinkUrl
             if (!reviewUrl) {
               const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-              reviewUrl = `https://rhino-review.rhinosoft.in/${slug}`
+              reviewUrl = `${getBaseUrl()}/review/${slug}`
             }
             setReviewLinkUrl(reviewUrl)
-            setTempBusinessSlug(reviewUrl.replace("https://rhino-review.rhinosoft.in/", ""))
+            setTempBusinessSlug(reviewUrl.replace(`${getBaseUrl()}/review/`, ""))
           } else {
             const docRef = doc(db, "review_link", user.uid)
             const docSnap = await getDoc(docRef)
@@ -292,18 +359,19 @@ export default function ReviewLinkPage() {
               setOldPreviewImageUrl(data.previewImage || null)
               setOldLogoImageUrl(data.logoImage || null)
 
+              // FIX: Use proper base URL instead of hardcoded localhost
               let reviewUrl = data.reviewLinkUrl
               if (!reviewUrl) {
                 const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-                reviewUrl = `https://rhino-review.rhinosoft.in/${slug}`
+                reviewUrl = `${getBaseUrl()}/${slug}`
               }
               setReviewLinkUrl(reviewUrl)
-              setTempBusinessSlug(reviewUrl.replace("https://rhino-review.rhinosoft.in/", ""))
+              setTempBusinessSlug(reviewUrl.replace(`${getBaseUrl()}/`, ""))
             } else {
               const slug = businessNameFromInfo
                 ? businessNameFromInfo.toLowerCase().replace(/\s+/g, "-")
                 : "your-business"
-              setReviewLinkUrl(`https://rhino-review.rhinosoft.in/${slug}`)
+              setReviewLinkUrl(`${getBaseUrl()}/${slug}`)
               setTempBusinessSlug(slug)
               setBusinessName(businessNameFromInfo || "")
               setTempBusinessName(businessNameFromInfo || "")
@@ -321,11 +389,43 @@ export default function ReviewLinkPage() {
     return () => unsubscribe()
   }, [])
 
+  // FIX: Check business name uniqueness when user types
+  const handleBusinessNameChange = async (newName: string) => {
+    setTempBusinessName(newName)
+    setNameAvailable(null)
+    
+    if (!newName.trim() || !currentUser) {
+      return
+    }
+    
+    setNameCheckLoading(true)
+    
+    try {
+      const isAvailable = await checkBusinessNameUniqueness(newName.trim(), currentUser.uid)
+      setNameAvailable(isAvailable)
+      
+      if (!isAvailable) {
+        toast.error("This business name is already taken. Please choose a different name.")
+      }
+    } catch (error) {
+      console.error("Error checking name availability:", error)
+      setNameAvailable(false)
+    } finally {
+      setNameCheckLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!currentUser || loading) return
 
     const saveConfig = async () => {
       try {
+        // FIX: Don't save if business name is not available
+        if (nameAvailable === false) {
+          toast.error("Cannot save: Business name is already taken")
+          return
+        }
+
         const config = {
           businessName,
           previewText,
@@ -373,17 +473,31 @@ export default function ReviewLinkPage() {
     currentUser,
     loading,
     tempBusinessSlug,
+    nameAvailable,
   ])
 
-  const handleUrlEdit = () => {
+  const handleUrlEdit = async () => {
     if (isEditingUrl) {
+      // FIX: Check uniqueness before saving URL
+      if (!currentUser) return
+      
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
-      const newUrl = `https://rhino-review.rhinosoft.in/${newSlug}`
+      
+      // Check if this slug is available
+      const slugDocRef = doc(db, "slug_to_uid", newSlug)
+      const slugDocSnap = await getDoc(slugDocRef)
+      
+      if (slugDocSnap.exists() && slugDocSnap.data().uid !== currentUser.uid) {
+        toast.error("This URL is already taken by another business. Please choose a different one.")
+        return
+      }
+      
+      const newUrl = `${getBaseUrl()}/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
 
-      if (currentUser) {
-        setDoc(
+      try {
+        await setDoc(
           doc(db, "slug_to_uid", newSlug),
           {
             uid: currentUser.uid,
@@ -391,19 +505,29 @@ export default function ReviewLinkPage() {
             updatedAt: serverTimestamp(),
           },
           { merge: true },
-        ).catch((error) => {
-          console.error("Error updating slug mapping:", error)
-          toast.error("Failed to update URL")
-        })
+        )
+        toast.success("URL updated successfully!")
+      } catch (error) {
+        console.error("Error updating slug mapping:", error)
+        toast.error("Failed to update URL")
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace("https://rhino-review.rhinosoft.in/", ""))
+      setTempBusinessSlug(reviewLinkUrl.replace(`${getBaseUrl()}/`, ""))
     }
     setIsEditingUrl(!isEditingUrl)
   }
 
-  const handlePreviewEdit = () => {
+  const handlePreviewEdit = async () => {
     if (isEditingPreview) {
+      // FIX: Check business name uniqueness before saving
+      if (tempBusinessName !== businessName && currentUser) {
+        const isAvailable = await checkBusinessNameUniqueness(tempBusinessName.trim(), currentUser.uid)
+        if (!isAvailable) {
+          toast.error("This business name is already taken. Please choose a different name.")
+          return
+        }
+      }
+      
       setBusinessName(tempBusinessName)
       setPreviewText(tempPreviewText)
       setWelcomeTitle(tempWelcomeTitle)
@@ -564,12 +688,23 @@ export default function ReviewLinkPage() {
     return !Object.values(errors).some(Boolean)
   }
 
+  // FIX: Properly save review with user information to prevent "Abandoned User"
   const saveNegativeReview = async () => {
     if (!currentUser) return
 
     try {
+      // Ensure we have proper user identification
+      const userName = formData.name.trim() || "Anonymous User"
+      const userEmail = formData.email.trim() || ""
+      const userPhone = formData.phone.trim() || ""
+      
       const reviewData = {
-        ...formData,
+        name: userName, // FIX: Always ensure we have a name
+        email: userEmail,
+        phone: userPhone,
+        branchname: formData.branchname.trim(),
+        review: formData.review.trim(),
+        message: formData.review.trim(), // Also save as message for compatibility
         rating,
         businessName,
         createdAt: serverTimestamp(),
@@ -578,6 +713,7 @@ export default function ReviewLinkPage() {
         platform: "internal",
         reviewType: "internal",
         isComplete: true, // Mark as complete since all form fields are filled
+        source: "review_form", // Add source tracking
       }
 
       await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
@@ -764,7 +900,7 @@ export default function ReviewLinkPage() {
                   {isEditingUrl ? (
                     <div className="space-y-4">
                       <div className="flex items-center">
-                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">https://rhino-review.rhinosoft.in/</span>
+                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">{getBaseUrl()}/</span>
                         <Input
                           value={tempBusinessSlug}
                           onChange={(e) => setTempBusinessSlug(e.target.value)}
@@ -961,14 +1097,33 @@ export default function ReviewLinkPage() {
                               <Label htmlFor="business-name" className="text-gray-700">
                                 Business Name
                               </Label>
-                              <Input
-                                id="business-name"
-                                value={tempBusinessName}
-                                onChange={(e) => setTempBusinessName(e.target.value)}
-                                aria-label="Business name"
-                                placeholder="Enter your business name"
-                                className="border-amber-200 focus:ring-2 focus:ring-amber-300"
-                              />
+                              <div className="relative">
+                                <Input
+                                  id="business-name"
+                                  value={tempBusinessName}
+                                  onChange={(e) => handleBusinessNameChange(e.target.value)}
+                                  aria-label="Business name"
+                                  placeholder="Enter your business name"
+                                  className={`border-amber-200 focus:ring-2 focus:ring-amber-300 ${
+                                    nameAvailable === false ? 'border-red-500' : nameAvailable === true ? 'border-green-500' : ''
+                                  }`}
+                                />
+                                {nameCheckLoading && (
+                                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-amber-500"></div>
+                                  </div>
+                                )}
+                              </div>
+                              {nameAvailable === false && (
+                                <p className="text-sm text-red-600">
+                                  This business name is already taken. Please choose a different name.
+                                </p>
+                              )}
+                              {nameAvailable === true && (
+                                <p className="text-sm text-green-600">
+                                  ✓ Business name is available!
+                                </p>
+                              )}
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="welcome-title" className="text-gray-700">
@@ -1174,7 +1329,8 @@ export default function ReviewLinkPage() {
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Button
                             onClick={handlePreviewEdit}
-                            className="bg-gradient-to-r from-rose-500 to-amber-500 text-white"
+                            disabled={nameAvailable === false}
+                            className="bg-gradient-to-r from-rose-500 to-amber-500 text-white disabled:opacity-50"
                           >
                             Save Changes
                           </Button>

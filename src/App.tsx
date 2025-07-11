@@ -39,6 +39,14 @@ import ChatSupportWidget from "./components/chat-support-widget";
 import QRGenerator from "./components/qr-generator";
 import DemoBookingChat from "./components/admin/settings/demo-booking-chat";
 import PricingSettings from "./components/admin/settings/pricing-settings";
+import CtaSection from "./components/CtaSection";
+import PricingSection from "./components/PricingSection";
+import ContactPanel from "./components/ContactPanel";
+import AboutPage from "./components/footer/about";
+import CareersPage from "./components/footer/carrers";
+import PrivacyPolicyPage from "./components/footer/privacy";
+import CookiePolicyPage from "./components/footer/cookies";
+import TermsOfServicePage from "./components/footer/terms";
 
 
 function useScrollToHash() {
@@ -77,12 +85,20 @@ return (
         <Route path="/register" element={<RegistrationForm />} />
         <Route path="/demo" element={<Demo />} />
         <Route path="/contact" element={<ContactWidget />} />
-        <Route path="/pricing" element={<Index />} />
+        <Route path="/pricing" element={<PricingSection />} />
         <Route path="/payment" element={<PaymentPage />} />
         <Route path="/admin" element={<BusinessForm />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/careers" element={<CareersPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/cookies" element={<CookiePolicyPage />} />
+        <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/businessform" element={<BusinessForm />} />
-        <Route path="/contact-page" element={<ContactPage />} />
+        <Route path="/contact" element={<ContactPanel contactSettings={undefined} onScheduleDemo={function (): void {
+        throw new Error("Function not implemented.");
+      } } />} />
         <Route path="/demo2" element={<Demo2 />} />
+        <Route path="/cta" element={<CtaSection />} />
         <Route
           path="/qr-generator"
           element={
