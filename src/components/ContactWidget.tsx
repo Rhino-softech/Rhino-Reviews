@@ -3,10 +3,10 @@ import { useState, useEffect } from "react"
 import { FiCalendar, FiMessageCircle, FiPhone } from "react-icons/fi"
 import { FaWhatsapp } from "react-icons/fa"
 import { useNavigate } from "react-router-dom"
-import { doc, getDoc } from "../firebase/firebase"
-import { db } from "../firebase/firebase"
-import { MessageCircle } from "lucide-react"
-import ChatSupportWidget from "../components/chat-support-widget"
+import { doc, getDoc } from "../firebase/firebase" // Corrected import path
+import { db } from "../firebase/firebase" // Corrected import path
+import { MessageCircle } from 'lucide-react'
+import ChatSupportWidget from "./chat-support-widget" // Corrected import path
 
 const icons = [
   { id: "message", icon: <FiMessageCircle size={28} />, label: "Message" },
@@ -19,17 +19,38 @@ interface ContactSettings {
   phoneNumber: string
   whatsappNumber: string
   enableDemo: boolean
+  enableChatSupport: boolean // Added from home-settings
+  enableContactWidget: boolean // Added from home-settings
+}
+
+interface ThemeSettings {
+  contactWidgetColor: string
+  chatWidgetColor: string
+  primaryColor: string
+  textColor: string
+}
+
+const defaultContactSettings: ContactSettings = {
+  phoneNumber: "+1 234 567 8900",
+  whatsappNumber: "+1234567890",
+  enableDemo: true,
+  enableChatSupport: true,
+  enableContactWidget: true,
+}
+
+const defaultTheme: ThemeSettings = {
+  contactWidgetColor: "#ea580c",
+  chatWidgetColor: "#ea580c",
+  primaryColor: "#ea580c",
+  textColor: "#111827",
 }
 
 const ContactWidget = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [iconIndex, setIconIndex] = useState(0)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [contactSettings, setContactSettings] = useState<ContactSettings>({
-    phoneNumber: "+1 234 567 8900",
-    whatsappNumber: "+1234567890",
-    enableDemo: true,
-  })
+  const [contactSettings, setContactSettings] = useState<ContactSettings>(defaultContactSettings)
+  const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -40,20 +61,25 @@ const ContactWidget = () => {
   }, [])
 
   useEffect(() => {
-    const fetchContactSettings = async () => {
+    const fetchSettings = async () => {
       try {
-        const docRef = doc(db, "adminSettings", "contactSettings")
-        const docSnap = await getDoc(docRef)
+        const [contactDoc, themeDoc] = await Promise.all([
+          getDoc(doc(db, "settings", "contactSettings")),
+          getDoc(doc(db, "settings", "homeTheme")),
+        ])
 
-        if (docSnap.exists()) {
-          setContactSettings(docSnap.data() as ContactSettings)
+        if (contactDoc.exists()) {
+          setContactSettings((prev) => ({ ...prev, ...contactDoc.data() as ContactSettings }))
+        }
+        if (themeDoc.exists()) {
+          setTheme((prev) => ({ ...prev, ...themeDoc.data() as ThemeSettings }))
         }
       } catch (error) {
-        console.error("Error fetching contact settings:", error)
+        console.error("Error fetching contact settings or theme:", error)
       }
     }
 
-    fetchContactSettings()
+    fetchSettings()
   }, [])
 
   const handleScheduleDemo = () => {
@@ -66,12 +92,17 @@ const ContactWidget = () => {
     setIsChatOpen(true)
   }
 
+  if (!contactSettings.enableContactWidget) {
+    return null; // Do not render the widget if disabled
+  }
+
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {/* Floating button with cycling icons */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white p-4 rounded-full shadow-xl hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-orange-300 relative w-16 h-16 flex items-center justify-center transition-all duration-300 transform hover:scale-105"
+        className="text-white p-4 rounded-full shadow-xl hover:shadow-2xl focus:outline-none focus:ring-4 relative w-16 h-16 flex items-center justify-center transition-all duration-300 transform hover:scale-105"
+        style={{ backgroundColor: theme.contactWidgetColor, focusRingColor: `${theme.contactWidgetColor}80` }}
         aria-label="Contact options"
         aria-expanded={isOpen}
         title="Contact Us"
@@ -89,7 +120,7 @@ const ContactWidget = () => {
         ))}
 
         {/* Pulse animation */}
-        <div className="absolute inset-0 rounded-full bg-orange-400 animate-ping opacity-20"></div>
+        <div className="absolute inset-0 rounded-full animate-ping opacity-20" style={{ backgroundColor: theme.contactWidgetColor }}></div>
       </button>
 
       {/* Popup panel */}
@@ -98,7 +129,7 @@ const ContactWidget = () => {
           <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white border-r border-b border-gray-100 transform rotate-45"></div>
 
           <div className="flex items-center justify-between mb-6">
-            <h4 className="text-xl font-bold text-gray-800">Get in Touch</h4>
+            <h4 className="text-xl font-bold" style={{ color: theme.textColor }}>Get in Touch</h4>
             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -110,7 +141,8 @@ const ContactWidget = () => {
             {contactSettings.enableDemo && (
               <button
                 onClick={handleScheduleDemo}
-                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                className="w-full flex items-center justify-center gap-3 text-white py-3 px-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                style={{ backgroundColor: theme.primaryColor }}
               >
                 <FiCalendar size={20} />
                 Schedule a Demo
@@ -136,17 +168,20 @@ const ContactWidget = () => {
             </a>
 
             {/* Chat support */}
-            <button
-              onClick={handleChatSupport}
-              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white py-3 px-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
-            >
-              <MessageCircle size={20} />
-              Chat Support
-            </button>
+            {contactSettings.enableChatSupport && (
+              <button
+                onClick={handleChatSupport}
+                className="w-full flex items-center justify-center gap-3 text-white py-3 px-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                style={{ backgroundColor: theme.chatWidgetColor }}
+              >
+                <MessageCircle size={20} />
+                Chat Support
+              </button>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-500 text-center">We typically respond within 5 minutes</p>
+            <p className="text-xs text-gray-500 text-center" style={{ color: theme.textColor }}>We typically respond within 5 minutes</p>
           </div>
         </div>
       )}

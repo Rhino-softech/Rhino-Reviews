@@ -1,5 +1,5 @@
 "use client"
-import { Calendar, Phone } from "lucide-react"
+import { Calendar, Phone } from 'lucide-react'
 import { FaWhatsapp } from "react-icons/fa"
 import { motion } from "framer-motion"
 
@@ -9,12 +9,20 @@ interface ContactSettings {
   enableDemo: boolean
 }
 
+interface ThemeSettings {
+  primaryColor: string
+  textColor: string
+  accentColor: string
+}
+
 export default function ContactPanel({
   contactSettings,
   onScheduleDemo,
+  theme,
 }: {
   contactSettings: ContactSettings
   onScheduleDemo: () => void
+  theme: ThemeSettings
 }) {
   return (
     
@@ -37,7 +45,8 @@ export default function ContactPanel({
           {contactSettings.enableDemo && (
             <motion.button
               onClick={onScheduleDemo}
-              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 px-6 rounded-2xl font-medium shadow-lg hover:shadow-indigo-500/25 transition-all duration-300"
+              className="w-full flex items-center justify-center gap-3 text-white py-4 px-6 rounded-2xl font-medium shadow-lg hover:shadow-indigo-500/25 transition-all duration-300"
+              style={{ background: `linear-gradient(to right, ${theme.primaryColor}, ${theme.accentColor})` }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               initial={{ opacity: 0, y: 20 }}
@@ -78,7 +87,8 @@ export default function ContactPanel({
           </motion.a>
 
           <motion.p
-            className="text-sm text-white/80 text-center mt-6"
+            className="text-sm text-center mt-6"
+            style={{ color: theme.textColor }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.5 }}

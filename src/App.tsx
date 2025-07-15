@@ -47,6 +47,7 @@ import CareersPage from "./components/footer/carrers";
 import PrivacyPolicyPage from "./components/footer/privacy";
 import CookiePolicyPage from "./components/footer/cookies";
 import TermsOfServicePage from "./components/footer/terms";
+import { HomeSettings } from "./components/admin/settings/homesettings";
 
 
 function useScrollToHash() {
@@ -127,7 +128,7 @@ return (
         <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/demo-chat" element={<DemoBookingChat />} />
         <Route path="/admin/pricing" element={<PricingSettings />} />
-
+        <Route path="/admin/home" element={<HomeSettings />} />
 
         <Route path="/admin/businesses/:uid" element={<BusinessDetailsPage params={{ uid: "" }} />} />
         <Route path="/admin/subscriptions/:uid" element={<SubscriptionPage params={{ uid: "" }} />} />

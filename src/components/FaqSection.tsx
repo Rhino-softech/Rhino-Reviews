@@ -1,16 +1,41 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { ChevronDown } from "lucide-react";
+"use client"
 
-const FaqSection = () => {
-  const faqs = [
+import { useEffect, useState } from "react"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/firebase/firebase"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { ChevronDown } from 'lucide-react'
+
+interface FaqItem {
+  question: string
+  answer: string
+}
+
+interface FaqContent {
+  title: string
+  subtitle: string
+  description: string
+  contactText: string
+  items: FaqItem[]
+}
+
+interface ThemeSettings {
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+  backgroundColor: string
+  textColor: string
+}
+
+const defaultContent: FaqContent = {
+  title: "FAQ",
+  subtitle: "Frequently Asked Questions",
+  description: "Get answers to the most common questions about Rhino Review.",
+  contactText: "Still have questions? Contact our support team for assistance.",
+  items: [
     {
       question: "How does Rhino Review help monitor my reviews?",
-      answer: 
+      answer:
         "Rhino Review provides a centralized dashboard where you can track all your customer reviews from multiple platforms in one place. Get real-time notifications when new reviews are posted.",
     },
     {
@@ -48,7 +73,44 @@ const FaqSection = () => {
       answer:
         "Yes, we offer mobile apps for iOS and Android so you can monitor and respond to reviews on the go with real-time notifications.",
     },
-  ];
+  ],
+}
+
+const defaultTheme: ThemeSettings = {
+  primaryColor: "#ea580c",
+  secondaryColor: "#fed7aa",
+  accentColor: "#fbbf24",
+  backgroundColor: "#ffffff",
+  textColor: "#111827",
+}
+
+const FaqSection = () => {
+  const [content, setContent] = useState<FaqContent>(defaultContent)
+  const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
+
+  useEffect(() => {
+    loadContent()
+  }, [])
+
+  const loadContent = async () => {
+    try {
+      const contentDoc = await getDoc(doc(db, "settings", "homeContent"))
+      const themeDoc = await getDoc(doc(db, "settings", "homeTheme"))
+
+      if (contentDoc.exists()) {
+        const data = contentDoc.data()
+        if (data.faq) {
+          setContent({ ...defaultContent, ...data.faq })
+        }
+      }
+
+      if (themeDoc.exists()) {
+        setTheme({ ...defaultTheme, ...themeDoc.data() })
+      }
+    } catch (error) {
+      console.error("Error loading content:", error)
+    }
+  }
 
   return (
     <section id="faq" className="py-20 bg-white font-sans">
@@ -56,29 +118,43 @@ const FaqSection = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
           {/* Left Column */}
           <div className="text-left">
-            <p className="text-sm text-orange-600 font-semibold uppercase tracking-wider">FAQ</p>
-            <h2 className="mt-2 text-4xl font-extrabold text-gray-900">
-              Frequently Asked Questions
+            <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: theme.primaryColor }}>
+              {content.title}
+            </p>
+            <h2 className="mt-2 text-4xl font-extrabold" style={{ color: theme.textColor }}>
+              {content.subtitle}
             </h2>
-            <p className="mt-4 text-lg text-gray-500 max-w-md">
-              Get answers to the most common questions about Rhino Review.
+            <p className="mt-4 text-lg max-w-md" style={{ color: theme.textColor }}>
+              {content.description}
             </p>
           </div>
 
           {/* Right Column - Accordion */}
           <div className="space-y-4">
             <Accordion type="single" collapsible className="w-full">
-              {faqs.map((faq, index) => (
+              {content.items.map((faq, index) => (
                 <AccordionItem
                   key={index}
                   value={`item-${index}`}
                   className="border border-gray-200 rounded-lg shadow-sm"
                 >
-                  <AccordionTrigger className="flex justify-between items-center px-5 py-4 text-left w-full text-lg font-medium text-gray-800 hover:text-orange-600 transition-colors duration-300 no-underline [&>svg]:hidden">
+                  <AccordionTrigger
+                    className="flex justify-between items-center px-5 py-4 text-left w-full text-lg font-medium transition-colors duration-300 no-underline [&>svg]:hidden"
+                    style={{
+                      color: theme.textColor,
+                      // Apply hover effect using inline style for dynamic color
+                      // Note: For more complex hover states, consider a CSS-in-JS library or Tailwind JIT with dynamic properties
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = theme.primaryColor)}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = theme.textColor)}
+                  >
                     <span>{faq.question}</span>
                     <ChevronDown className="ml-2 h-5 w-5 text-gray-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
                   </AccordionTrigger>
-                  <AccordionContent className="px-5 pb-4 text-gray-600 text-base transition-all duration-500 ease-in-out animate-fade-slide">
+                  <AccordionContent
+                    className="px-5 pb-4 text-base transition-all duration-500 ease-in-out animate-fade-slide"
+                    style={{ color: theme.textColor }}
+                  >
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>
@@ -89,11 +165,12 @@ const FaqSection = () => {
 
         {/* Contact Section */}
         <div className="mt-16 text-center">
-          <p className="text-gray-600">
-            Still have questions? Contact our support team for assistance.
-          </p>
+          <p style={{ color: theme.textColor }}>{content.contactText}</p>
           <div className="mt-4">
-            <button className="text-orange-600 font-medium hover:text-orange-700 flex items-center justify-center mx-auto transition duration-300">
+            <button
+              className="font-medium hover:opacity-80 flex items-center justify-center mx-auto transition duration-300"
+              style={{ color: theme.primaryColor }}
+            >
               Contact Support
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -102,12 +179,7 @@ const FaqSection = () => {
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -132,7 +204,7 @@ const FaqSection = () => {
         }
       `}</style>
     </section>
-  );
-};
+  )
+}
 
-export default FaqSection;
+export default FaqSection

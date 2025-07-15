@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, ArrowLeft, Send, User, Bot, Star, ThumbsUp, MessageCircle, CreditCard, Settings, UserCircle, HelpCircle, Lightbulb, Clock, CheckCircle } from 'lucide-react'
 import { db } from "../firebase/firebase"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore"
 
 interface ChatMessage {
   id: string
@@ -143,6 +143,16 @@ interface ChatSupportWidgetProps {
   onClose: () => void
 }
 
+interface ThemeSettings {
+  chatWidgetColor: string
+  textColor: string
+}
+
+const defaultTheme: ThemeSettings = {
+  chatWidgetColor: "#ea580c",
+  textColor: "#111827",
+}
+
 export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidgetProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [selectedIssue, setSelectedIssue] = useState<IssueCategory | null>(null)
@@ -162,6 +172,7 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
   const [feedbackRating, setFeedbackRating] = useState(0)
   const [feedbackText, setFeedbackText] = useState("")
   const [showFeedback, setShowFeedback] = useState(false)
+  const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -181,6 +192,20 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
       setShowFeedback(false)
     }
   }, [isOpen])
+
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const themeDoc = await getDoc(doc(db, "settings", "homeTheme"))
+        if (themeDoc.exists()) {
+          setTheme((prev) => ({ ...prev, ...themeDoc.data() }))
+        }
+      } catch (error) {
+        console.error("Error loading theme:", error)
+      }
+    }
+    loadTheme()
+  }, [])
 
   const startChat = () => {
     setConversationStep("issues")
@@ -425,7 +450,10 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
           className="absolute bottom-full right-0 mb-4 w-[420px] h-[650px] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-orange-500 to-pink-500 text-white p-4">
+          <div
+            className="text-white p-4"
+            style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {conversationStep !== "landing" && (
@@ -434,7 +462,10 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                   </button>
                 )}
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: theme.chatWidgetColor }}
+                  >
                     <MessageCircle className="w-4 h-4" />
                   </div>
                   <div>
@@ -458,11 +489,16 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
             {conversationStep === "landing" && (
               <div className="p-6 h-full flex flex-col">
                 <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div
+                    className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
+                  >
                     <MessageCircle className="w-8 h-8 text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Support</h2>
-                  <p className="text-gray-600 leading-relaxed">
+                  <h2 className="text-2xl font-bold mb-2" style={{ color: theme.textColor }}>
+                    Welcome to Support
+                  </h2>
+                  <p className="leading-relaxed" style={{ color: theme.textColor }}>
                     Get instant help with your questions and concerns. Our intelligent support system is designed to
                     provide you with quick, accurate, and personalized assistance.
                   </p>
@@ -484,11 +520,14 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                 <div className="mt-auto">
                   <button
                     onClick={startChat}
-                    className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:from-orange-600 hover:to-pink-600 transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                    className="w-full text-white py-4 px-6 rounded-xl font-semibold text-lg hover:from-orange-600 hover:to-pink-600 transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                    style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
                   >
                     Start Conversation
                   </button>
-                  <p className="text-center text-xs text-gray-500 mt-3">Average response time: Under 30 seconds</p>
+                  <p className="text-center text-xs text-gray-500 mt-3" style={{ color: theme.textColor }}>
+                    Average response time: Under 30 seconds
+                  </p>
                 </div>
               </div>
             )}
@@ -504,16 +543,23 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                     className={`flex gap-3 mb-4 ${message.isBot ? "justify-start" : "justify-end"}`}
                   >
                     {message.isBot && (
-                      <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
+                      >
                         <Bot className="w-4 h-4 text-white" />
                       </div>
                     )}
                     <div
                       className={`max-w-[85%] p-3 rounded-2xl ${
                         message.isBot
-                          ? "bg-gray-100 text-gray-800"
-                          : "bg-gradient-to-r from-orange-500 to-pink-500 text-white"
+                          ? "bg-gray-100"
+                          : "text-white"
                       }`}
+                      style={{
+                        backgroundColor: message.isBot ? undefined : theme.chatWidgetColor,
+                        color: message.isBot ? theme.textColor : "white",
+                      }}
                     >
                       <p className="text-sm leading-relaxed">{message.text}</p>
                     </div>
@@ -521,7 +567,9 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                 ))}
 
                 <div className="space-y-3 mt-6">
-                  <h4 className="font-semibold text-gray-700 text-sm mb-3">Choose your support category:</h4>
+                  <h4 className="font-semibold text-sm mb-3" style={{ color: theme.textColor }}>
+                    Choose your support category:
+                  </h4>
                   {issueCategories.map((issue) => (
                     <motion.button
                       key={issue.id}
@@ -537,8 +585,12 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                           {issue.icon}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-800 mb-1">{issue.title}</h4>
-                          <p className="text-sm text-gray-600 leading-relaxed">{issue.description}</p>
+                          <h4 className="font-semibold mb-1" style={{ color: theme.textColor }}>
+                            {issue.title}
+                          </h4>
+                          <p className="text-sm leading-relaxed" style={{ color: theme.textColor }}>
+                            {issue.description}
+                          </p>
                         </div>
                       </div>
                     </motion.button>
@@ -559,19 +611,26 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                       className={`flex gap-3 ${message.isBot ? "justify-start" : "justify-end"}`}
                     >
                       {message.isBot && (
-                        <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
+                        >
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                       )}
                       <div
                         className={`max-w-[80%] p-3 rounded-2xl ${
                           message.isBot
-                            ? "bg-gray-100 text-gray-800"
-                            : "bg-gradient-to-r from-orange-500 to-pink-500 text-white"
+                            ? "bg-gray-100"
+                            : "text-white"
                         }`}
+                        style={{
+                          backgroundColor: message.isBot ? undefined : theme.chatWidgetColor,
+                          color: message.isBot ? theme.textColor : "white",
+                        }}
                       >
                         <p className="text-sm leading-relaxed">{message.text}</p>
-                        <p className={`text-xs mt-1 ${message.isBot ? "text-gray-500" : "text-white/70"}`}>
+                        <p className={`text-xs mt-1 ${message.isBot ? "text-gray-500" : "text-white/70"}`} style={{ color: message.isBot ? theme.textColor : "white" }}>
                           {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
@@ -590,7 +649,10 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                       animate={{ opacity: 1, y: 0 }}
                       className="flex gap-3 justify-start"
                     >
-                      <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-full flex items-center justify-center">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center"
+                        style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
+                      >
                         <Bot className="w-4 h-4 text-white" />
                       </div>
                       <div className="bg-gray-100 p-3 rounded-2xl">
@@ -615,7 +677,9 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200"
                     >
-                      <h4 className="font-semibold text-gray-800 mb-3 text-center">Submit Detailed Support Request</h4>
+                      <h4 className="font-semibold mb-3 text-center" style={{ color: theme.textColor }}>
+                        Submit Detailed Support Request
+                      </h4>
                       <form onSubmit={handleFormSubmit} className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <input
@@ -671,6 +735,7 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                             type="button"
                             onClick={() => setShowForm(false)}
                             className="px-4 py-3 text-gray-600 hover:text-gray-800 transition-colors"
+                            style={{ color: theme.textColor }}
                           >
                             Cancel
                           </button>
@@ -686,7 +751,9 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-xl border border-green-200"
                     >
-                      <h4 className="font-semibold text-gray-800 mb-3 text-center">How was your experience?</h4>
+                      <h4 className="font-semibold mb-3 text-center" style={{ color: theme.textColor }}>
+                        How was your experience?
+                      </h4>
                       <div className="flex justify-center gap-1 mb-3">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <motion.button
@@ -738,20 +805,22 @@ export default function ChatSupportWidget({ isOpen, onClose }: ChatSupportWidget
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   placeholder="Type your message..."
-                  className="flex-1 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                  className="flex-1 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none"
+                  style={{ borderColor: theme.chatWidgetColor }}
                   disabled={isTyping}
                 />
                 <button
                   type="submit"
                   disabled={!userInput.trim() || isTyping}
-                  className="bg-gradient-to-r from-orange-500 to-pink-500 text-white p-3 rounded-lg hover:from-orange-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="text-white p-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  style={{ background: `linear-gradient(to right, ${theme.chatWidgetColor}, ${theme.chatWidgetColor}cc)` }}
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </form>
               <div className="flex justify-between items-center">
-                <p className="text-xs text-gray-500">Press Enter to send</p>
-                <button onClick={resetChat} className="text-xs text-orange-600 hover:text-orange-700 transition-colors">
+                <p className="text-xs text-gray-500" style={{ color: theme.textColor }}>Press Enter to send</p>
+                <button onClick={resetChat} className="text-xs hover:text-orange-700 transition-colors" style={{ color: theme.chatWidgetColor }}>
                   New Chat
                 </button>
               </div>

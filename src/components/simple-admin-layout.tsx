@@ -3,7 +3,18 @@
 import { useCallback, useState, useEffect } from "react"
 import type React from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, Building2, Users, Menu, X, LogOut, Star, BarChart2, Settings, DollarSign, MessageCircle } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  Menu,
+  X,
+  LogOut,
+  BarChart2,
+  Settings,
+  DollarSign,
+  MessageCircle,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -62,12 +73,17 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
   // Updated navigation with separated pages
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
-    // { icon: Star, label: "Reviews", href: "/admin/reviews" },
     { icon: Building2, label: "Businesses", href: "/admin/businesses" },
     { icon: BarChart2, label: "Analytics", href: "/admin/analytics" },
     { icon: Users, label: "Users", href: "/admin/users" },
     { icon: DollarSign, label: "Pricing Management", href: "/admin/pricing" },
     { icon: MessageCircle, label: "Demo Booking Chat", href: "/admin/demo-chat" },
+    {
+      icon: Settings,
+      label: "Home Settings",
+      href: "/admin/home"
+     
+    },
     { icon: Settings, label: "General Settings", href: "/admin/settings" },
   ]
 
@@ -145,7 +161,6 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
       <div className="hidden md:flex md:flex-col w-80 bg-white/95 backdrop-blur-sm border-r border-gray-200/80 h-screen fixed left-0 top-0 p-6 transition-all duration-300 shadow-lg">
         <div className="flex items-center justify-center mb-12 pt-4">
           <div className="relative group">
-            
             <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-orange-400 to-amber-400 blur opacity-0 group-hover:opacity-30 transition-opacity duration-500 -z-10"></div>
           </div>
         </div>

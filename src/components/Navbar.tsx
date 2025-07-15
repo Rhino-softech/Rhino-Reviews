@@ -1,81 +1,107 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase"; 
-// import logo from "./assets/Rhino Review.png"; 
-import logos from "./assets/Review Rhino.jpeg"; 
+"use client"
 
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "../firebase/firebase"
+import logos from "./assets/Review Rhino.jpeg"
+
+interface ThemeSettings {
+  primaryColor: string
+  navbarColor: string
+  textColor: string
+}
+
+const defaultTheme: ThemeSettings = {
+  primaryColor: "#ea580c",
+  navbarColor: "#ea580c", 
+  textColor: "#111827"
+}
 
 const Navbar = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isHomePage = location.pathname === "/";
-  const auth = getAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isHomePage = location.pathname === "/"
+  const auth = getAuth()
   
   const isSimplifiedNavPage = 
     location.pathname.startsWith("/register") || 
-    location.pathname.startsWith("/businessform");
-    // location.pathname.startsWith("/admin/register")||
-    // location.pathname.startsWith("/admin/users");  
+    location.pathname.startsWith("/businessform")
+
+  useEffect(() => {
+    // Load theme settings
+    const loadTheme = async () => {
+      try {
+        const themeDoc = await getDoc(doc(db, "settings", "homeTheme"))
+        if (themeDoc.exists()) {
+          setTheme({ ...defaultTheme, ...themeDoc.data() })
+        }
+      } catch (error) {
+        console.error("Error loading theme:", error)
+      }
+    }
+    loadTheme()
+  }, [])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setIsLoggedIn(true);
+        setIsLoggedIn(true)
         try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
+          const userDocRef = doc(db, "users", user.uid)
+          const userDocSnap = await getDoc(userDocRef)
           
           if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setIsAdmin(userData?.role === "ADMIN");
+            const userData = userDocSnap.data()
+            setIsAdmin(userData?.role === "ADMIN")
           } else {
-            console.log("User document not found");
-            setIsAdmin(false);
+            console.log("User document not found")
+            setIsAdmin(false)
           }
         } catch (error) {
-          console.error("Error fetching user data:", error);
-          setIsAdmin(false);
+          console.error("Error fetching user data:", error)
+          setIsAdmin(false)
         }
       } else {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
+        setIsLoggedIn(false)
+        setIsAdmin(false)
       }
-      setIsLoading(false);
-    });
+      setIsLoading(false)
+    })
 
-    return () => unsubscribe();
-  }, [auth, location]);
+    return () => unsubscribe()
+  }, [auth, location])
 
   const handleNavClick = (hash: string) => {
     if (isHomePage) {
-      const el = document.getElementById(hash);
+      const el = document.getElementById(hash)
       if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
+        el.scrollIntoView({ behavior: "smooth" })
       }
     } else {
-      navigate(`/#${hash}`);
+      navigate(`/#${hash}`)
     }
-    setIsMenuOpen(false);
-  };
+    setIsMenuOpen(false)
+  }
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      setIsLoggedIn(false);
-      setIsAdmin(false);
-      navigate("/");
-      setIsMenuOpen(false);
+      await signOut(auth)
+      setIsLoggedIn(false)
+      setIsAdmin(false)
+      navigate("/")
+      setIsMenuOpen(false)
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Logout error:", error)
     }
-  };
+  }
 
   if (isLoading) {
     return (
@@ -90,7 +116,7 @@ const Navbar = () => {
           </div>
         </div>
       </nav>
-    );
+    )
   }
 
   if (isSimplifiedNavPage) {
@@ -101,25 +127,42 @@ const Navbar = () => {
             <div className="flex-shrink-0 flex items-center">
               <Link to="/" className="flex items-center space-x-2">
                 <img 
-                  src={logos} 
+                  src={logos || "/placeholder.svg"} 
                   alt="Rhino Review Logo" 
                   className="h-8 object-contain"
                 />
-                <span className="text-orange-600 font-extrabold text-xl">Rhino Review</span>
+                <span className="font-extrabold text-xl" style={{ color: theme.navbarColor }}>
+                  Rhino Review
+                </span>
               </Link>
             </div>
             <div className="hidden md:flex items-center space-x-4">
               {isLoggedIn ? (
                 <Button 
                   variant="outline" 
-                  className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700"
+                  className="transition-colors"
+                  style={{ 
+                    borderColor: theme.navbarColor, 
+                    color: theme.navbarColor,
+                    ':hover': { 
+                      color: '#ffffff',
+                      backgroundColor: theme.navbarColor 
+                    }
+                  }}
                   onClick={handleLogout}
                 >
                   Logout
                 </Button>
               ) : (
                 <Link to="/login">
-                  <Button variant="outline" className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
+                  <Button 
+                    variant="outline" 
+                    className="transition-colors"
+                    style={{ 
+                      borderColor: theme.navbarColor, 
+                      color: theme.navbarColor 
+                    }}
+                  >
                     Login
                   </Button>
                 </Link>
@@ -128,7 +171,7 @@ const Navbar = () => {
           </div>
         </div>
       </nav>
-    );
+    )
   }
 
   return (
@@ -138,34 +181,106 @@ const Navbar = () => {
           <div className="flex-shrink-0 flex items-center">
             <Link to="/" className="flex items-center space-x-2">
               <img 
-                src={logos} 
+                src={logos || "/placeholder.svg"} 
                 alt="Rhino Review Logo" 
                 className="h-10 object-contain"
               />
-              <span className="text-orange-600 font-extrabold text-xl"> Rhino Review</span>
+              <span className="font-extrabold text-xl" style={{ color: theme.navbarColor }}>
+                Rhino Review
+              </span>
             </Link>
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            <button onClick={() => handleNavClick("features")} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600">Features</button>
-            <button onClick={() => handleNavClick("how-it-works")} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600">How It Works</button>
-            <button onClick={() => handleNavClick("pricing")} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600">Pricing</button>
-            <button onClick={() => handleNavClick("testimonials")} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600">Testimonials</button>
-            <button onClick={() => handleNavClick("faq")} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600">FAQ</button>
+            <button 
+              onClick={() => handleNavClick("features")} 
+              className="px-3 py-2 text-sm font-medium transition-colors duration-200"
+              style={{ 
+                color: theme.textColor,
+                ':hover': { color: theme.navbarColor }
+              }}
+              onMouseEnter={(e) => e.target.style.color = theme.navbarColor}
+              onMouseLeave={(e) => e.target.style.color = theme.textColor}
+            >
+              Features
+            </button>
+            <button 
+              onClick={() => handleNavClick("how-it-works")} 
+              className="px-3 py-2 text-sm font-medium transition-colors duration-200"
+              style={{ 
+                color: theme.textColor,
+                ':hover': { color: theme.navbarColor }
+              }}
+              onMouseEnter={(e) => e.target.style.color = theme.navbarColor}
+              onMouseLeave={(e) => e.target.style.color = theme.textColor}
+            >
+              How It Works
+            </button>
+            <button 
+              onClick={() => handleNavClick("pricing")} 
+              className="px-3 py-2 text-sm font-medium transition-colors duration-200"
+              style={{ 
+                color: theme.textColor,
+                ':hover': { color: theme.navbarColor }
+              }}
+              onMouseEnter={(e) => e.target.style.color = theme.navbarColor}
+              onMouseLeave={(e) => e.target.style.color = theme.textColor}
+            >
+              Pricing
+            </button>
+            <button 
+              onClick={() => handleNavClick("testimonials")} 
+              className="px-3 py-2 text-sm font-medium transition-colors duration-200"
+              style={{ 
+                color: theme.textColor,
+                ':hover': { color: theme.navbarColor }
+              }}
+              onMouseEnter={(e) => e.target.style.color = theme.navbarColor}
+              onMouseLeave={(e) => e.target.style.color = theme.textColor}
+            >
+              Testimonials
+            </button>
+            <button 
+              onClick={() => handleNavClick("faq")} 
+              className="px-3 py-2 text-sm font-medium transition-colors duration-200"
+              style={{ 
+                color: theme.textColor,
+                ':hover': { color: theme.navbarColor }
+              }}
+              onMouseEnter={(e) => e.target.style.color = theme.navbarColor}
+              onMouseLeave={(e) => e.target.style.color = theme.textColor}
+            >
+              FAQ
+            </button>
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
             {isLoggedIn ? (
               <>
-                {/* FIXED: Changed admin dashboard path to match route */}
                 <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
-                  <Button variant="ghost" className=" text-orange-600 hover:text-orange-700">
+                  <Button 
+                    variant="ghost" 
+                    className="transition-colors"
+                    style={{ color: theme.navbarColor }}
+                  >
                     Dashboard
                   </Button>
                 </Link>
                 <Button 
                   variant="outline" 
-                  className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700"
+                  className="transition-all duration-200 hover:text-white"
+                  style={{ 
+                    borderColor: theme.navbarColor, 
+                    color: theme.navbarColor 
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = theme.navbarColor
+                    e.target.style.color = '#ffffff'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'transparent'
+                    e.target.style.color = theme.navbarColor
+                  }}
                   onClick={handleLogout}
                 >
                   Logout
@@ -174,25 +289,35 @@ const Navbar = () => {
             ) : (
               <>
                 <Link to="/login">
-                  <Button variant="outline" className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
+                  <Button 
+                    variant="outline" 
+                    className="transition-all duration-200 hover:text-white"
+                    style={{ 
+                      borderColor: theme.navbarColor, 
+                      color: theme.navbarColor 
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = theme.navbarColor
+                      e.target.style.color = '#ffffff'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = 'transparent'
+                      e.target.style.color = theme.navbarColor
+                    }}
+                  >
                     Login
                   </Button>
                 </Link>
                 <Link to="/register">
-                  <Button className="bg-orange-600 hover:bg-orange-700">
+                  <Button 
+                    className="transition-all duration-200"
+                    style={{ backgroundColor: theme.navbarColor }}
+                    onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                    onMouseLeave={(e) => e.target.style.opacity = '1'}
+                  >
                     Get Started Free
                   </Button>
                 </Link>
-                {/* <Link to="/admin/register">
-                  <Button variant="outline" className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
-                    Admin Register
-                  </Button>
-                </Link>
-                <Link to="/admin/users">
-                  <Button variant="outline" className="border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
-                    Admin users
-                  </Button>
-                </Link> */}
               </>
             )}
           </div>
@@ -241,23 +366,93 @@ const Navbar = () => {
 
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden`}>
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          <button onClick={() => handleNavClick("features")} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-600 hover:bg-gray-50">Features</button>
-          <button onClick={() => handleNavClick("how-it-works")} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-600 hover:bg-gray-50">How It Works</button>
-          <button onClick={() => handleNavClick("pricing")} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-600 hover:bg-gray-50">Pricing</button>
-          <button onClick={() => handleNavClick("testimonials")} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-600 hover:bg-gray-50">Testimonials</button>
-          <button onClick={() => handleNavClick("faq")} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-600 hover:bg-gray-50">FAQ</button>
+          <button 
+            onClick={() => handleNavClick("features")} 
+            className="block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+            style={{ 
+              color: theme.textColor,
+              ':hover': { 
+                color: theme.navbarColor,
+                backgroundColor: '#f9fafb'
+              }
+            }}
+          >
+            Features
+          </button>
+          <button 
+            onClick={() => handleNavClick("how-it-works")} 
+            className="block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+            style={{ 
+              color: theme.textColor,
+              ':hover': { 
+                color: theme.navbarColor,
+                backgroundColor: '#f9fafb'
+              }
+            }}
+          >
+            How It Works
+          </button>
+          <button 
+            onClick={() => handleNavClick("pricing")} 
+            className="block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+            style={{ 
+              color: theme.textColor,
+              ':hover': { 
+                color: theme.navbarColor,
+                backgroundColor: '#f9fafb'
+              }
+            }}
+          >
+            Pricing
+          </button>
+          <button 
+            onClick={() => handleNavClick("testimonials")} 
+            className="block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+            style={{ 
+              color: theme.textColor,
+              ':hover': { 
+                color: theme.navbarColor,
+                backgroundColor: '#f9fafb'
+              }
+            }}
+          >
+            Testimonials
+          </button>
+          <button 
+            onClick={() => handleNavClick("faq")} 
+            className="block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+            style={{ 
+              color: theme.textColor,
+              ':hover': { 
+                color: theme.navbarColor,
+                backgroundColor: '#f9fafb'
+              }
+            }}
+          >
+            FAQ
+          </button>
           <div className="pt-4 border-t border-gray-200 flex flex-col gap-2">
             {isLoggedIn ? (
               <>
-                {/* FIXED: Changed admin dashboard path to match route */}
                 <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
-                  <Button variant="outline" className="w-full border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
+                  <Button 
+                    variant="outline" 
+                    className="w-full transition-colors"
+                    style={{ 
+                      borderColor: theme.navbarColor, 
+                      color: theme.navbarColor 
+                    }}
+                  >
                     Dashboard
                   </Button>
                 </Link>
                 <Button 
                   variant="outline" 
-                  className="w-full border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700"
+                  className="w-full transition-colors"
+                  style={{ 
+                    borderColor: theme.navbarColor, 
+                    color: theme.navbarColor 
+                  }}
                   onClick={handleLogout}
                 >
                   Logout
@@ -266,28 +461,32 @@ const Navbar = () => {
             ) : (
               <>
                 <Link to="/login">
-                  <Button variant="outline" className="w-full border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
+                  <Button 
+                    variant="outline" 
+                    className="w-full transition-colors"
+                    style={{ 
+                      borderColor: theme.navbarColor, 
+                      color: theme.navbarColor 
+                    }}
+                  >
                     Login
                   </Button>
                 </Link>
                 <Link to="/register">
-                  <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                  <Button 
+                    className="w-full"
+                    style={{ backgroundColor: theme.navbarColor }}
+                  >
                     Get Started Free
                   </Button>
                 </Link>
-                {/* Added Admin Register link to mobile menu
-                <Link to="/admin/register">
-                  <Button variant="outline" className="w-full border-orange-600 text-orange-600 hover:text-orange-700 hover:border-orange-700">
-                    Admin Register
-                  </Button>
-                </Link> */}
               </>
             )}
           </div>
         </div>
       </div>
     </nav>
-  );
-};
+  )
+}
 
-export default Navbar;
+export default Navbar

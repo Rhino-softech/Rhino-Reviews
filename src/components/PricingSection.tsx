@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { CheckIcon, StarIcon, Clock, Crown, Zap } from "lucide-react"
+import { CheckIcon, StarIcon, Clock, Crown, Zap } from 'lucide-react'
 import { useNavigate } from "react-router-dom"
 import { auth, db } from "../firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
@@ -20,6 +20,17 @@ interface PricingConfig {
   starter: number
   professional: number
   custom: number
+  buttonsDisabled: boolean
+}
+
+interface ThemeSettings {
+  primaryColor: string
+  textColor: string
+}
+
+const defaultTheme: ThemeSettings = {
+  primaryColor: "#ea580c",
+  textColor: "#111827"
 }
 
 const PricingSection = () => {
@@ -29,10 +40,12 @@ const PricingSection = () => {
   const [exchangeRate, setExchangeRate] = useState<number | null>(null)
   const [userCurrency, setUserCurrency] = useState<string>("USD")
   const [currencySymbol, setCurrencySymbol] = useState<string>("$")
+  const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>({
     starter: 49,
     professional: 99,
     custom: 299,
+    buttonsDisabled: false
   })
 
   // Map currency symbols to country codes
@@ -47,17 +60,43 @@ const PricingSection = () => {
   }
 
   useEffect(() => {
+    // Load theme settings
+    const loadTheme = async () => {
+      try {
+        const themeDoc = await getDoc(doc(db, "settings", "homeTheme"))
+        if (themeDoc.exists()) {
+          setTheme({ ...defaultTheme, ...themeDoc.data() })
+        }
+      } catch (error) {
+        console.error("Error loading theme:", error)
+      }
+    }
+    loadTheme()
+  }, [])
+
+  useEffect(() => {
     // Fetch admin pricing configuration
     const fetchPricingConfig = async () => {
       try {
-        const configRef = doc(db, "admin", "pricing")
-        const configDoc = await getDoc(configRef)
-        if (configDoc.exists()) {
-          const data = configDoc.data()
+        // Try both admin and settings collections for pricing config
+        const [adminConfigRef, settingsConfigRef] = await Promise.all([
+          getDoc(doc(db, "admin", "pricing")),
+          getDoc(doc(db, "settings", "pricing"))
+        ])
+        
+        let configData = null
+        if (adminConfigRef.exists()) {
+          configData = adminConfigRef.data()
+        } else if (settingsConfigRef.exists()) {
+          configData = settingsConfigRef.data()
+        }
+
+        if (configData) {
           setPricingConfig({
-            starter: data.starter || 49,
-            professional: data.professional || 99,
-            custom: data.custom || 299,
+            starter: configData.starter || 49,
+            professional: configData.professional || 99,
+            custom: configData.custom || 299,
+            buttonsDisabled: configData.buttonsDisabled || false
           })
         }
       } catch (error) {
@@ -178,6 +217,10 @@ const PricingSection = () => {
   }
 
   const handlePlanUpgrade = (planName: string) => {
+    if (pricingConfig.buttonsDisabled) {
+      return // Don't navigate if buttons are disabled
+    }
+    
     // Navigate to Razorpay payment instead of contact
     navigate("/payment", {
       state: {
@@ -200,16 +243,15 @@ const PricingSection = () => {
       price: getConvertedPrice(pricingConfig.starter),
       basePrice: pricingConfig.starter,
       description: "Perfect for small businesses just getting started with review management.",
-features: [
-  "3 Business Locations",
-  "100 Review Requests/Month",
-  "Email Support",
-  "Chat Support",
-  "Mobile responsive dashboard",
-  "Basic Analytics",
-  "Review Response Templates"
-],
-
+      features: [
+        "3 Business Locations",
+        "100 Review Requests/Month",
+        "Email Support",
+        "Chat Support",
+        "Mobile responsive dashboard",
+        "Basic Analytics",
+        "Review Response Templates"
+      ],
       cta: "Start Free Trial",
       popular: false,
       monthlyLimit: 100,
@@ -226,13 +268,11 @@ features: [
         "5 Business Locations",
         "500 Review Requests/Month",
         "Priority Email Support",
-        "Priority Whatsapp Suport",
+        "Priority Whatsapp Support",
         "Advanced Analytics Dashboard",
         "Location-based Filtering",
         "Sentiment Analysis",
-
         "Mobile responsive dashboard",
-        
         "Performance Trends",
         "Team Management",
         "Custom Branding",
@@ -260,8 +300,6 @@ features: [
         "Sentiment Analysis",
         "Predicted Analysis",
         "Mobile responsive dashboard",
-        
-
       ],
       cta: "Get Custom Plan",
       popular: false,
@@ -275,7 +313,10 @@ features: [
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        <div 
+          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2"
+          style={{ borderColor: theme.primaryColor }}
+        ></div>
       </div>
     )
   }
@@ -284,17 +325,40 @@ features: [
     <section id="pricing" className="py-20 bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="lg:text-center">
-          <p className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold tracking-wide uppercase bg-orange-100 text-orange-600">
+          <p 
+            className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold tracking-wide uppercase"
+            style={{ 
+              backgroundColor: theme.primaryColor + '20', 
+              color: theme.primaryColor 
+            }}
+          >
             <StarIcon className="mr-1 h-4 w-4" />
             Pricing Plans
           </p>
-          <h2 className="mt-4 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+          <h2 className="mt-4 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl" style={{ color: theme.textColor }}>
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+          <p className="mt-4 max-w-2xl text-xl lg:mx-auto" style={{ color: theme.textColor }}>
             Choose the plan that's right for your business. All plans include a 14-day free trial.
           </p>
         </div>
+
+        {/* Buttons Disabled Warning */}
+        {pricingConfig.buttonsDisabled && (
+          <div className="mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 max-w-4xl mx-auto rounded-r-lg">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Clock className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  <span className="font-semibold">Maintenance Mode:</span> Pricing upgrades are temporarily unavailable. 
+                  Please check back later or contact support for assistance.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Subscription Status Banner */}
         {userPlan?.subscriptionActive && (
@@ -343,15 +407,21 @@ features: [
                 key={index}
                 className={`bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl relative ${
                   plan.popular
-                    ? "ring-2 ring-orange-500 transform scale-105 shadow-2xl"
+                    ? "ring-2 transform scale-105 shadow-2xl"
                     : isCurrentUserPlan
                       ? "ring-2 ring-green-500 shadow-xl"
                       : "hover:scale-105"
                 }`}
+                style={{
+                  ringColor: plan.popular ? theme.primaryColor : undefined
+                }}
               >
                 {/* Popular Badge */}
                 {plan.popular && (
-                  <div className="absolute top-0 right-0 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs font-bold px-4 py-2 rounded-bl-xl shadow-lg">
+                  <div 
+                    className="absolute top-0 right-0 text-white text-xs font-bold px-4 py-2 rounded-bl-xl shadow-lg"
+                    style={{ backgroundColor: theme.primaryColor }}
+                  >
                     <div className="flex items-center gap-1">
                       <Crown className="h-3 w-3" />
                       MOST POPULAR
@@ -377,12 +447,16 @@ features: [
                         {plan.icon}
                       </div>
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900">{plan.name}</h3>
+                    <h3 className="text-2xl font-bold" style={{ color: theme.textColor }}>
+                      {plan.name}
+                    </h3>
                   </div>
 
                   {/* Price */}
                   <div className="mt-4 flex items-baseline">
-                    <span className="text-5xl font-extrabold text-gray-900">{plan.price}</span>
+                    <span className="text-5xl font-extrabold" style={{ color: theme.textColor }}>
+                      {plan.price}
+                    </span>
                     <span className="text-gray-500 ml-2 text-lg">/month</span>
                   </div>
 
@@ -394,17 +468,33 @@ features: [
                     className={`mt-8 w-full py-6 text-lg font-semibold transition-all duration-300 ${
                       isCurrentUserPlan
                         ? "bg-green-500 hover:bg-green-600 cursor-default"
-                        : plan.popular
-                          ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg hover:shadow-xl"
-                          : `bg-gradient-to-r ${plan.gradient} hover:shadow-lg transform hover:scale-105`
+                        : pricingConfig.buttonsDisabled
+                          ? "bg-gray-400 cursor-not-allowed opacity-50"
+                          : plan.popular
+                            ? "shadow-lg hover:shadow-xl"
+                            : "hover:shadow-lg transform hover:scale-105"
                     }`}
+                    style={{
+                      backgroundColor: isCurrentUserPlan 
+                        ? '#10b981' 
+                        : pricingConfig.buttonsDisabled 
+                          ? '#9ca3af'
+                          : theme.primaryColor
+                    }}
                     onClick={() => {
-                      if (isCurrentUserPlan) return
+                      if (isCurrentUserPlan || pricingConfig.buttonsDisabled) return
                       handlePlanUpgrade(plan.name)
                     }}
-                    disabled={isCurrentUserPlan}
+                    disabled={isCurrentUserPlan || pricingConfig.buttonsDisabled}
                   >
-                    {isCurrentUserPlan ? "Current Plan" : userPlan?.subscriptionActive ? "Upgrade Plan" : plan.cta}
+                    {isCurrentUserPlan 
+                      ? "Current Plan" 
+                      : pricingConfig.buttonsDisabled
+                        ? "Temporarily Unavailable"
+                        : userPlan?.subscriptionActive 
+                          ? "Upgrade Plan" 
+                          : plan.cta
+                    }
                   </Button>
                 </div>
 
@@ -422,6 +512,9 @@ features: [
                           className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
                             plan.popular ? "text-orange-500" : "text-green-500"
                           }`}
+                          style={{
+                            color: plan.popular ? theme.primaryColor : '#10b981'
+                          }}
                         />
                         <span className="ml-3 text-gray-700 leading-relaxed">{feature}</span>
                       </li>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DollarSign, Save, Plus, Trash2 } from "lucide-react"
+import { DollarSign, Save, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -9,12 +9,14 @@ import { SimpleAdminLayout } from "@/components/simple-admin-layout"
 import { doc, getDoc, setDoc } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
 import { motion } from "framer-motion"
+import { toast } from "@/hooks/use-toast"
 
 function PricingSettingsContent() {
   const [pricing, setPricing] = useState({
     starter: 49,
     professional: 99,
     custom: 299,
+    buttonsDisabled: false,
   })
   const [addonPackages, setAddonPackages] = useState([
     {
@@ -68,6 +70,7 @@ function PricingSettingsContent() {
             starter: data.starter || 49,
             professional: data.professional || 99,
             custom: data.custom || 299,
+            buttonsDisabled: data.buttonsDisabled || false,
           })
         }
 
@@ -94,13 +97,26 @@ function PricingSettingsContent() {
       if (activeTab === "subscription") {
         const pricingRef = doc(db, "admin", "pricing")
         await setDoc(pricingRef, pricing, { merge: true })
+
+        // Also save to public pricing collection for frontend access
+        const publicPricingRef = doc(db, "settings", "pricing")
+        await setDoc(publicPricingRef, pricing, { merge: true })
       } else {
         const addonRef = doc(db, "admin", "addonPackages")
         await setDoc(addonRef, { packages: addonPackages }, { merge: true })
       }
-      // Show success message
+
+      toast({
+        title: "Success",
+        description: "Settings saved successfully",
+      })
     } catch (error) {
       console.error("Error saving data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings",
+        variant: "destructive",
+      })
     } finally {
       setSaving(false)
     }
@@ -112,6 +128,41 @@ function PricingSettingsContent() {
       ...prev,
       [plan]: numValue,
     }))
+  }
+
+  const handleToggleButtons = async () => {
+    const newState = !pricing.buttonsDisabled
+    setPricing((prev) => ({
+      ...prev,
+      buttonsDisabled: newState,
+    }))
+
+    // Immediately save the button state to ensure it's reflected on the frontend
+    try {
+      const pricingRef = doc(db, "admin", "pricing")
+      const publicPricingRef = doc(db, "settings", "pricing")
+
+      const updatedPricing = { ...pricing, buttonsDisabled: newState }
+
+      await Promise.all([
+        setDoc(pricingRef, updatedPricing, { merge: true }),
+        setDoc(publicPricingRef, updatedPricing, { merge: true }),
+      ])
+
+      toast({
+        title: newState ? "Buttons Disabled" : "Buttons Enabled",
+        description: newState
+          ? "Pricing buttons are now disabled for all users"
+          : "Pricing buttons are now active for all users",
+      })
+    } catch (error) {
+      console.error("Error updating button state:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update button state",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleAddPackage = () => {
@@ -232,6 +283,48 @@ function PricingSettingsContent() {
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   Live Updates
                 </div>
+              </div>
+
+              {/* Button Control Toggle */}
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-3xl p-6 mb-8">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Button Control</h3>
+                    <p className="text-slate-600">
+                      {pricing.buttonsDisabled
+                        ? "Pricing buttons are currently disabled for all users"
+                        : "Pricing buttons are active and users can upgrade their plans"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleButtons}
+                    className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-300 ${
+                      pricing.buttonsDisabled
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-green-500 hover:bg-green-600 text-white"
+                    }`}
+                  >
+                    {pricing.buttonsDisabled ? (
+                      <>
+                        <ToggleLeft className="h-5 w-5" />
+                        Buttons Disabled
+                      </>
+                    ) : (
+                      <>
+                        <ToggleRight className="h-5 w-5" />
+                        Buttons Enabled
+                      </>
+                    )}
+                  </button>
+                </div>
+                {pricing.buttonsDisabled && (
+                  <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-xl">
+                    <p className="text-red-700 text-sm">
+                      <strong>⚠️ Warning:</strong> All pricing buttons are disabled. Users will see a maintenance message
+                      and cannot upgrade their plans.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
