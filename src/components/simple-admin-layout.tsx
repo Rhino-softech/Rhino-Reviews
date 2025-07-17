@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { signOut, onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "@/firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
@@ -30,7 +30,7 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const pathname = location.pathname
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [open, setOpen] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -70,7 +70,6 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
       })
   }, [navigate])
 
-  // Updated navigation with separated pages
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
     { icon: Building2, label: "Businesses", href: "/admin/businesses" },
@@ -78,12 +77,7 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
     { icon: Users, label: "Users", href: "/admin/users" },
     { icon: DollarSign, label: "Pricing Management", href: "/admin/pricing" },
     { icon: MessageCircle, label: "Demo Booking Chat", href: "/admin/demo-chat" },
-    {
-      icon: Settings,
-      label: "Home Settings",
-      href: "/admin/home"
-     
-    },
+    { icon: Settings, label: "Home Settings", href: "/admin/home" },
     { icon: Settings, label: "General Settings", href: "/admin/settings" },
   ]
 
@@ -117,7 +111,7 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
               ? "text-orange-600 font-semibold bg-orange-50/80"
               : "text-gray-600 hover:text-gray-900",
           )}
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={() => setOpen(false)}
           onMouseEnter={() => setHoveredItem(item.href)}
           onMouseLeave={() => setHoveredItem(null)}
         >
@@ -155,8 +149,63 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
     </>
   )
 
+  const SidebarContent = () => (
+    <div className="h-full flex flex-col bg-white/95 backdrop-blur-sm">
+      <div className="flex items-center justify-between p-5 border-b border-gray-200/80">
+        <div className="flex items-center space-x-4">
+          {/* <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow">
+            <span className="text-white font-bold text-lg">A</span>
+          </div>
+          <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1> */}
+        </div>
+        {/* <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setOpen(false)}
+          aria-label="Close menu"
+          className="hover:bg-gray-100 transition-all"
+        >
+          <X size={28} className="text-gray-600" />
+        </Button> */}
+      </div>
+      <div className="flex-grow p-5 overflow-y-auto">
+        <nav className="space-y-3">
+          <NavLinks />
+        </nav>
+      </div>
+      <div className="p-5 border-t border-gray-200/80 mt-6">
+        <Button
+          variant="ghost"
+          className="w-full flex items-center gap-4 justify-start text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-amber-500 px-5 py-4 transition-all duration-300 rounded-xl group shadow-sm text-lg"
+          onClick={handleLogout}
+          aria-label="Logout"
+        >
+          <LogOut className="h-6 w-6 transition-all duration-300 group-hover:rotate-12" />
+          <span className="font-medium transition-all duration-300 group-hover:translate-x-1">Logout</span>
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="w-full flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+      {/* Mobile Menu Button */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden fixed top-4 left-4 z-50 text-gray-700 bg-white rounded-full shadow-lg border border-gray-200"
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="p-0 w-80">
+          <SidebarContent />
+        </SheetContent>
+      </Sheet>
+
       {/* Desktop Sidebar */}
       <div className="hidden md:flex md:flex-col w-80 bg-white/95 backdrop-blur-sm border-r border-gray-200/80 h-screen fixed left-0 top-0 p-6 transition-all duration-300 shadow-lg">
         <div className="flex items-center justify-center mb-12 pt-4">
@@ -183,64 +232,9 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
         </div>
       </div>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-200/80 p-5 flex items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsMobileMenuOpen(true)}
-          aria-label="Open menu"
-          className="hover:bg-gray-100 transition-all"
-        >
-          <Menu size={28} className="text-gray-600" />
-        </Button>
-      </div>
-
-      {/* Mobile Menu */}
-      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetContent side="left" className="w-80 p-0 flex flex-col bg-white/95 backdrop-blur-sm">
-          <div className="flex items-center justify-between p-5 border-b border-gray-200/80">
-            <div className="flex items-center space-x-4">
-              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
-              <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobileMenuOpen(false)}
-              aria-label="Close menu"
-              className="hover:bg-gray-100 transition-all"
-            >
-              <X size={28} className="text-gray-600" />
-            </Button>
-          </div>
-          <div className="flex-grow p-5 overflow-y-auto">
-            <nav className="space-y-3">
-              <NavLinks />
-            </nav>
-          </div>
-          <div className="p-5 border-t border-gray-200/80 mt-6">
-            <Button
-              variant="ghost"
-              className="w-full flex items-center gap-4 justify-start text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-amber-500 px-5 py-4 transition-all duration-300 rounded-xl group shadow-sm text-lg"
-              onClick={handleLogout}
-              aria-label="Logout"
-            >
-              <LogOut className="h-6 w-6 transition-all duration-300 group-hover:rotate-12" />
-              <span className="font-medium transition-all duration-300 group-hover:translate-x-1">Logout</span>
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
       {/* Main Content */}
       <div className="flex-1 md:ml-80 overflow-y-auto h-screen scroll-smooth">
-        <div className="md:p-10 p-5 pt-24 md:pt-10 transition-all duration-300">
+        <div className="md:p-10 p-5 pt-20 md:pt-10 transition-all duration-300">
           <div className="max-w-7xl mx-auto">{children}</div>
         </div>
       </div>

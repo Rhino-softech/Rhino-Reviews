@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { CheckIcon, StarIcon, Clock, Crown, Zap } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { CheckIcon, StarIcon, Clock, Crown, Zap, ArrowLeft } from "lucide-react"
+import { useNavigate, useLocation } from "react-router-dom"
 import { auth, db } from "../firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
 import { useEffect, useState } from "react"
@@ -35,6 +35,7 @@ const defaultTheme: ThemeSettings = {
 
 const PricingSection = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [userPlan, setUserPlan] = useState<UserPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [exchangeRate, setExchangeRate] = useState<number | null>(null)
@@ -252,10 +253,10 @@ const PricingSection = () => {
         "Basic Analytics",
         "Review Response Templates",
       ],
-      cta: "Start Free Trial",
+      cta: "Starter Plan",
       popular: false,
       monthlyLimit: 100,
-      icon: <StarIcon className="h-6 w-6" />,
+      icon: <StarIcon className="h-6 w-6 text-orange-600" />,
       gradient: "from-blue-500 to-blue-600",
       bgGradient: "from-blue-50 to-blue-100",
     },
@@ -277,10 +278,10 @@ const PricingSection = () => {
         "Team Management",
         "Custom Branding",
       ],
-      cta: "Start Free Trial",
+      cta: "Professional Plan",
       popular: true,
       monthlyLimit: 500,
-      icon: <Crown className="h-6 w-6" />,
+      icon: <Crown className="h-6 w-6 text-orange-600" />,
       gradient: "from-orange-500 to-orange-600",
       bgGradient: "from-orange-50 to-orange-100",
     },
@@ -304,7 +305,7 @@ const PricingSection = () => {
       cta: "Get Custom Plan",
       popular: false,
       monthlyLimit: 0,
-      icon: <Zap className="h-6 w-6" />,
+      icon: <Zap className="h-6 w-6 text-orange-600" />,
       gradient: "from-purple-500 to-purple-600",
       bgGradient: "from-purple-50 to-purple-100",
     },
@@ -324,6 +325,19 @@ const PricingSection = () => {
   return (
     <section id="pricing" className="py-20 bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Back Button - Only shown when accessed via /pricing route */}
+        {location.pathname === "/pricing" && (
+          <Button
+            onClick={() => navigate("/")}
+            variant="outline"
+            className="mb-6 flex items-center gap-2"
+            style={{ color: theme.primaryColor }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Button>
+        )}
+
         <div className="lg:text-center">
           <p
             className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold tracking-wide uppercase"
@@ -346,10 +360,10 @@ const PricingSection = () => {
           </p>
 
           {/* Back to Home Button (visible when user is logged in but has no active subscription or trial) */}
-          {/* Back to Home Button (visible when user is logged in but has no active subscription or trial) */}
-          {auth.currentUser && (!userPlan || (!userPlan.subscriptionActive && !userPlan.trialActive)) && (
+          {/* {auth.currentUser && (!userPlan || (!userPlan.subscriptionActive && !userPlan.trialActive)) && (
             <div className="mt-8 text-center">
               <Button
+                variant="outline" 
                 onClick={() => navigate("/")}
                 className="px-6 py-3 text-lg font-semibold"
                 style={{ backgroundColor: theme.primaryColor }}
@@ -357,7 +371,7 @@ const PricingSection = () => {
                 Back to Home
               </Button>
             </div>
-          )}
+          )} */}
         </div>
 
         {/* Buttons Disabled Warning */}
