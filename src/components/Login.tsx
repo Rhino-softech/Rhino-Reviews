@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input"
 import { FcGoogle } from "react-icons/fc"
 import { auth, db, signInWithGoogle } from "../firebase/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth"
-import { doc, getDoc, updateDoc } from "firebase/firestore"
+import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore"
 import { useNavigate } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RocketIcon } from "@radix-ui/react-icons"
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from "lucide-react"
 import Navbar from "./Navbar"
 
 export default function LoginForm() {
@@ -27,6 +27,7 @@ export default function LoginForm() {
   const [accountInactive, setAccountInactive] = useState(false)
   const [externalError, setExternalError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -46,7 +47,25 @@ export default function LoginForm() {
   const checkTrialStatus = async (uid: string) => {
     const userRef = doc(db, "users", uid)
     const userSnap = await getDoc(userRef)
-    if (!userSnap.exists()) return false
+
+    if (!userSnap.exists()) {
+      // If user document doesn't exist, create it with trial data
+      const now = new Date()
+      const trialEnd = new Date(now)
+      trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+
+      await setDoc(userRef, {
+        trialActive: true,
+        trialEndDate: trialEnd,
+        status: "Active",
+        createdAt: now,
+        updatedAt: now,
+        email: auth.currentUser?.email || "",
+        role: "BUSER",
+      })
+
+      return true
+    }
 
     const userData = userSnap.data()
     const now = new Date()
@@ -55,14 +74,14 @@ export default function LoginForm() {
     if (userData.role === "ADMIN") return true
 
     // Check for active subscription
-    if (userData.subscriptionActive || userData.subscriptionPlan) return true
+    if (userData.subscriptionActive) return true
 
     // Check trial status
     if (userData.trialActive && userData.trialEndDate && userData.trialEndDate.toDate() > now) {
       return true
     }
 
-    // If user has no trial data set up (newly created by admin), set up default trial
+    // If user has no trial data set up, set up default trial
     if (!userData.trialEndDate && !userData.subscriptionPlan && userData.role === "BUSER") {
       const trialEnd = new Date(now)
       trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
@@ -71,9 +90,16 @@ export default function LoginForm() {
         trialActive: true,
         trialEndDate: trialEnd,
         subscriptionActive: false,
+        updatedAt: now,
       })
 
       return true
+    }
+
+    // Check if subscription has expired
+    if (userData.subscriptionPlan && !userData.subscriptionActive) {
+      setSubscriptionExpired(true)
+      return false
     }
 
     return false
@@ -94,7 +120,13 @@ export default function LoginForm() {
     // Check access for business users
     const hasActiveAccess = await checkTrialStatus(uid)
     if (!hasActiveAccess) {
+      if (subscriptionExpired) {
+        setTrialExpired(true)
+        navigate("/pricing")
+        return
+      }
       setTrialExpired(true)
+      navigate("/pricing") // Added this line to directly redirect to pricing
       return
     }
 
@@ -113,6 +145,7 @@ export default function LoginForm() {
     setExternalError("")
     setTrialExpired(false)
     setAccountInactive(false)
+    setSubscriptionExpired(false)
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
@@ -127,8 +160,31 @@ export default function LoginForm() {
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
-      if (!userSnap.exists()) throw new Error("User data not found.")
-      const userData = userSnap.data()
+
+      if (!userSnap.exists()) {
+        // Create user document if it doesn't exist
+        const now = new Date()
+        const trialEnd = new Date(now)
+        trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+
+        await setDoc(userRef, {
+          displayName: userCredential.user.displayName || "",
+          email: userCredential.user.email || "",
+          role: "BUSER",
+          status: "Active",
+          trialActive: true,
+          trialEndDate: trialEnd,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
+      const userData = userSnap.exists()
+        ? userSnap.data()
+        : {
+            role: "BUSER",
+            email: userCredential.user.email || "",
+          }
 
       localStorage.setItem("role", userData.role)
       localStorage.setItem("email", userData.email)
@@ -155,6 +211,7 @@ export default function LoginForm() {
     setExternalError("")
     setTrialExpired(false)
     setAccountInactive(false)
+    setSubscriptionExpired(false)
 
     try {
       await signInWithGoogle()
@@ -171,13 +228,32 @@ export default function LoginForm() {
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
+
       if (!userSnap.exists()) {
-        await signOut(auth)
-        setExternalError("Account not found. Please register first.")
-        return
+        // Create user document if it doesn't exist
+        const now = new Date()
+        const trialEnd = new Date(now)
+        trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+
+        await setDoc(userRef, {
+          displayName: currentUser.displayName || "",
+          email: currentUser.email || "",
+          role: "BUSER",
+          status: "Active",
+          trialActive: true,
+          trialEndDate: trialEnd,
+          createdAt: now,
+          updatedAt: now,
+        })
       }
 
-      const userData = userSnap.data()
+      const userData = userSnap.exists()
+        ? userSnap.data()
+        : {
+            role: "BUSER",
+            email: currentUser.email || "",
+          }
+
       localStorage.setItem("role", userData.role)
       localStorage.setItem("email", userData.email || "")
       localStorage.setItem("uid", uid)
@@ -241,7 +317,7 @@ export default function LoginForm() {
     )
   }
 
-  if (trialExpired) {
+  if (trialExpired || subscriptionExpired) {
     return (
       <>
         <Navbar />
@@ -250,9 +326,11 @@ export default function LoginForm() {
             <CardContent className="space-y-4">
               <Alert variant="destructive">
                 <RocketIcon className="h-4 w-4" />
-                <AlertTitle>Trial Expired</AlertTitle>
+                <AlertTitle>{subscriptionExpired ? "Subscription Expired" : "Trial Expired"}</AlertTitle>
                 <AlertDescription>
-                  Your 14-day free trial has ended. Upgrade to a paid plan to continue using our services.
+                  {subscriptionExpired 
+                    ? "Your subscription has ended. Please renew to continue using our services."
+                    : "Your 14-day free trial has ended. Upgrade to a paid plan to continue using our services."}
                 </AlertDescription>
               </Alert>
               <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/pricing")}>
@@ -263,6 +341,7 @@ export default function LoginForm() {
                 className="w-full bg-transparent"
                 onClick={() => {
                   setTrialExpired(false)
+                  setSubscriptionExpired(false)
                   setShowEmailForm(false)
                 }}
               >

@@ -75,7 +75,8 @@ export default function RegistrationForm() {
           clearInterval(checkVerification)
           setVerificationChecked(true)
 
-          const trialEndDate = new Date()
+          const now = new Date()
+          const trialEndDate = new Date(now)
           trialEndDate.setDate(trialEndDate.getDate() + 14)
 
           await setDoc(doc(db, "users", uid), {
@@ -86,12 +87,15 @@ export default function RegistrationForm() {
             registrationEmail: email, 
             status: "Active",
             createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             isProfileComplete: false,
+            trialActive: true,
             trialEndDate: trialEndDate,
             subscriptionActive: false,
             businessFormFilled: false,
             hasActiveSubscription: false,
             emailVerified: true,
+            role: "BUSER"
           })
 
           navigate("/businessform", { state: { uid, registrationEmail: email } })
@@ -124,7 +128,8 @@ export default function RegistrationForm() {
       const emailExists = await checkEmailExists(user.email || "")
       if (emailExists) throw new Error("Email already registered")
 
-      const trialEndDate = new Date()
+      const now = new Date()
+      const trialEndDate = new Date(now)
       trialEndDate.setDate(trialEndDate.getDate() + 14)
 
       await setDoc(doc(db, "users", user.uid), {
@@ -136,7 +141,9 @@ export default function RegistrationForm() {
         role: "BUSER",
         status: "Active",
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         isProfileComplete: false,
+        trialActive: true,
         trialEndDate: trialEndDate,
         subscriptionActive: false,
         businessFormFilled: false,
