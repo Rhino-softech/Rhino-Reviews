@@ -98,6 +98,7 @@ export function SimpleAdminLayout({ children }: SimpleAdminLayoutProps) {
       subLinks: [
         { label: "General Settings", href: "/admin/settings/general" },
         { label: "Home Settings", href: "/admin/settings/home" },
+        { label: "Careers Settings", href: "/admin/settings/careers" },
       ]
     },
   ]

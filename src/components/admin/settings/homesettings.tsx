@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator"
 import {
   Save,
   Palette,
-  Type,
   Star,
   HelpCircle,
   Settings,
@@ -26,12 +25,16 @@ import {
   Globe,
   Phone,
   MessageCircle,
+  Users,
+  Target,
+  Award,
+  Heart,
+  BookOpen,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { doc, getDoc, setDoc } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
 import { SimpleAdminLayout } from "@/components/simple-admin-layout"
-import { motion } from "framer-motion"
 
 interface HomeContent {
   hero: {
@@ -99,6 +102,44 @@ interface HomeContent {
   footer: {
     description: string
     companyName: string
+  }
+}
+
+interface AboutContent {
+  hero: {
+    title: string
+    subtitle: string
+  }
+  story: {
+    title: string
+    content: string[]
+    imageUrl: string
+    imageAlt: string
+  }
+  values: Array<{
+    title: string
+    description: string
+    iconColor: string
+  }>
+  heads: Array<{
+    name: string
+    role: string
+    bio: string
+    imageUrl: string
+  }>
+  team: Array<{
+    name: string
+    role: string
+    bio: string
+    imageUrl: string
+  }>
+  mission: {
+    title: string
+    description: string
+    primaryButtonText: string
+    secondaryButtonText: string
+    primaryButtonLink: string
+    secondaryButtonLink: string
   }
 }
 
@@ -287,6 +328,100 @@ const defaultContent: HomeContent = {
   },
 }
 
+const defaultAboutContent: AboutContent = {
+  hero: {
+    title: "About Rhino Review",
+    subtitle:
+      "We're on a mission to help businesses build stronger relationships with their customers through better review management.",
+  },
+  story: {
+    title: "Our Story",
+    content: [
+      "Founded in 2020, Rhino Review was born out of frustration with existing review management tools that were either too complex or too limited for growing businesses.",
+      "Our founders, having experienced the challenges of managing online reputation firsthand, set out to create a platform that would be powerful enough for enterprises yet simple enough for small businesses.",
+      "Today, we serve thousands of businesses worldwide, helping them collect, manage, and leverage customer reviews to drive growth and improve customer satisfaction.",
+    ],
+    imageUrl: "/placeholder.svg?height=400&width=600",
+    imageAlt: "Rhino Review team working together",
+  },
+  values: [
+    {
+      title: "Customer First",
+      description: "Everything we do is focused on helping our customers succeed and grow their businesses.",
+      iconColor: "#3b82f6",
+    },
+    {
+      title: "Innovation",
+      description: "We continuously innovate to provide the most advanced review management solutions.",
+      iconColor: "#10b981",
+    },
+    {
+      title: "Excellence",
+      description: "We strive for excellence in everything we do, from product quality to customer service.",
+      iconColor: "#8b5cf6",
+    },
+    {
+      title: "Integrity",
+      description: "We operate with transparency, honesty, and ethical business practices in all our interactions.",
+      iconColor: "#ef4444",
+    },
+  ],
+  heads: [
+    {
+      name: "Sarah Johnson",
+      role: "CEO & Founder",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Former VP of Marketing at a Fortune 500 company with 15 years of experience in customer experience and reputation management.",
+    },
+    {
+      name: "Michael Chen",
+      role: "CTO",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Ex-Google engineer with expertise in machine learning and large-scale data processing systems.",
+    },
+    {
+      name: "Emily Rodriguez",
+      role: "Head of Product",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Product leader with 10+ years building SaaS platforms for small and medium businesses.",
+    },
+  ],
+  team: [
+    {
+      name: "Sarah Johnson",
+      role: "CEO & Founder",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Former VP of Marketing at a Fortune 500 company with 15 years of experience in customer experience and reputation management.",
+    },
+    {
+      name: "Michael Chen",
+      role: "CTO",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Ex-Google engineer with expertise in machine learning and large-scale data processing systems.",
+    },
+    {
+      name: "Emily Rodriguez",
+      role: "Head of Product",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Product leader with 10+ years building SaaS platforms for small and medium businesses.",
+    },
+    {
+      name: "David Kim",
+      role: "Head of Customer Success",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+      bio: "Customer success expert who has helped thousands of businesses improve their online reputation and customer relationships.",
+    },
+  ],
+  mission: {
+    title: "Join Our Mission",
+    description: "We're always looking for talented individuals who share our passion for helping businesses succeed.",
+    primaryButtonText: "View Open Positions",
+    secondaryButtonText: "Contact us",
+    primaryButtonLink: "/careers",
+    secondaryButtonLink: "/demo2",
+  },
+}
+
 const defaultTheme: ThemeSettings = {
   primaryColor: "#ea580c", // orange-600
   secondaryColor: "#fed7aa", // orange-200
@@ -324,6 +459,7 @@ const colorOptions = [
 
 export function HomeSettings() {
   const [content, setContent] = useState<HomeContent>(defaultContent)
+  const [aboutContent, setAboutContent] = useState<AboutContent>(defaultAboutContent)
   const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
   const [contactSettings, setContactSettings] = useState<ContactSettings>(defaultContactSettings)
   const [loading, setLoading] = useState(true)
@@ -336,14 +472,19 @@ export function HomeSettings() {
 
   const loadSettings = async () => {
     try {
-      const [contentDoc, themeDoc, contactDoc] = await Promise.all([
+      const [contentDoc, aboutDoc, themeDoc, contactDoc] = await Promise.all([
         getDoc(doc(db, "settings", "homeContent")),
+        getDoc(doc(db, "settings", "aboutContent")),
         getDoc(doc(db, "settings", "homeTheme")),
         getDoc(doc(db, "settings", "contactSettings")),
       ])
 
       if (contentDoc.exists()) {
         setContent({ ...defaultContent, ...contentDoc.data() })
+      }
+
+      if (aboutDoc.exists()) {
+        setAboutContent({ ...defaultAboutContent, ...aboutDoc.data() })
       }
 
       if (themeDoc.exists()) {
@@ -370,14 +511,15 @@ export function HomeSettings() {
     try {
       await Promise.all([
         setDoc(doc(db, "settings", "homeContent"), content),
+        setDoc(doc(db, "settings", "aboutContent"), aboutContent),
         setDoc(doc(db, "settings", "homeTheme"), theme),
         setDoc(doc(db, "settings", "contactSettings"), contactSettings),
-        setDoc(doc(db, "settings", "adminTheme"), { primaryColor: theme.primaryColor, textColor: theme.textColor }), // Save textColor for admin layout
+        setDoc(doc(db, "settings", "adminTheme"), { primaryColor: theme.primaryColor, textColor: theme.textColor }),
       ])
 
       toast({
-        title: "Success",
-        description: "Settings saved successfully",
+        title: "✨ Success",
+        description: "All settings saved successfully! Changes will reflect across Home, About, and Demo2 pages.",
       })
     } catch (error) {
       console.error("Error saving settings:", error)
@@ -393,6 +535,16 @@ export function HomeSettings() {
 
   const updateContent = (section: keyof HomeContent, field: string, value: any) => {
     setContent((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }))
+  }
+
+  const updateAboutContent = (section: keyof AboutContent, field: string, value: any) => {
+    setAboutContent((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -442,153 +594,151 @@ export function HomeSettings() {
     updateContent("howItWorks", "steps", newSteps)
   }
 
+  const addTeamMember = (section: "heads" | "team") => {
+    const newMember = {
+      name: "New Team Member",
+      role: "Position",
+      bio: "Bio description here...",
+      imageUrl: "/placeholder.svg?height=300&width=300",
+    }
+    if (section === "heads") {
+      setAboutContent((prev) => ({ ...prev, heads: [...prev.heads, newMember] }))
+    } else {
+      setAboutContent((prev) => ({ ...prev, team: [...prev.team, newMember] }))
+    }
+  }
+
+  const removeTeamMember = (section: "heads" | "team", index: number) => {
+    if (section === "heads") {
+      setAboutContent((prev) => ({ ...prev, heads: prev.heads.filter((_, i) => i !== index) }))
+    } else {
+      setAboutContent((prev) => ({ ...prev, team: prev.team.filter((_, i) => i !== index) }))
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-      </div>
+      <SimpleAdminLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+        </div>
+      </SimpleAdminLayout>
     )
   }
 
   return (
     <SimpleAdminLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-6">
-        <motion.div
-          className="max-w-7xl mx-auto space-y-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          {/* Header */}
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-          >
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div
-                className="p-4 rounded-3xl shadow-lg"
-                style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.primaryColor}cc)` }}
-              >
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header Section */}
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-3 rounded-2xl shadow-lg" style={{ backgroundColor: theme.primaryColor }}>
                 <Settings className="h-8 w-8 text-white" />
               </div>
-              <h1
-                className="text-5xl font-bold bg-clip-text text-transparent"
-                style={{ backgroundImage: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor})` }}
-              >
-                Home Settings
+              <h1 className="text-4xl md:text-5xl font-bold" style={{ color: theme.primaryColor }}>
+                Content Management
               </h1>
             </div>
-            <p className="text-xl max-w-4xl mx-auto leading-relaxed" style={{ color: theme.textColor }}>
-              Customize your website content, appearance, and functionality with our comprehensive management system
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              Manage your website content, themes, and settings from one centralized dashboard
             </p>
-          </motion.div>
+          </div>
 
           {/* Action Bar */}
-          <motion.div
-            className="flex justify-between items-center bg-white/90 border border-slate-200/60 rounded-2xl p-6 shadow-lg backdrop-blur-sm"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => setPreviewMode(!previewMode)}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                {previewMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                {previewMode ? "Exit Preview" : "Preview Changes"}
-              </Button>
-              <div className="flex items-center gap-2 text-sm text-slate-500" style={{ color: theme.textColor }}>
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                Auto-save enabled
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setPreviewMode(!previewMode)}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  {previewMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {previewMode ? "Exit Preview" : "Live Preview"}
+                </Button>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  Auto-save enabled
+                </div>
               </div>
+              <Button
+                onClick={saveSettings}
+                disabled={saving}
+                className="shadow-lg"
+                style={{ backgroundColor: theme.primaryColor }}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? "Saving..." : "Save All Changes"}
+              </Button>
             </div>
-            <Button
-              onClick={saveSettings}
-              disabled={saving}
-              className="shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-              style={{ backgroundColor: theme.primaryColor }}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save All Changes"}
-            </Button>
-          </motion.div>
+          </div>
 
-          <Tabs defaultValue="content" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 bg-white/90 border border-slate-200/60 rounded-2xl p-2 shadow-lg backdrop-blur-sm">
-              <TabsTrigger
-                value="content"
-                className="flex items-center gap-2 data-[state=active]:shadow-lg transition-all"
-              >
-                <Type className="w-4 h-4" />
-                Content
-              </TabsTrigger>
-              <TabsTrigger
-                value="theme"
-                className="flex items-center gap-2 data-[state=active]:shadow-lg transition-all"
-              >
-                <Palette className="w-4 h-4" />
-                Theme & Colors
-              </TabsTrigger>
-              <TabsTrigger
-                value="advanced"
-                className="flex items-center gap-2 data-[state=active]:shadow-lg transition-all"
-              >
-                <Sparkles className="w-4 h-4" />
-                Advanced
-              </TabsTrigger>
-            </TabsList>
+          {/* Main Tabs */}
+          <Tabs defaultValue="home" className="space-y-6">
+            <div className="bg-white rounded-2xl p-2 shadow-lg">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-transparent">
+                <TabsTrigger value="home" className="flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  <span className="hidden sm:inline">Home Content</span>
+                  <span className="sm:hidden">Home</span>
+                </TabsTrigger>
+                <TabsTrigger value="about" className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">About Page</span>
+                  <span className="sm:hidden">About</span>
+                </TabsTrigger>
+                <TabsTrigger value="theme" className="flex items-center gap-2">
+                  <Palette className="w-4 h-4" />
+                  <span className="hidden sm:inline">Theme</span>
+                  <span className="sm:hidden">Theme</span>
+                </TabsTrigger>
+                <TabsTrigger value="advanced" className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Advanced</span>
+                  <span className="sm:hidden">More</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value="content" className="space-y-6">
+            {/* Home Content Tab */}
+            <TabsContent value="home" className="space-y-6">
               {/* Hero Section */}
-              <Card className="bg-white/90 border border-slate-200/60 shadow-xl backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-2" style={{ color: theme.textColor }}>
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <CardTitle className="flex items-center gap-2">
                     <Star className="w-5 h-5 text-blue-600" />
                     Hero Section
                   </CardTitle>
-                  <CardDescription style={{ color: theme.textColor }}>
-                    Main banner content and call-to-action
-                  </CardDescription>
+                  <CardDescription>Main banner content and call-to-action</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="hero-title" className="text-sm font-semibold" style={{ color: theme.textColor }}>
+                      <Label htmlFor="hero-title" className="text-sm font-semibold">
                         Title
                       </Label>
                       <Input
                         id="hero-title"
                         value={content.hero.title}
                         onChange={(e) => updateContent("hero", "title", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="hero-subtitle"
-                        className="text-sm font-semibold"
-                        style={{ color: theme.textColor }}
-                      >
+                      <Label htmlFor="hero-subtitle" className="text-sm font-semibold">
                         Subtitle
                       </Label>
                       <Input
                         id="hero-subtitle"
                         value={content.hero.subtitle}
                         onChange={(e) => updateContent("hero", "subtitle", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="hero-description"
-                      className="text-sm font-semibold"
-                      style={{ color: theme.textColor }}
-                    >
+                    <Label htmlFor="hero-description" className="text-sm font-semibold">
                       Description
                     </Label>
                     <Textarea
@@ -596,37 +746,35 @@ export function HomeSettings() {
                       value={content.hero.description}
                       onChange={(e) => updateContent("hero", "description", e.target.value)}
                       rows={3}
-                      className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors resize-none"
+                      className="rounded-xl resize-none"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="hero-cta" className="text-sm font-semibold" style={{ color: theme.textColor }}>
+                      <Label htmlFor="hero-cta" className="text-sm font-semibold">
                         CTA Button Text
                       </Label>
                       <Input
                         id="hero-cta"
                         value={content.hero.ctaText}
                         onChange={(e) => updateContent("hero", "ctaText", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="hero-demo" className="text-sm font-semibold" style={{ color: theme.textColor }}>
+                      <Label htmlFor="hero-demo" className="text-sm font-semibold">
                         Demo Button Text
                       </Label>
                       <Input
                         id="hero-demo"
                         value={content.hero.demoText}
                         onChange={(e) => updateContent("hero", "demoText", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                      Animated Messages
-                    </Label>
+                    <Label className="text-sm font-semibold">Animated Messages</Label>
                     <div className="space-y-3">
                       {content.hero.animatedMessages.map((message, index) => (
                         <Input
@@ -638,7 +786,7 @@ export function HomeSettings() {
                             updateContent("hero", "animatedMessages", newMessages)
                           }}
                           placeholder={`Message ${index + 1}`}
-                          className="border-2 border-slate-200 rounded-xl focus:border-blue-400 transition-colors"
+                          className="rounded-xl"
                         />
                       ))}
                     </div>
@@ -647,46 +795,40 @@ export function HomeSettings() {
               </Card>
 
               {/* How It Works Section */}
-              <Card className="bg-white/90 border border-slate-200/60 shadow-xl backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-2" style={{ color: theme.textColor }}>
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+                  <CardTitle className="flex items-center gap-2">
                     <Workflow className="w-5 h-5 text-green-600" />
                     How It Works Section
                   </CardTitle>
-                  <CardDescription style={{ color: theme.textColor }}>Step-by-step process explanation</CardDescription>
+                  <CardDescription>Step-by-step process explanation</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Section Title
-                      </Label>
+                      <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={content.howItWorks.title}
                         onChange={(e) => updateContent("howItWorks", "title", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-green-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Subtitle
-                      </Label>
+                      <Label className="text-sm font-semibold">Subtitle</Label>
                       <Input
                         value={content.howItWorks.subtitle}
                         onChange={(e) => updateContent("howItWorks", "subtitle", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-green-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                      Description
-                    </Label>
+                    <Label className="text-sm font-semibold">Description</Label>
                     <Textarea
                       value={content.howItWorks.description}
                       onChange={(e) => updateContent("howItWorks", "description", e.target.value)}
                       rows={2}
-                      className="border-2 border-slate-200 rounded-xl focus:border-green-400 transition-colors resize-none"
+                      className="rounded-xl resize-none"
                     />
                   </div>
 
@@ -694,9 +836,7 @@ export function HomeSettings() {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-semibold" style={{ color: theme.textColor }}>
-                        Process Steps
-                      </Label>
+                      <Label className="text-base font-semibold">Process Steps</Label>
                       <Button
                         onClick={addHowItWorksStep}
                         variant="outline"
@@ -709,10 +849,7 @@ export function HomeSettings() {
                     </div>
                     <div className="space-y-4">
                       {content.howItWorks.steps.map((step, index) => (
-                        <Card
-                          key={index}
-                          className="p-4 border-2 border-slate-100 hover:border-green-200 transition-colors"
-                        >
+                        <Card key={index} className="p-4 border-2 border-gray-100">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -729,9 +866,7 @@ export function HomeSettings() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="space-y-2">
-                                <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                                  Number
-                                </Label>
+                                <Label className="text-sm font-medium">Number</Label>
                                 <Input
                                   value={step.number}
                                   onChange={(e) => {
@@ -739,13 +874,11 @@ export function HomeSettings() {
                                     newSteps[index].number = e.target.value
                                     updateContent("howItWorks", "steps", newSteps)
                                   }}
-                                  className="border border-slate-200 rounded-lg"
+                                  className="rounded-lg"
                                 />
                               </div>
                               <div className="space-y-2 md:col-span-2">
-                                <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                                  Title
-                                </Label>
+                                <Label className="text-sm font-medium">Title</Label>
                                 <Input
                                   value={step.title}
                                   onChange={(e) => {
@@ -753,14 +886,12 @@ export function HomeSettings() {
                                     newSteps[index].title = e.target.value
                                     updateContent("howItWorks", "steps", newSteps)
                                   }}
-                                  className="border border-slate-200 rounded-lg"
+                                  className="rounded-lg"
                                 />
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                                Description
-                              </Label>
+                              <Label className="text-sm font-medium">Description</Label>
                               <Textarea
                                 value={step.description}
                                 onChange={(e) => {
@@ -769,7 +900,7 @@ export function HomeSettings() {
                                   updateContent("howItWorks", "steps", newSteps)
                                 }}
                                 rows={2}
-                                className="border border-slate-200 rounded-lg resize-none"
+                                className="rounded-lg resize-none"
                               />
                             </div>
                           </div>
@@ -777,103 +908,44 @@ export function HomeSettings() {
                       ))}
                     </div>
                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <Label className="text-base font-semibold" style={{ color: theme.textColor }}>
-                      Demo Section
-                    </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                          Demo Title
-                        </Label>
-                        <Input
-                          value={content.howItWorks.demoTitle}
-                          onChange={(e) => updateContent("howItWorks", "demoTitle", e.target.value)}
-                          className="border border-slate-200 rounded-lg"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                          Demo Button Text
-                        </Label>
-                        <Input
-                          value={content.howItWorks.demoButtonText}
-                          onChange={(e) => updateContent("howItWorks", "demoButtonText", e.target.value)}
-                          className="border border-slate-200 rounded-lg"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                        Demo Description
-                      </Label>
-                      <Textarea
-                        value={content.howItWorks.demoDescription}
-                        onChange={(e) => updateContent("howItWorks", "demoDescription", e.target.value)}
-                        rows={2}
-                        className="border border-slate-200 rounded-lg resize-none"
-                      />
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
 
               {/* FAQ Section */}
-              <Card className="bg-white/90 border border-slate-200/60 shadow-xl backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-2" style={{ color: theme.textColor }}>
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+                  <CardTitle className="flex items-center gap-2">
                     <HelpCircle className="w-5 h-5 text-purple-600" />
                     FAQ Section
                   </CardTitle>
-                  <CardDescription style={{ color: theme.textColor }}>
-                    Frequently asked questions and answers
-                  </CardDescription>
+                  <CardDescription>Frequently asked questions and answers</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Section Title
-                      </Label>
+                      <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={content.faq.title}
                         onChange={(e) => updateContent("faq", "title", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-purple-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Subtitle
-                      </Label>
+                      <Label className="text-sm font-semibold">Subtitle</Label>
                       <Input
                         value={content.faq.subtitle}
                         onChange={(e) => updateContent("faq", "subtitle", e.target.value)}
-                        className="border-2 border-slate-200 rounded-xl focus:border-purple-400 transition-colors"
+                        className="rounded-xl"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                      Description
-                    </Label>
+                    <Label className="text-sm font-semibold">Description</Label>
                     <Textarea
                       value={content.faq.description}
                       onChange={(e) => updateContent("faq", "description", e.target.value)}
                       rows={2}
-                      className="border-2 border-slate-200 rounded-xl focus:border-purple-400 transition-colors resize-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                      Contact Text
-                    </Label>
-                    <Input
-                      value={content.faq.contactText}
-                      onChange={(e) => updateContent("faq", "contactText", e.target.value)}
-                      className="border-2 border-slate-200 rounded-xl focus:border-purple-400 transition-colors"
+                      className="rounded-xl resize-none"
                     />
                   </div>
 
@@ -881,9 +953,7 @@ export function HomeSettings() {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-semibold" style={{ color: theme.textColor }}>
-                        FAQ Items
-                      </Label>
+                      <Label className="text-base font-semibold">FAQ Items</Label>
                       <Button
                         onClick={addFaqItem}
                         variant="outline"
@@ -896,10 +966,7 @@ export function HomeSettings() {
                     </div>
                     <div className="space-y-4">
                       {content.faq.items.map((item, index) => (
-                        <Card
-                          key={index}
-                          className="p-4 border-2 border-slate-100 hover:border-purple-200 transition-colors"
-                        >
+                        <Card key={index} className="p-4 border-2 border-gray-100">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
@@ -916,9 +983,7 @@ export function HomeSettings() {
                             </div>
                             <div className="space-y-3">
                               <div className="space-y-2">
-                                <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                                  Question
-                                </Label>
+                                <Label className="text-sm font-medium">Question</Label>
                                 <Input
                                   value={item.question}
                                   onChange={(e) => {
@@ -926,13 +991,11 @@ export function HomeSettings() {
                                     newItems[index].question = e.target.value
                                     updateContent("faq", "items", newItems)
                                   }}
-                                  className="border border-slate-200 rounded-lg"
+                                  className="rounded-lg"
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-sm font-medium" style={{ color: theme.textColor }}>
-                                  Answer
-                                </Label>
+                                <Label className="text-sm font-medium">Answer</Label>
                                 <Textarea
                                   value={item.answer}
                                   onChange={(e) => {
@@ -941,7 +1004,7 @@ export function HomeSettings() {
                                     updateContent("faq", "items", newItems)
                                   }}
                                   rows={3}
-                                  className="border border-slate-200 rounded-lg resize-none"
+                                  className="rounded-lg resize-none"
                                 />
                               </div>
                             </div>
@@ -954,244 +1017,621 @@ export function HomeSettings() {
               </Card>
             </TabsContent>
 
+            {/* About Content Tab */}
+            <TabsContent value="about" className="space-y-6">
+              {/* About Hero Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-blue-600" />
+                    About Page Hero
+                  </CardTitle>
+                  <CardDescription>Main about page header content</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Page Title</Label>
+                      <Input
+                        value={aboutContent.hero.title}
+                        onChange={(e) => updateAboutContent("hero", "title", e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Subtitle/Mission Statement</Label>
+                      <Textarea
+                        value={aboutContent.hero.subtitle}
+                        onChange={(e) => updateAboutContent("hero", "subtitle", e.target.value)}
+                        rows={3}
+                        className="rounded-xl resize-none"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* About Story Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-green-600" />
+                    Our Story Section
+                  </CardTitle>
+                  <CardDescription>Company background and history</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Section Title</Label>
+                      <Input
+                        value={aboutContent.story.title}
+                        onChange={(e) => updateAboutContent("story", "title", e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Story Content (Paragraphs)</Label>
+                      <div className="space-y-3">
+                        {aboutContent.story.content.map((paragraph, index) => (
+                          <Textarea
+                            key={index}
+                            value={paragraph}
+                            onChange={(e) => {
+                              const newContent = [...aboutContent.story.content]
+                              newContent[index] = e.target.value
+                              updateAboutContent("story", "content", newContent)
+                            }}
+                            rows={3}
+                            placeholder={`Paragraph ${index + 1}`}
+                            className="rounded-xl resize-none"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Image URL</Label>
+                        <Input
+                          value={aboutContent.story.imageUrl}
+                          onChange={(e) => updateAboutContent("story", "imageUrl", e.target.value)}
+                          className="rounded-xl"
+                          placeholder="https://example.com/image.jpg"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Image Alt Text</Label>
+                        <Input
+                          value={aboutContent.story.imageAlt}
+                          onChange={(e) => updateAboutContent("story", "imageAlt", e.target.value)}
+                          className="rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* About Values Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-purple-600" />
+                    Company Values
+                  </CardTitle>
+                  <CardDescription>Core values and principles</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {aboutContent.values.map((value, index) => (
+                      <Card key={index} className="p-4 border-2 border-gray-100">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3">
+                            {index === 0 && <Users className="w-5 h-5" style={{ color: value.iconColor }} />}
+                            {index === 1 && <Target className="w-5 h-5" style={{ color: value.iconColor }} />}
+                            {index === 2 && <Award className="w-5 h-5" style={{ color: value.iconColor }} />}
+                            {index === 3 && <Heart className="w-5 h-5" style={{ color: value.iconColor }} />}
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                              Value {index + 1}
+                            </Badge>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Title</Label>
+                              <Input
+                                value={value.title}
+                                onChange={(e) => {
+                                  const newValues = [...aboutContent.values]
+                                  newValues[index].title = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, values: newValues }))
+                                }}
+                                className="rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Description</Label>
+                              <Textarea
+                                value={value.description}
+                                onChange={(e) => {
+                                  const newValues = [...aboutContent.values]
+                                  newValues[index].description = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, values: newValues }))
+                                }}
+                                rows={3}
+                                className="rounded-lg resize-none"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Icon Color</Label>
+                              <div className="flex items-center gap-3">
+                                <Input
+                                  type="color"
+                                  value={value.iconColor}
+                                  onChange={(e) => {
+                                    const newValues = [...aboutContent.values]
+                                    newValues[index].iconColor = e.target.value
+                                    setAboutContent((prev) => ({ ...prev, values: newValues }))
+                                  }}
+                                  className="w-16 h-10 rounded-lg cursor-pointer"
+                                />
+                                <Input
+                                  value={value.iconColor}
+                                  onChange={(e) => {
+                                    const newValues = [...aboutContent.values]
+                                    newValues[index].iconColor = e.target.value
+                                    setAboutContent((prev) => ({ ...prev, values: newValues }))
+                                  }}
+                                  className="flex-1 rounded-lg"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* About Heads Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-orange-600" />
+                    Meet Our Heads
+                  </CardTitle>
+                  <CardDescription>Leadership team section</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Leadership Members</Label>
+                    <Button
+                      onClick={() => addTeamMember("heads")}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Head
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {aboutContent.heads.map((member, index) => (
+                      <Card key={index} className="p-4 border-2 border-gray-100">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                              Head {index + 1}
+                            </Badge>
+                            <Button
+                              onClick={() => removeTeamMember("heads", index)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Name</Label>
+                              <Input
+                                value={member.name}
+                                onChange={(e) => {
+                                  const newHeads = [...aboutContent.heads]
+                                  newHeads[index].name = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, heads: newHeads }))
+                                }}
+                                className="rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Role/Position</Label>
+                              <Input
+                                value={member.role}
+                                onChange={(e) => {
+                                  const newHeads = [...aboutContent.heads]
+                                  newHeads[index].role = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, heads: newHeads }))
+                                }}
+                                className="rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Bio</Label>
+                              <Textarea
+                                value={member.bio}
+                                onChange={(e) => {
+                                  const newHeads = [...aboutContent.heads]
+                                  newHeads[index].bio = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, heads: newHeads }))
+                                }}
+                                rows={3}
+                                className="rounded-lg resize-none"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Image URL</Label>
+                              <Input
+                                value={member.imageUrl}
+                                onChange={(e) => {
+                                  const newHeads = [...aboutContent.heads]
+                                  newHeads[index].imageUrl = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, heads: newHeads }))
+                                }}
+                                className="rounded-lg"
+                                placeholder="https://example.com/image.jpg"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* About Team Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-teal-600" />
+                    Meet Our Team
+                  </CardTitle>
+                  <CardDescription>Full team members section</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Team Members</Label>
+                    <Button
+                      onClick={() => addTeamMember("team")}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Member
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {aboutContent.team.map((member, index) => (
+                      <Card key={index} className="p-4 border-2 border-gray-100">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200">
+                              Member {index + 1}
+                            </Badge>
+                            <Button
+                              onClick={() => removeTeamMember("team", index)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Name</Label>
+                              <Input
+                                value={member.name}
+                                onChange={(e) => {
+                                  const newTeam = [...aboutContent.team]
+                                  newTeam[index].name = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, team: newTeam }))
+                                }}
+                                className="rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Role/Position</Label>
+                              <Input
+                                value={member.role}
+                                onChange={(e) => {
+                                  const newTeam = [...aboutContent.team]
+                                  newTeam[index].role = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, team: newTeam }))
+                                }}
+                                className="rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Bio</Label>
+                              <Textarea
+                                value={member.bio}
+                                onChange={(e) => {
+                                  const newTeam = [...aboutContent.team]
+                                  newTeam[index].bio = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, team: newTeam }))
+                                }}
+                                rows={3}
+                                className="rounded-lg resize-none"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Image URL</Label>
+                              <Input
+                                value={member.imageUrl}
+                                onChange={(e) => {
+                                  const newTeam = [...aboutContent.team]
+                                  newTeam[index].imageUrl = e.target.value
+                                  setAboutContent((prev) => ({ ...prev, team: newTeam }))
+                                }}
+                                className="rounded-lg"
+                                placeholder="https://example.com/image.jpg"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* About Mission Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-indigo-600" />
+                    Join Our Mission Section
+                  </CardTitle>
+                  <CardDescription>Call-to-action and career opportunities</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Section Title</Label>
+                      <Input
+                        value={aboutContent.mission.title}
+                        onChange={(e) => updateAboutContent("mission", "title", e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Description</Label>
+                      <Textarea
+                        value={aboutContent.mission.description}
+                        onChange={(e) => updateAboutContent("mission", "description", e.target.value)}
+                        rows={2}
+                        className="rounded-xl resize-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Primary Button Text</Label>
+                      <Input
+                        value={aboutContent.mission.primaryButtonText}
+                        onChange={(e) => updateAboutContent("mission", "primaryButtonText", e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Secondary Button Text</Label>
+                      <Input
+                        value={aboutContent.mission.secondaryButtonText}
+                        onChange={(e) => updateAboutContent("mission", "secondaryButtonText", e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Primary Button Link</Label>
+                      <Input
+                        value={aboutContent.mission.primaryButtonLink}
+                        onChange={(e) => updateAboutContent("mission", "primaryButtonLink", e.target.value)}
+                        className="rounded-xl"
+                        placeholder="/careers"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Secondary Button Link</Label>
+                      <Input
+                        value={aboutContent.mission.secondaryButtonLink}
+                        onChange={(e) => updateAboutContent("mission", "secondaryButtonLink", e.target.value)}
+                        className="rounded-xl"
+                        placeholder="/contact"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Theme Tab */}
             <TabsContent value="theme" className="space-y-6">
-              <Card className="bg-white/90 border border-slate-200/60 shadow-xl backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-2" style={{ color: theme.textColor }}>
-                    <Palette className="w-5 h-5 text-orange-600" />
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-pink-50 to-rose-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="w-5 h-5 text-pink-600" />
                     Color Theme & Branding
                   </CardTitle>
-                  <CardDescription style={{ color: theme.textColor }}>
-                    Customize colors for all components and sections
-                  </CardDescription>
+                  <CardDescription>Customize colors for all components and sections</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8 p-6">
+                  {/* Quick Color Themes */}
+                  <div className="space-y-4">
+                    <Label className="text-lg font-semibold">Quick Color Themes</Label>
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {colorOptions.map((color) => (
+                        <button
+                          key={color.name}
+                          onClick={() => {
+                            updateTheme("primaryColor", color.value)
+                            updateTheme("secondaryColor", color.preview)
+                            // These lines ensure navbarColor and chat/contactWidgetColor match the primary color
+                            updateTheme("navbarColor", color.value)
+                            updateTheme("chatWidgetColor", color.value)
+                            updateTheme("contactWidgetColor", color.value)
+                          }}
+                          className={`group relative p-3 rounded-2xl border-2 transition-all duration-300 hover:scale-105 ${
+                            theme.primaryColor === color.value ? "ring-2 ring-offset-2" : ""
+                          }`}
+                          style={{
+                            backgroundColor: color.preview + "40",
+                            borderColor: color.value + (theme.primaryColor === color.value ? "ff" : "40"),
+                            ringColor: color.value,
+                          }}
+                        >
+                          <div className="space-y-2">
+                            <div
+                              className="w-8 h-8 rounded-xl mx-auto shadow-sm"
+                              style={{ backgroundColor: color.value }}
+                            />
+                            <div className="text-center">
+                              <div className="text-xs font-semibold">{color.name}</div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Separator />
+
                   {/* Primary Theme Colors */}
-                  <div className="space-y-6">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Primary Theme Colors
-                    </h3>
+                  <div className="space-y-4">
+                    <Label className="text-lg font-semibold">Primary Theme Colors</Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Primary Color
-                        </Label>
-                        <Select
-                          value={theme.primaryColor}
-                          onValueChange={(value) => updateTheme("primaryColor", value)}
-                        >
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.value}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.value }}
-                                  />
-                                  <span className="font-medium">{color.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Primary Color</Label>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.primaryColor}
+                            onChange={(e) => updateTheme("primaryColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.primaryColor}
+                            onChange={(e) => updateTheme("primaryColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Secondary Color
-                        </Label>
-                        <Select
-                          value={theme.secondaryColor}
-                          onValueChange={(value) => updateTheme("secondaryColor", value)}
-                        >
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.preview}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.preview }}
-                                  />
-                                  <span className="font-medium">{color.name} Light</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Secondary Color</Label>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.secondaryColor}
+                            onChange={(e) => updateTheme("secondaryColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.secondaryColor}
+                            onChange={(e) => updateTheme("secondaryColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Accent Color
-                        </Label>
-                        <Select value={theme.accentColor} onValueChange={(value) => updateTheme("accentColor", value)}>
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.value}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.value }}
-                                  />
-                                  <span className="font-medium">{color.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Accent Color</Label>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.accentColor}
+                            onChange={(e) => updateTheme("accentColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.accentColor}
+                            onChange={(e) => updateTheme("accentColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <Separator />
 
-                  {/* Text Color */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                      Text Color
-                    </Label>
-                    <Select value={theme.textColor} onValueChange={(value) => updateTheme("textColor", value)}>
-                      <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[
-                          { name: "Dark Gray", value: "#111827" }, // gray-900
-                          { name: "Slate 700", value: "#334155" },
-                          { name: "Slate 600", value: "#475569" },
-                          { name: "Black", value: "#000000" },
-                          { name: "White", value: "#ffffff" },
-                        ].map((color) => (
-                          <SelectItem key={color.value} value={color.value}>
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                style={{ backgroundColor: color.value }}
-                              />
-                              <span
-                                className="font-medium"
-                                style={{ color: color.value === "#ffffff" ? "#000000" : undefined }}
-                              >
-                                {color.name}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Separator />
-
                   {/* Component-Specific Colors */}
                   <div className="space-y-6">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Component Colors
-                    </h3>
+                    <h3 className="text-lg font-semibold border-b border-gray-200 pb-2">Component Colors</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-3">
-                        <Label
-                          className="text-sm font-semibold flex items-center gap-2"
-                          style={{ color: theme.textColor }}
-                        >
+                        <Label className="text-sm font-semibold flex items-center gap-2">
                           <Globe className="w-4 h-4" />
                           Navbar Color
                         </Label>
-                        <Select value={theme.navbarColor} onValueChange={(value) => updateTheme("navbarColor", value)}>
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.value}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.value }}
-                                  />
-                                  <span className="font-medium">{color.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.navbarColor}
+                            onChange={(e) => updateTheme("navbarColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.navbarColor}
+                            onChange={(e) => updateTheme("navbarColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-3">
-                        <Label
-                          className="text-sm font-semibold flex items-center gap-2"
-                          style={{ color: theme.textColor }}
-                        >
+                        <Label className="text-sm font-semibold flex items-center gap-2">
                           <MessageCircle className="w-4 h-4" />
                           Chat Widget Color
                         </Label>
-                        <Select
-                          value={theme.chatWidgetColor}
-                          onValueChange={(value) => updateTheme("chatWidgetColor", value)}
-                        >
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.value}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.value }}
-                                  />
-                                  <span className="font-medium">{color.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.chatWidgetColor}
+                            onChange={(e) => updateTheme("chatWidgetColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.chatWidgetColor}
+                            onChange={(e) => updateTheme("chatWidgetColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-3">
-                        <Label
-                          className="text-sm font-semibold flex items-center gap-2"
-                          style={{ color: theme.textColor }}
-                        >
+                        <Label className="text-sm font-semibold flex items-center gap-2">
                           <Phone className="w-4 h-4" />
                           Contact Widget Color
                         </Label>
-                        <Select
-                          value={theme.contactWidgetColor}
-                          onValueChange={(value) => updateTheme("contactWidgetColor", value)}
-                        >
-                          <SelectTrigger className="border-2 border-slate-200 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color.value} value={color.value}>
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                                    style={{ backgroundColor: color.value }}
-                                  />
-                                  <span className="font-medium">{color.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="color"
+                            value={theme.contactWidgetColor}
+                            onChange={(e) => updateTheme("contactWidgetColor", e.target.value)}
+                            className="w-16 h-12 rounded-xl cursor-pointer"
+                          />
+                          <Input
+                            value={theme.contactWidgetColor}
+                            onChange={(e) => updateTheme("contactWidgetColor", e.target.value)}
+                            className="flex-1 rounded-xl"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1200,77 +1640,67 @@ export function HomeSettings() {
 
                   {/* Live Preview */}
                   <div className="space-y-4">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Live Preview
-                    </h3>
+                    <Label className="text-lg font-semibold">Live Preview</Label>
                     <div
-                      className="p-8 rounded-2xl border-2 border-slate-200 shadow-inner"
-                      style={{ backgroundColor: theme.backgroundColor }}
+                      className="p-6 rounded-2xl border-2 space-y-4"
+                      style={{
+                        backgroundColor: theme.backgroundColor,
+                        borderColor: theme.borderColor,
+                      }}
                     >
-                      <div className="space-y-6">
-                        <h3 className="text-3xl font-bold" style={{ color: theme.textColor }}>
-                          Sample Heading
-                        </h3>
-                        <p style={{ color: theme.textColor }}>
-                          This is how your content will look with the selected theme colors. The preview updates in
-                          real-time as you make changes.
-                        </p>
-                        <div className="flex gap-4 flex-wrap">
-                          <Button
-                            className="shadow-lg hover:shadow-xl transition-all"
-                            style={{ backgroundColor: theme.primaryColor }}
-                          >
-                            Primary Button
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="shadow-sm hover:shadow-md transition-all bg-transparent"
-                            style={{
-                              borderColor: theme.primaryColor,
-                              color: theme.primaryColor,
-                            }}
-                          >
-                            Secondary Button
-                          </Button>
-                          <Button
-                            className="shadow-lg hover:shadow-xl transition-all"
-                            style={{ backgroundColor: theme.accentColor }}
-                          >
-                            Accent Button
-                          </Button>
+                      <h3 className="text-2xl font-bold" style={{ color: theme.textColor }}>
+                        Sample Heading
+                      </h3>
+                      <p style={{ color: theme.textColor + "cc" }}>
+                        This is how your content will look with the selected theme colors. The preview updates in
+                        real-time as you make changes.
+                      </p>
+                      <div className="flex gap-3 flex-wrap">
+                        <Button className="shadow-lg" style={{ backgroundColor: theme.primaryColor, color: "white" }}>
+                          Primary Button
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="shadow-sm bg-transparent"
+                          style={{
+                            borderColor: theme.primaryColor,
+                            color: theme.primaryColor,
+                          }}
+                        >
+                          Secondary Button
+                        </Button>
+                        <Button className="shadow-lg" style={{ backgroundColor: theme.accentColor, color: "white" }}>
+                          Accent Button
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <div key={i} className="w-5 h-5 text-2xl" style={{ color: theme.accentColor }}>
+                              ★
+                            </div>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex">
-                            {[...Array(5)].map((_, i) => (
-                              <div key={i} className="w-5 h-5 text-2xl" style={{ color: theme.accentColor }}>
-                                ★
-                              </div>
-                            ))}
-                          </div>
-                          <span style={{ color: theme.textColor }}>5.0 rating</span>
+                        <span style={{ color: theme.textColor }}>5.0 rating</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 mt-6">
+                        <div
+                          className="p-4 rounded-xl text-center shadow-lg"
+                          style={{ backgroundColor: theme.navbarColor, color: "white" }}
+                        >
+                          <div className="text-sm font-medium">Navbar</div>
                         </div>
-                        <div className="grid grid-cols-3 gap-4 mt-6">
-                          <div
-                            className="p-4 rounded-xl text-center shadow-lg"
-                            style={{ backgroundColor: theme.navbarColor, color: "white" }}
-                          >
-                            <div className="text-sm font-medium">Navbar</div>
-                          </div>
-                          <div
-                            className="p-4 rounded-xl text-center shadow-lg"
-                            style={{ backgroundColor: theme.chatWidgetColor, color: "white" }}
-                          >
-                            <div className="text-sm font-medium">Chat Widget</div>
-                          </div>
-                          <div
-                            className="p-4 rounded-xl text-center shadow-lg"
-                            style={{ backgroundColor: theme.contactWidgetColor, color: "white" }}
-                          >
-                            <div className="text-sm font-medium">Contact Widget</div>
-                          </div>
+                        <div
+                          className="p-4 rounded-xl text-center shadow-lg"
+                          style={{ backgroundColor: theme.chatWidgetColor, color: "white" }}
+                        >
+                          <div className="text-sm font-medium">Chat Widget</div>
+                        </div>
+                        <div
+                          className="p-4 rounded-xl text-center shadow-lg"
+                          style={{ backgroundColor: theme.contactWidgetColor, color: "white" }}
+                        >
+                          <div className="text-sm font-medium">Contact Widget</div>
                         </div>
                       </div>
                     </div>
@@ -1279,216 +1709,92 @@ export function HomeSettings() {
               </Card>
             </TabsContent>
 
+            {/* Advanced Tab */}
             <TabsContent value="advanced" className="space-y-6">
-              <Card className="bg-white/90 border border-slate-200/60 shadow-xl backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-2" style={{ color: theme.textColor }}>
-                    <Sparkles className="w-5 h-5 text-indigo-600" />
-                    Advanced Settings
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-indigo-600" />
+                    Contact Settings
                   </CardTitle>
-                  <CardDescription style={{ color: theme.textColor }}>
-                    Additional customization options and features
-                  </CardDescription>
+                  <CardDescription>Configure contact information and widget settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-6">
-                  <div className="space-y-6">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Features & Stats Section
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Features Title
-                        </Label>
-                        <Input
-                          value={content.features.title}
-                          onChange={(e) => updateContent("features", "title", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Features Subtitle
-                        </Label>
-                        <Input
-                          value={content.features.subtitle}
-                          onChange={(e) => updateContent("features", "subtitle", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Phone Number</Label>
+                      <Input
+                        value={contactSettings.phoneNumber}
+                        onChange={(e) => updateContactSettings("phoneNumber", e.target.value)}
+                        className="rounded-xl"
+                        placeholder="+1 234 567 8900"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Features Description
-                      </Label>
-                      <Textarea
-                        value={content.features.description}
-                        onChange={(e) => updateContent("features", "description", e.target.value)}
-                        rows={2}
-                        className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors resize-none"
+                      <Label className="text-sm font-semibold">WhatsApp Number</Label>
+                      <Input
+                        value={contactSettings.whatsappNumber}
+                        onChange={(e) => updateContactSettings("whatsappNumber", e.target.value)}
+                        className="rounded-xl"
+                        placeholder="+1234567890"
                       />
                     </div>
                   </div>
 
                   <Separator />
 
-                  <div className="space-y-6">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Statistics Section
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Stats Title
-                        </Label>
-                        <Input
-                          value={content.stats.title}
-                          onChange={(e) => updateContent("stats", "title", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Stats Description
-                        </Label>
-                        <Input
-                          value={content.stats.description}
-                          onChange={(e) => updateContent("stats", "description", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                    </div>
+                  <div className="space-y-4">
+                    <Label className="text-lg font-semibold">Widget Settings</Label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {content.stats.items.map((item, index) => (
-                        <Card
-                          key={index}
-                          className="p-4 border border-slate-200 hover:border-indigo-300 transition-colors"
-                        >
-                          <div className="space-y-3">
-                            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                              Stat {index + 1}
-                            </Badge>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-medium" style={{ color: theme.textColor }}>
-                                Value
-                              </Label>
-                              <Input
-                                value={item.value}
-                                onChange={(e) => {
-                                  const newItems = [...content.stats.items]
-                                  newItems[index].value = e.target.value
-                                  updateContent("stats", "items", newItems)
-                                }}
-                                className="text-sm border border-slate-200 rounded-lg"
-                              />
+                      {[
+                        { key: "enableDemo", label: "Enable Demo Booking", icon: Eye },
+                        { key: "enableChatSupport", label: "Enable Chat Support", icon: MessageCircle },
+                        { key: "enableContactWidget", label: "Enable Contact Widget", icon: Phone },
+                      ].map((setting) => (
+                        <div key={setting.key} className="p-4 rounded-2xl border-2 border-gray-100 bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <setting.icon className="w-4 h-4" style={{ color: theme.primaryColor }} />
+                              <Label className="font-semibold text-sm">{setting.label}</Label>
                             </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-medium" style={{ color: theme.textColor }}>
-                                Label
-                              </Label>
-                              <Input
-                                value={item.label}
-                                onChange={(e) => {
-                                  const newItems = [...content.stats.items]
-                                  newItems[index].label = e.target.value
-                                  updateContent("stats", "items", newItems)
-                                }}
-                                className="text-sm border border-slate-200 rounded-lg"
-                              />
-                            </div>
+                            <Select
+                              value={contactSettings[setting.key as keyof ContactSettings] ? "enabled" : "disabled"}
+                              onValueChange={(value) =>
+                                updateContactSettings(setting.key as keyof ContactSettings, value === "enabled")
+                              }
+                            >
+                              <SelectTrigger className="w-24 h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="enabled">On</SelectItem>
+                                <SelectItem value="disabled">Off</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                        </Card>
+                        </div>
                       ))}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-6">
-                    <h3
-                      className="text-lg font-semibold border-b border-slate-200 pb-2"
-                      style={{ color: theme.textColor }}
-                    >
-                      Testimonials Section
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Testimonials Title
-                        </Label>
-                        <Input
-                          value={content.testimonials.title}
-                          onChange={(e) => updateContent("testimonials", "title", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          Testimonials Subtitle
-                        </Label>
-                        <Input
-                          value={content.testimonials.subtitle}
-                          onChange={(e) => updateContent("testimonials", "subtitle", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        Testimonials Description
-                      </Label>
-                      <Textarea
-                        value={content.testimonials.description}
-                        onChange={(e) => updateContent("testimonials", "description", e.target.value)}
-                        rows={2}
-                        className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors resize-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          CTA Title
-                        </Label>
-                        <Input
-                          value={content.testimonials.ctaTitle}
-                          onChange={(e) => updateContent("testimonials", "ctaTitle", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                          CTA Button Text
-                        </Label>
-                        <Input
-                          value={content.testimonials.ctaButtonText}
-                          onChange={(e) => updateContent("testimonials", "ctaButtonText", e.target.value)}
-                          className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold" style={{ color: theme.textColor }}>
-                        CTA Description
-                      </Label>
-                      <Textarea
-                        value={content.testimonials.ctaDescription}
-                        onChange={(e) => updateContent("testimonials", "ctaDescription", e.target.value)}
-                        rows={2}
-                        className="border-2 border-slate-200 rounded-xl focus:border-indigo-400 transition-colors resize-none"
-                      />
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
-        </motion.div>
+
+          {/* Status Footer */}
+          <div className="text-center py-4">
+            <div className="flex items-center justify-center gap-4 flex-wrap text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
+                <span>Auto-sync enabled</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                <span>Updates reflect on all pages</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </SimpleAdminLayout>
   )

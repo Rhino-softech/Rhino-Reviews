@@ -48,6 +48,8 @@ import PrivacyPolicyPage from "./components/footer/privacy";
 import CookiePolicyPage from "./components/footer/cookies";
 import TermsOfServicePage from "./components/footer/terms";
 import { HomeSettings } from "./components/admin/settings/homesettings";
+import JobApplicationModal from "./components/JobApplicationModal";
+import CareersSettingsPage from "./components/admin/settings/carrer settings";
 
 
 function useScrollToHash() {
@@ -95,6 +97,9 @@ return (
         <Route path="/cookies" element={<CookiePolicyPage />} />
         <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/businessform" element={<BusinessForm />} />
+        <Route path="/application" element={<JobApplicationModal isOpen={false} onClose={function (): void {
+        throw new Error("Function not implemented.");
+      } } job={undefined} whatsappNumber={""} />} />
         <Route path="/contact" element={<ContactPanel contactSettings={undefined} onScheduleDemo={function (): void {
         throw new Error("Function not implemented.");
       } } />} />
@@ -129,6 +134,7 @@ return (
         <Route path="/admin/demo-chat" element={<DemoBookingChat />} />
         <Route path="/admin/pricing" element={<PricingSettings />} />
         <Route path="/admin/settings/home" element={<HomeSettings />} />
+        <Route path="/admin/settings/careers" element={<CareersSettingsPage />} />
 
         <Route path="/admin/businesses/:uid" element={<BusinessDetailsPage params={{ uid: "" }} />} />
         <Route path="/admin/subscriptions/:uid" element={<SubscriptionPage params={{ uid: "" }} />} />

@@ -15,7 +15,23 @@ import { RocketIcon } from "@radix-ui/react-icons"
 import { Eye, EyeOff } from "lucide-react"
 import Navbar from "./Navbar"
 
+interface ThemeSettings {
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+  backgroundColor: string
+  textColor: string
+}
+
 export default function LoginForm() {
+  const [theme, setTheme] = useState<ThemeSettings>({
+    primaryColor: "#ea580c",
+    secondaryColor: "#fed7aa",
+    accentColor: "#fbbf24",
+    backgroundColor: "#ffffff",
+    textColor: "#111827",
+  })
+
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -31,6 +47,18 @@ export default function LoginForm() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    const fetchThemeSettings = async () => {
+      try {
+        const themeDoc = await getDoc(doc(db, "settings", "homeTheme"))
+        if (themeDoc.exists()) {
+          setTheme((prev) => ({ ...prev, ...themeDoc.data() }))
+        }
+      } catch (error) {
+        console.error("Error fetching theme settings:", error)
+      }
+    }
+
+    fetchThemeSettings()
     localStorage.removeItem("uid")
     localStorage.removeItem("role")
     localStorage.removeItem("email")
@@ -49,10 +77,9 @@ export default function LoginForm() {
     const userSnap = await getDoc(userRef)
 
     if (!userSnap.exists()) {
-      // If user document doesn't exist, create it with trial data
       const now = new Date()
       const trialEnd = new Date(now)
-      trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+      trialEnd.setDate(trialEnd.getDate() + 14)
 
       await setDoc(userRef, {
         trialActive: true,
@@ -70,21 +97,16 @@ export default function LoginForm() {
     const userData = userSnap.data()
     const now = new Date()
 
-    // Admin users always have access
     if (userData.role === "ADMIN") return true
-
-    // Check for active subscription
     if (userData.subscriptionActive) return true
 
-    // Check trial status
     if (userData.trialActive && userData.trialEndDate && userData.trialEndDate.toDate() > now) {
       return true
     }
 
-    // If user has no trial data set up, set up default trial
     if (!userData.trialEndDate && !userData.subscriptionPlan && userData.role === "BUSER") {
       const trialEnd = new Date(now)
-      trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+      trialEnd.setDate(trialEnd.getDate() + 14)
 
       await updateDoc(userRef, {
         trialActive: true,
@@ -96,7 +118,6 @@ export default function LoginForm() {
       return true
     }
 
-    // Check if subscription has expired
     if (userData.subscriptionPlan && !userData.subscriptionActive) {
       setSubscriptionExpired(true)
       return false
@@ -111,13 +132,11 @@ export default function LoginForm() {
     if (!userSnap.exists()) throw new Error("User data not found.")
     const userData = userSnap.data()
 
-    // Admin users go directly to admin dashboard
     if (userData.role === "ADMIN") {
       navigate("/admin/dashboard")
       return
     }
 
-    // Check access for business users
     const hasActiveAccess = await checkTrialStatus(uid)
     if (!hasActiveAccess) {
       if (subscriptionExpired) {
@@ -126,11 +145,10 @@ export default function LoginForm() {
         return
       }
       setTrialExpired(true)
-      navigate("/pricing") // Added this line to directly redirect to pricing
+      navigate("/pricing")
       return
     }
 
-    // Redirect business users based on form completion
     if (userData.businessFormFilled === true) {
       navigate("/components/business/dashboard")
     } else {
@@ -162,10 +180,9 @@ export default function LoginForm() {
       const userSnap = await getDoc(userRef)
 
       if (!userSnap.exists()) {
-        // Create user document if it doesn't exist
         const now = new Date()
         const trialEnd = new Date(now)
-        trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+        trialEnd.setDate(trialEnd.getDate() + 14)
 
         await setDoc(userRef, {
           displayName: userCredential.user.displayName || "",
@@ -230,10 +247,9 @@ export default function LoginForm() {
       const userSnap = await getDoc(userRef)
 
       if (!userSnap.exists()) {
-        // Create user document if it doesn't exist
         const now = new Date()
         const trialEnd = new Date(now)
-        trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
+        trialEnd.setDate(trialEnd.getDate() + 14)
 
         await setDoc(userRef, {
           displayName: currentUser.displayName || "",
@@ -286,12 +302,142 @@ export default function LoginForm() {
     }
   }
 
+  const AnimatedBackground = () => (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-gray-50 to-white"></div>
+
+      {/* Floating Particles */}
+      {[...Array(20)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full opacity-20"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            width: `${Math.random() * 6 + 4}px`,
+            height: `${Math.random() * 6 + 4}px`,
+            backgroundColor: i % 3 === 0 ? theme.primaryColor : i % 3 === 1 ? theme.accentColor : theme.secondaryColor,
+            // animation: `float ${Math.random() * 3 + 4}s ease-in-out infinite`,
+            animationDelay: `${Math.random() * 2}s`,
+          }}
+        />
+      ))}
+
+      {/* Large Floating Circles */}
+      {[...Array(8)].map((_, i) => (
+        <div
+          key={`circle-${i}`}
+          className="absolute rounded-full opacity-5"
+          style={{
+            left: `${Math.random() * 120 - 10}%`,
+            top: `${Math.random() * 120 - 10}%`,
+            width: `${Math.random() * 200 + 100}px`,
+            height: `${Math.random() * 200 + 100}px`,
+            backgroundColor: i % 2 === 0 ? theme.primaryColor : theme.accentColor,
+            animation: `slowFloat ${Math.random() * 8 + 10}s ease-in-out infinite`,
+            animationDelay: `${Math.random() * 4}s`,
+          }}
+        />
+      ))}
+
+      {/* Animated Waves */}
+      <div className="absolute bottom-0 left-0 w-full overflow-hidden">
+        <svg
+          className="relative block w-full h-20"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 1200 120"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z"
+            opacity=".25"
+            fill={theme.primaryColor}
+            style={{ animation: "wave 10s ease-in-out infinite" }}
+          />
+          <path
+            d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z"
+            opacity=".5"
+            fill={theme.accentColor}
+            style={{ animation: "wave 7s ease-in-out infinite reverse" }}
+          />
+          <path
+            d="M0,0V5.63C149.93,59,314.09,71.32,475.83,42.57c43-7.64,84.23-20.12,127.61-26.46,59-8.63,112.48,12.24,165.56,35.4C827.93,77.22,886,95.24,951.2,90c86.53-7,172.46-45.71,248.8-84.81V0Z"
+            fill={theme.secondaryColor}
+            opacity=".8"
+            style={{ animation: "wave 5s ease-in-out infinite" }}
+          />
+        </svg>
+      </div>
+
+      {/* Geometric Shapes */}
+      {[...Array(6)].map((_, i) => (
+        <div
+          key={`shape-${i}`}
+          className="absolute opacity-10"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            width: `${Math.random() * 40 + 20}px`,
+            height: `${Math.random() * 40 + 20}px`,
+            backgroundColor: theme.primaryColor,
+            transform: `rotate(${Math.random() * 360}deg)`,
+            borderRadius: i % 2 === 0 ? "50%" : "0%",
+            animation: `rotate ${Math.random() * 10 + 15}s linear infinite`,
+            animationDelay: `${Math.random() * 3}s`,
+          }}
+        />
+      ))}
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% {
+            transform: translateY(0px) translateX(0px);
+          }
+          50% {
+            transform: translateY(-20px) translateX(10px);
+          }
+        }
+
+        @keyframes slowFloat {
+          0%, 100% {
+            transform: translateY(0px) translateX(0px) scale(1);
+          }
+          50% {
+            transform: translateY(-30px) translateX(-20px) scale(1.1);
+          }
+        }
+
+        @keyframes wave {
+          0%, 100% {
+            transform: translateX(0%);
+          }
+          50% {
+            transform: translateX(-25%);
+          }
+        }
+
+        @keyframes rotate {
+          0% {
+            transform: rotate(0deg) scale(1);
+          }
+          50% {
+            transform: rotate(180deg) scale(1.2);
+          }
+          100% {
+            transform: rotate(360deg) scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  )
+
   if (accountInactive) {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center bg-orange-50">
-          <Card className="w-full max-w-md shadow-lg rounded-2xl p-6 bg-white">
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+          <AnimatedBackground />
+          <Card className="w-full max-w-md shadow-2xl rounded-2xl p-6 bg-white/95 backdrop-blur-sm border-0 relative z-10">
             <CardContent className="space-y-4">
               <Alert variant="destructive">
                 <RocketIcon className="h-4 w-4" />
@@ -321,19 +467,24 @@ export default function LoginForm() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center bg-orange-50">
-          <Card className="w-full max-w-md shadow-lg rounded-2xl p-6 bg-white">
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+          <AnimatedBackground />
+          <Card className="w-full max-w-md shadow-2xl rounded-2xl p-6 bg-white/95 backdrop-blur-sm border-0 relative z-10">
             <CardContent className="space-y-4">
               <Alert variant="destructive">
                 <RocketIcon className="h-4 w-4" />
                 <AlertTitle>{subscriptionExpired ? "Subscription Expired" : "Trial Expired"}</AlertTitle>
                 <AlertDescription>
-                  {subscriptionExpired 
+                  {subscriptionExpired
                     ? "Your subscription has ended. Please renew to continue using our services."
                     : "Your 14-day free trial has ended. Upgrade to a paid plan to continue using our services."}
                 </AlertDescription>
               </Alert>
-              <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/pricing")}>
+              <Button
+                className="w-full text-white font-semibold"
+                style={{ backgroundColor: theme.primaryColor }}
+                onClick={() => navigate("/pricing")}
+              >
                 Choose a Plan
               </Button>
               <Button
@@ -358,8 +509,9 @@ export default function LoginForm() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center bg-orange-50">
-          <Card className="w-full max-w-md shadow-lg rounded-2xl p-6 bg-white">
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+          <AnimatedBackground />
+          <Card className="w-full max-w-md shadow-2xl rounded-2xl p-6 bg-white/95 backdrop-blur-sm border-0 relative z-10">
             <CardContent className="space-y-4">
               <Alert>
                 <RocketIcon className="h-4 w-4" />
@@ -369,7 +521,8 @@ export default function LoginForm() {
                 </AlertDescription>
               </Alert>
               <Button
-                className="w-full bg-orange-600 hover:bg-orange-700"
+                className="w-full text-white font-semibold"
+                style={{ backgroundColor: theme.primaryColor }}
                 onClick={() => {
                   setResetEmailSent(false)
                   setShowForgotPassword(false)
@@ -388,26 +541,33 @@ export default function LoginForm() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center bg-orange-50">
-          <Card className="w-full max-w-md shadow-lg rounded-2xl p-6 bg-white">
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+          <AnimatedBackground />
+          <Card className="w-full max-w-md shadow-2xl rounded-2xl p-6 bg-white/95 backdrop-blur-sm border-0 relative z-10">
             <CardContent className="space-y-4">
-              <h2 className="text-2xl font-bold text-gray-600 mb-6 text-center">Reset Password</h2>
+              <h2 className="text-2xl font-bold mb-6 text-center" style={{ color: theme.textColor }}>
+                Reset Password
+              </h2>
 
               <div>
-                <label className="text-sm text-gray-600 block mb-1">Email</label>
+                <label className="text-sm block mb-1" style={{ color: theme.textColor }}>
+                  Email
+                </label>
                 <Input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
+                  className="rounded-xl"
                 />
               </div>
 
               {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
               <Button
-                className="w-full bg-orange-600 hover:bg-orange-700"
+                className="w-full text-white font-semibold rounded-xl"
+                style={{ backgroundColor: theme.primaryColor }}
                 onClick={handleForgotPassword}
                 disabled={loading}
               >
@@ -416,7 +576,7 @@ export default function LoginForm() {
 
               <Button
                 variant="outline"
-                className="w-full bg-transparent"
+                className="w-full bg-transparent rounded-xl"
                 onClick={() => {
                   setShowForgotPassword(false)
                   setError("")
@@ -434,21 +594,27 @@ export default function LoginForm() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center bg-orange-50">
-        <Card className="w-full max-w-md shadow-lg rounded-2xl p-6 bg-white">
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <AnimatedBackground />
+        <Card className="w-full max-w-md shadow-2xl rounded-2xl p-6 bg-white/95 backdrop-blur-sm border-0 relative z-10">
           <CardContent>
-            <h2 className="text-2xl font-bold text-gray-600 mb-6 text-center">Sign In to Your Account</h2>
+            <h2 className="text-2xl font-bold mb-6 text-center" style={{ color: theme.textColor }}>
+              Sign In to Your Account
+            </h2>
 
             <Button
               variant="outline"
-              className="w-full mb-4 flex items-center justify-center gap-2 border-orange-500 text-orange-600 hover:bg-orange-100 bg-transparent"
+              className="w-full mb-4 flex items-center justify-center gap-2 rounded-xl font-semibold bg-transparent hover:bg-gray-50"
+              style={{
+                borderColor: theme.primaryColor,
+                color: theme.primaryColor,
+              }}
               onClick={handleGoogleLogin}
               disabled={loading}
             >
               <FcGoogle size={20} /> Continue with Google
             </Button>
 
-            {/* Error message below Google button */}
             {externalError && (
               <div className="mb-4">
                 <Alert variant="destructive" className="w-full">
@@ -461,7 +627,11 @@ export default function LoginForm() {
             {!showEmailForm && (
               <Button
                 variant="outline"
-                className="w-full mb-4 border-gray-300 text-gray-700 hover:bg-orange-100 bg-transparent"
+                className="w-full mb-4 rounded-xl font-semibold bg-transparent hover:bg-gray-50"
+                style={{
+                  borderColor: theme.borderColor || "#d1d5db",
+                  color: theme.textColor,
+                }}
                 onClick={() => setShowEmailForm(true)}
               >
                 Continue with Email
@@ -472,28 +642,39 @@ export default function LoginForm() {
               <>
                 <div className="flex items-center my-4">
                   <div className="flex-grow border-t border-gray-300" />
-                  <span className="mx-4 text-gray-400 text-sm">or</span>
+                  <span className="mx-4 text-sm opacity-60">or</span>
                   <div className="flex-grow border-t border-gray-300" />
                 </div>
 
                 <form className="space-y-4" onSubmit={handleEmailLogin}>
                   <div>
-                    <label className="text-sm text-gray-600 block mb-1">Email</label>
-                    <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <label className="text-sm block mb-1" style={{ color: theme.textColor }}>
+                      Email
+                    </label>
+                    <Input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="rounded-xl"
+                    />
                   </div>
 
                   <div>
-                    <label className="text-sm text-gray-600 block mb-1">Password</label>
+                    <label className="text-sm block mb-1" style={{ color: theme.textColor }}>
+                      Password
+                    </label>
                     <div className="relative">
                       <Input
                         type={showPassword ? "text" : "password"}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        className="rounded-xl"
                       />
                       <button
                         type="button"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 opacity-60 hover:opacity-80"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -504,7 +685,8 @@ export default function LoginForm() {
                   <div className="text-right">
                     <button
                       type="button"
-                      className="text-sm text-orange-600 hover:underline"
+                      className="text-sm hover:underline font-medium"
+                      style={{ color: theme.primaryColor }}
                       onClick={() => setShowForgotPassword(true)}
                     >
                       Forgot password?
@@ -513,17 +695,22 @@ export default function LoginForm() {
 
                   {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
-                  <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700" disabled={loading}>
+                  <Button
+                    type="submit"
+                    className="w-full text-white font-semibold rounded-xl"
+                    style={{ backgroundColor: theme.primaryColor }}
+                    disabled={loading}
+                  >
                     {loading ? "Signing In..." : "Sign In"}
                   </Button>
                 </form>
               </>
             )}
 
-            <div className="mt-6 text-sm text-center text-gray-600">
+            <div className="mt-6 text-sm text-center opacity-80">
               <p>
                 Don't have an account?{" "}
-                <a href="/register" className="text-orange-600 font-medium hover:underline">
+                <a href="/register" className="font-medium hover:underline" style={{ color: theme.primaryColor }}>
                   Register now
                 </a>
               </p>
