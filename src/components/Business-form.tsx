@@ -110,51 +110,52 @@ export default function BusinessForm() {
 
   // Check if phone number already exists in Firebase
   const checkPhoneExists = async (phoneNumber: string) => {
-    if (!phoneNumber.trim()) {
-      setPhoneExists(false)
-      setPhoneCheckError("")
-      return false
-    }
-
-    setCheckingPhone(true)
-    setPhoneCheckError("")
-
-    try {
-      const formattedPhone = formatPhoneNumber(phoneNumber)
-
-      // Query users collection for existing phone number
-      const usersRef = collection(db, "users")
-      const phoneQuery = query(usersRef, where("phoneNumber", "==", formattedPhone))
-      const querySnapshot = await getDocs(phoneQuery)
-
-      // Check if phone exists and belongs to a different user
-      let phoneExistsForOtherUser = false
-      querySnapshot.forEach((doc) => {
-        if (doc.id !== uid) {
-          // Phone belongs to different user
-          phoneExistsForOtherUser = true
-        }
-      })
-
-      if (phoneExistsForOtherUser) {
-        setPhoneExists(true)
-        setPhoneCheckError("This phone number is already registered. Please try a different phone number.")
-        setPhoneVerified(false)
-        setShowOtpField(false)
-        return true
-      } else {
-        setPhoneExists(false)
-        setPhoneCheckError("")
-        return false
-      }
-    } catch (error) {
-      console.error("Error checking phone number:", error)
-      setPhoneCheckError("Error checking phone number. Please try again.")
-      return false
-    } finally {
-      setCheckingPhone(false)
-    }
+  if (!phoneNumber.trim()) {
+    setPhoneExists(false);
+    setPhoneCheckError("");
+    return false;
   }
+
+  setCheckingPhone(true);
+  setPhoneCheckError("");
+
+  try {
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+
+    // Query users collection for existing phone number
+    const usersRef = collection(db, "users");
+    const phoneQuery = query(usersRef, where("phoneNumber", "==", formattedPhone));
+    const querySnapshot = await getDocs(phoneQuery);
+
+    // Check if phone exists and belongs to a different user
+    let phoneExistsForOtherUser = false;
+    querySnapshot.forEach((doc) => {
+      if (doc.id !== uid) {
+        // Phone belongs to different user
+        phoneExistsForOtherUser = true;
+      }
+    });
+
+    if (phoneExistsForOtherUser) {
+      setPhoneExists(true);
+      setPhoneCheckError("This phone number is already registered. Please try a different phone number.");
+      setPhoneVerified(false);
+      setShowOtpField(false);
+      return true;
+    } else {
+      setPhoneExists(false);
+      setPhoneCheckError("");
+      return false;
+    }
+  } catch (error) {
+    console.error("Error checking phone number:", error);
+    setPhoneCheckError("Error checking phone number. Please try again.");
+    return false;
+  } finally {
+    setCheckingPhone(false);
+  }
+};
+
 
   // Check if user has existing business data
   useEffect(() => {
@@ -684,85 +685,86 @@ export default function BusinessForm() {
                   </p>
                 </div>
 
-                <div className="relative">
-                  <label className="absolute left-10 top-[-10px] text-xs text-gray-600 bg-white px-1 z-10">
-                    Phone Number
-                  </label>
-                  <div
-                    className={`flex items-center border rounded-md px-3 focus-within:ring-2 transition ${
-                      phoneExists ? "border-red-500 focus-within:ring-red-500" : "focus-within:ring-blue-500"
-                    }`}
-                  >
-                    <FaPhone className={phoneExists ? "text-red-500" : "text-gray-500"} />
-                    <input
-                      type="tel"
-                      name="contactPhone"
-                      value={formData.contactPhone}
-                      onChange={handleChange}
-                      required
-                      className="w-full p-2 pl-3 outline-none bg-transparent"
-                      placeholder="+91 9876543210"
-                    />
-                    {checkingPhone && <FaSpinner className="animate-spin text-blue-500 ml-2" />}
-                  </div>
-
-                  {/* Phone validation error */}
-                  {phoneCheckError && (
-                    <div className="mt-2 text-red-600 text-sm flex items-center">
-                      <FaTimesCircle className="mr-1" />
-                      {phoneCheckError}
-                    </div>
-                  )}
-
-                  <div className="mt-2">
-                    {phoneVerified ? (
-                      <span className="text-green-600 flex items-center text-sm">
-                        <FaCheckCircle className="mr-1" /> Phone verified
-                      </span>
-                    ) : showOtpField ? (
-                      <div className="flex flex-col space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="Enter 6-digit OTP"
-                            maxLength={6}
-                            className="border p-2 rounded-md flex-1 text-center tracking-widest"
-                          />
-                          <button
-                            type="button"
-                            onClick={verifyPhoneOtp}
-                            disabled={verifyingPhone || otp.length !== 6}
-                            className="bg-blue-600 text-white px-3 py-2 rounded-md disabled:bg-blue-300"
-                          >
-                            {verifyingPhone ? <FaSpinner className="animate-spin" /> : "Verify"}
-                          </button>
-                        </div>
-                        <button type="button" onClick={sendPhoneOtp} className="text-blue-600 text-sm hover:underline">
-                          Resend OTP
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={sendPhoneOtp}
-                        disabled={verifyingPhone || !formData.contactPhone || phoneExists || checkingPhone}
-                        className="text-blue-600 text-sm flex items-center hover:underline disabled:text-gray-400"
-                      >
-                        {verifyingPhone ? (
-                          <>
-                            <FaSpinner className="animate-spin mr-1" /> Sending OTP...
-                          </>
-                        ) : (
-                          "Verify phone with OTP"
-                        )}
-                      </button>
-                    )}
-                  </div>
+              <div className="relative">
+                <label className="absolute left-10 top-[-10px] text-xs text-gray-600 bg-white px-1 z-10">
+                  Phone Number
+                </label>
+                <div
+                  className={`flex items-center border rounded-md px-3 focus-within:ring-2 transition ${
+                    phoneExists ? "border-red-500 focus-within:ring-red-500" : "focus-within:ring-blue-500"
+                  }`}
+                >
+                  <FaPhone className={phoneExists ? "text-red-500" : "text-gray-500"} />
+                  <input
+                    type="tel"
+                    name="contactPhone"
+                    value={formData.contactPhone}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-2 pl-3 outline-none bg-transparent"
+                    placeholder="+91 9876543210"
+                  />
+                  {checkingPhone && <FaSpinner className="animate-spin text-blue-500 ml-2" />}
                 </div>
 
-                <div className="relative">
+                {/* Phone validation error - make sure this is displayed */}
+                {phoneCheckError && (
+                  <div className="mt-2 text-red-600 text-sm flex items-center">
+                    <FaTimesCircle className="mr-1" />
+                    {phoneCheckError}
+                  </div>
+                )}
+
+                {/* Rest of the verification UI remains the same */}
+                <div className="mt-2">
+                  {phoneVerified ? (
+                    <span className="text-green-600 flex items-center text-sm">
+                      <FaCheckCircle className="mr-1" /> Phone verified
+                    </span>
+                  ) : showOtpField ? (
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          placeholder="Enter 6-digit OTP"
+                          maxLength={6}
+                          className="border p-2 rounded-md flex-1 text-center tracking-widest"
+                        />
+                        <button
+                          type="button"
+                          onClick={verifyPhoneOtp}
+                          disabled={verifyingPhone || otp.length !== 6}
+                          className="bg-blue-600 text-white px-3 py-2 rounded-md disabled:bg-blue-300"
+                        >
+                          {verifyingPhone ? <FaSpinner className="animate-spin" /> : "Verify"}
+                        </button>
+                      </div>
+                      <button type="button" onClick={sendPhoneOtp} className="text-blue-600 text-sm hover:underline">
+                        Resend OTP
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={sendPhoneOtp}
+                      disabled={verifyingPhone || !formData.contactPhone || phoneExists || checkingPhone}
+                      className="text-blue-600 text-sm flex items-center hover:underline disabled:text-gray-400"
+                    >
+                      {verifyingPhone ? (
+                        <>
+                          <FaSpinner className="animate-spin mr-1" /> Sending OTP...
+                        </>
+                      ) : (
+                        "Verify phone with OTP"
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative">
                   <label className="absolute left-10 top-[-10px] text-xs text-gray-600 bg-white px-1 z-10">
                     WhatsApp Number (optional)
                   </label>
