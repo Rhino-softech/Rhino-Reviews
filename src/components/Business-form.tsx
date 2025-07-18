@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate, useLocation } from "react-router-dom"
 import { db, auth } from "../firebase/firebase"
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged } from "firebase/auth"
 import { toast } from "sonner"
 
@@ -74,6 +74,11 @@ export default function BusinessForm() {
   const [confirmationResult, setConfirmationResult] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
 
+  // Phone number validation states
+  const [phoneExists, setPhoneExists] = useState(false)
+  const [checkingPhone, setCheckingPhone] = useState(false)
+  const [phoneCheckError, setPhoneCheckError] = useState("")
+
   // Reset all form and verification states
   const resetForm = () => {
     setFormData({
@@ -99,6 +104,56 @@ export default function BusinessForm() {
     setStep(1)
     setIsUpdating(false)
     setConfirmationResult(null)
+    setPhoneExists(false)
+    setPhoneCheckError("")
+  }
+
+  // Check if phone number already exists in Firebase
+  const checkPhoneExists = async (phoneNumber: string) => {
+    if (!phoneNumber.trim()) {
+      setPhoneExists(false)
+      setPhoneCheckError("")
+      return false
+    }
+
+    setCheckingPhone(true)
+    setPhoneCheckError("")
+
+    try {
+      const formattedPhone = formatPhoneNumber(phoneNumber)
+
+      // Query users collection for existing phone number
+      const usersRef = collection(db, "users")
+      const phoneQuery = query(usersRef, where("phoneNumber", "==", formattedPhone))
+      const querySnapshot = await getDocs(phoneQuery)
+
+      // Check if phone exists and belongs to a different user
+      let phoneExistsForOtherUser = false
+      querySnapshot.forEach((doc) => {
+        if (doc.id !== uid) {
+          // Phone belongs to different user
+          phoneExistsForOtherUser = true
+        }
+      })
+
+      if (phoneExistsForOtherUser) {
+        setPhoneExists(true)
+        setPhoneCheckError("This phone number is already registered. Please try a different phone number.")
+        setPhoneVerified(false)
+        setShowOtpField(false)
+        return true
+      } else {
+        setPhoneExists(false)
+        setPhoneCheckError("")
+        return false
+      }
+    } catch (error) {
+      console.error("Error checking phone number:", error)
+      setPhoneCheckError("Error checking phone number. Please try again.")
+      return false
+    } finally {
+      setCheckingPhone(false)
+    }
   }
 
   // Check if user has existing business data
@@ -231,7 +286,7 @@ export default function BusinessForm() {
     }
   }, [])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
 
     // Prevent changing contact email
@@ -245,6 +300,14 @@ export default function BusinessForm() {
       setPhoneVerified(false)
       setPhoneVerificationSent(false)
       setShowOtpField(false)
+
+      // Check if phone number exists when user types
+      if (value.trim()) {
+        await checkPhoneExists(value)
+      } else {
+        setPhoneExists(false)
+        setPhoneCheckError("")
+      }
     }
   }
 
@@ -264,6 +327,7 @@ export default function BusinessForm() {
     if (step === 2) {
       if (!formData.contactEmail.trim()) return false
       if (!formData.contactPhone.trim()) return false
+      if (phoneExists) return false // Can't proceed if phone already exists
       return true
     }
     return step !== 5
@@ -276,6 +340,13 @@ export default function BusinessForm() {
   const prevStep = () => setStep((prev) => prev - 1)
 
   const sendPhoneOtp = async () => {
+    // Check if phone exists before sending OTP
+    const phoneExistsResult = await checkPhoneExists(formData.contactPhone)
+    if (phoneExistsResult) {
+      toast.error("This phone number is already registered. Please try a different phone number.")
+      return
+    }
+
     if (!recaptchaVerifier) {
       toast.error("reCAPTCHA not initialized. Please refresh the page.")
       return
@@ -368,10 +439,23 @@ export default function BusinessForm() {
       return
     }
 
+    if (phoneExists) {
+      toast.error("Phone number is already registered. Please use a different phone number.")
+      return
+    }
+
     setLoading(true)
 
     if (!uid) {
       toast.error("No user ID available")
+      setLoading(false)
+      return
+    }
+
+    // Final check before submission
+    const phoneExistsResult = await checkPhoneExists(formData.contactPhone)
+    if (phoneExistsResult) {
+      toast.error("This phone number is already registered. Please try a different phone number.")
       setLoading(false)
       return
     }
@@ -388,9 +472,9 @@ export default function BusinessForm() {
       website: formData.website,
       description: formData.description,
       businessType: formData.businessType === "Other" ? formData.customBusinessType : formData.businessType,
-      googleReviewLink: branch.googleReviewLink, 
-      branches: [branch], 
-      branchName: branch.name, 
+      googleReviewLink: branch.googleReviewLink,
+      branches: [branch],
+      branchName: branch.name,
       branchLocation: branch.location,
       userId: uid,
       lastUpdated: serverTimestamp(),
@@ -402,7 +486,7 @@ export default function BusinessForm() {
       const updateData = {
         businessFormFilled: true,
         email: formData.contactEmail,
-        phoneNumber: formData.contactPhone,
+        phoneNumber: formatPhoneNumber(formData.contactPhone),
         emailVerified: true,
         phoneVerified: true,
         businessInfo: businessDetails,
@@ -425,7 +509,7 @@ export default function BusinessForm() {
     initial: { opacity: 0, y: 30 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -30 },
-    transition: { duration: 0.3 }, 
+    transition: { duration: 0.3 },
   }
 
   return (
@@ -604,8 +688,12 @@ export default function BusinessForm() {
                   <label className="absolute left-10 top-[-10px] text-xs text-gray-600 bg-white px-1 z-10">
                     Phone Number
                   </label>
-                  <div className="flex items-center border rounded-md px-3 focus-within:ring-2 focus-within:ring-blue-500 transition">
-                    <FaPhone className="text-gray-500" />
+                  <div
+                    className={`flex items-center border rounded-md px-3 focus-within:ring-2 transition ${
+                      phoneExists ? "border-red-500 focus-within:ring-red-500" : "focus-within:ring-blue-500"
+                    }`}
+                  >
+                    <FaPhone className={phoneExists ? "text-red-500" : "text-gray-500"} />
                     <input
                       type="tel"
                       name="contactPhone"
@@ -615,7 +703,17 @@ export default function BusinessForm() {
                       className="w-full p-2 pl-3 outline-none bg-transparent"
                       placeholder="+91 9876543210"
                     />
+                    {checkingPhone && <FaSpinner className="animate-spin text-blue-500 ml-2" />}
                   </div>
+
+                  {/* Phone validation error */}
+                  {phoneCheckError && (
+                    <div className="mt-2 text-red-600 text-sm flex items-center">
+                      <FaTimesCircle className="mr-1" />
+                      {phoneCheckError}
+                    </div>
+                  )}
+
                   <div className="mt-2">
                     {phoneVerified ? (
                       <span className="text-green-600 flex items-center text-sm">
@@ -649,7 +747,7 @@ export default function BusinessForm() {
                       <button
                         type="button"
                         onClick={sendPhoneOtp}
-                        disabled={verifyingPhone || !formData.contactPhone}
+                        disabled={verifyingPhone || !formData.contactPhone || phoneExists || checkingPhone}
                         className="text-blue-600 text-sm flex items-center hover:underline disabled:text-gray-400"
                       >
                         {verifyingPhone ? (
@@ -878,7 +976,7 @@ export default function BusinessForm() {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !emailVerified || !phoneVerified || !branch.googleReviewLink}
+                  disabled={loading || !emailVerified || !phoneVerified || !branch.googleReviewLink || phoneExists}
                   className="relative overflow-hidden bg-gradient-to-r from-orange-600 via-orange-500 to-orange-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:from-orange-700 hover:to-orange-800 transition-all duration-300 ease-in-out group disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <span className="relative z-10 group-hover:tracking-wider transition-all duration-300">
