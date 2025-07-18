@@ -125,10 +125,10 @@ return (
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/register" element={<AdminRegistrationForm />} />
         <Route path="/admin/analytics" element={<AnalyticsPage />} />
-        <Route path="/admin/settings" element={<SettingsPage />} />
+        <Route path="/admin/settings/general" element={<SettingsPage />} />
         <Route path="/admin/demo-chat" element={<DemoBookingChat />} />
         <Route path="/admin/pricing" element={<PricingSettings />} />
-        <Route path="/admin/home" element={<HomeSettings />} />
+        <Route path="/admin/settings/home" element={<HomeSettings />} />
 
         <Route path="/admin/businesses/:uid" element={<BusinessDetailsPage params={{ uid: "" }} />} />
         <Route path="/admin/subscriptions/:uid" element={<SubscriptionPage params={{ uid: "" }} />} />

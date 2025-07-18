@@ -2,33 +2,62 @@
 import { Users, Target, Award, Heart } from "lucide-react"
 import Navbar from "../Navbar"
 import FooterSection from "../FooterSection"
+import image from "../assets/About.jpeg"
+import profile from "../assets/images.png"
 
 export default function AboutPage() {
-  const team = [
+  const head = [
     {
       name: "Sarah Johnson",
       role: "CEO & Founder",
-      image: "/placeholder.svg?height=300&width=300",
+      image: profile,
       bio: "Former VP of Marketing at a Fortune 500 company with 15 years of experience in customer experience and reputation management.",
     },
     {
       name: "Michael Chen",
       role: "CTO",
-      image: "/placeholder.svg?height=300&width=300",
+      image: profile,
       bio: "Ex-Google engineer with expertise in machine learning and large-scale data processing systems.",
     },
     {
       name: "Emily Rodriguez",
       role: "Head of Product",
-      image: "/placeholder.svg?height=300&width=300",
+      image: profile,
+      bio: "Product leader with 10+ years building SaaS platforms for small and medium businesses.",
+    },
+  
+  ]
+  const team = [
+    {
+      name: "Sarah Johnson",
+      role: "CEO & Founder",
+      image: profile,
+      bio: "Former VP of Marketing at a Fortune 500 company with 15 years of experience in customer experience and reputation management.",
+    },
+    {
+      name: "Michael Chen",
+      role: "CTO",
+      image: profile,
+      bio: "Ex-Google engineer with expertise in machine learning and large-scale data processing systems.",
+    },
+    {
+      name: "Emily Rodriguez",
+      role: "Head of Product",
+      image: profile,
       bio: "Product leader with 10+ years building SaaS platforms for small and medium businesses.",
     },
     {
       name: "David Kim",
       role: "Head of Customer Success",
-      image: "/placeholder.svg?height=300&width=300",
+      image: profile,
       bio: "Customer success expert who has helped thousands of businesses improve their online reputation and customer relationships.",
     },
+  ]
+
+  const image_about = [
+    {
+      image: image,
+    },   
   ]
 
   const values = [
@@ -61,7 +90,7 @@ export default function AboutPage() {
     
     <div className="bg-gray-100 py-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-4 text-center">
+        <h1 className="text-4xl font-extrabold text-orange-600 mb-4 text-center">
           About Rhino Review
         </h1>   
       <div className="prose max-w-none">
@@ -73,7 +102,7 @@ export default function AboutPage() {
         <div className="not-prose mb-16">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">Our Story</h2>
+              <h2 className="text-3xl font-bold text-orange-600 mb-6">Our Story</h2>
               <div className="space-y-4 text-gray-600">
                 <p>
                   Founded in 2020, Rhino Review was born out of frustration with existing review management tools that
@@ -91,19 +120,30 @@ export default function AboutPage() {
               </div>
             </div>
             <div>
-              <img
+              {/* <img
                 src="/placeholder.svg?height=400&width=600"
                 alt="Rhino Review team working together"
                 width={600}
                 height={400}
                 className="rounded-lg shadow-lg"
-              />
+              /> */}
+
+              {image_about .map((member, index) => (
+              <div key={index} className="text-center">
+                <img
+                  src={image|| "/placeholder.svg"}
+                  alt="Rhino Review team working together"
+                  width={600}
+                  height={400}
+                  className="rounded-lg shadow-lg"                />                
+              </div>
+            ))}
             </div>
           </div>
         </div>
 
         <div className="not-prose mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Our Values</h2>
+          <h2 className="text-3xl font-bold  text-orange-600 mb-8 text-center">Our Values</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {values.map((value, index) => (
               <div key={index} className="text-center">
@@ -115,13 +155,33 @@ export default function AboutPage() {
           </div>
         </div>
 
+        <div className="not-prose mb-16 mx-auto max-w-7xl px-4">
+        <h2 className="text-3xl font-bold text-orange-600 mb-8 text-center">Meet Our Heads</h2>
+        <div className="flex flex-wrap justify-center gap-8">
+          {head.map((member, index) => (
+            <div key={index} className="text-center w-full sm:w-1/2 md:w-1/3 lg:w-1/4 px-4">
+              <img
+                src={profile || "/placeholder.svg"}
+                alt={member.name}
+                width={300}
+                height={300}
+                className="rounded-full mx-auto mb-4 w-32 h-32 object-cover"
+              />
+              <h3 className="text-xl font-semibold text-gray-900 mb-1">{member.name}</h3>
+              <p className="text-blue-600 font-medium mb-3">{member.role}</p>
+              <p className="text-gray-600 text-sm">{member.bio}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
         <div className="not-prose mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Meet Our Team</h2>
+          <h2 className="text-3xl font-bold  text-orange-600 mb-8 text-center">Meet Our Team</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {team.map((member, index) => (
               <div key={index} className="text-center">
                 <img
-                  src={member.image || "/placeholder.svg"}
+                  src={profile || profile}
                   alt={member.name}
                   width={300}
                   height={300}

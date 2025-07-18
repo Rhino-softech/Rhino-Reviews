@@ -167,6 +167,7 @@ const FaqSection = () => {
         <div className="mt-16 text-center">
           <p style={{ color: theme.textColor }}>{content.contactText}</p>
           <div className="mt-4">
+            <a href="/demo2">
             <button
               className="font-medium hover:opacity-80 flex items-center justify-center mx-auto transition duration-300"
               style={{ color: theme.primaryColor }}
@@ -182,6 +183,7 @@ const FaqSection = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
+            </a>
           </div>
         </div>
       </div>

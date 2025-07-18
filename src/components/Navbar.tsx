@@ -26,6 +26,7 @@ const Navbar = () => {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeSettings>(defaultTheme)
+  const [hasFilledForm, setHasFilledForm] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const isHomePage = location.pathname === "/"
@@ -61,17 +62,21 @@ const Navbar = () => {
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data()
             setIsAdmin(userData?.role === "ADMIN")
+            setHasFilledForm(userData?.businessFormFilled || false)
           } else {
             console.log("User document not found")
             setIsAdmin(false)
+            setHasFilledForm(false)
           }
         } catch (error) {
           console.error("Error fetching user data:", error)
           setIsAdmin(false)
+          setHasFilledForm(false)
         }
       } else {
         setIsLoggedIn(false)
         setIsAdmin(false)
+        setHasFilledForm(false)
       }
       setIsLoading(false)
     })
@@ -96,6 +101,7 @@ const Navbar = () => {
       await signOut(auth)
       setIsLoggedIn(false)
       setIsAdmin(false)
+      setHasFilledForm(false)
       navigate("/")
       setIsMenuOpen(false)
     } catch (error) {
@@ -257,15 +263,17 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-4">
             {isLoggedIn ? (
               <>
-                <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
-                  <Button 
-                    variant="ghost" 
-                    className="transition-colors"
-                    style={{ color: theme.navbarColor }}
-                  >
-                    Dashboard
-                  </Button>
-                </Link>
+                {(hasFilledForm || isAdmin) && (
+                  <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
+                    <Button 
+                      variant="ghost" 
+                      className="transition-colors"
+                      style={{ color: theme.navbarColor }}
+                    >
+                      Dashboard
+                    </Button>
+                  </Link>
+                )}
                 <Button 
                   variant="outline" 
                   className="transition-all duration-200 hover:text-white"
@@ -434,18 +442,20 @@ const Navbar = () => {
           <div className="pt-4 border-t border-gray-200 flex flex-col gap-2">
             {isLoggedIn ? (
               <>
-                <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
-                  <Button 
-                    variant="outline" 
-                    className="w-full transition-colors"
-                    style={{ 
-                      borderColor: theme.navbarColor, 
-                      color: theme.navbarColor 
-                    }}
-                  >
-                    Dashboard
-                  </Button>
-                </Link>
+                {(hasFilledForm || isAdmin) && (
+                  <Link to={isAdmin ? "/admin/dashboard" : "/components/business/dashboard"}>
+                    <Button 
+                      variant="outline" 
+                      className="w-full transition-colors"
+                      style={{ 
+                        borderColor: theme.navbarColor, 
+                        color: theme.navbarColor 
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                  </Link>
+                )}
                 <Button 
                   variant="outline" 
                   className="w-full transition-colors"
@@ -489,4 +499,4 @@ const Navbar = () => {
   )
 }
 
-export default Navbar
+export default Navbar;

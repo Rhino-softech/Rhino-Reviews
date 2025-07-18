@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
+import img from "./assets/images.png"
 
 interface TestimonialItem {
   name: string
@@ -46,7 +47,7 @@ const defaultContent: TestimonialsContent = {
       role: "Owner, The Beauty Spa",
       content:
         "Rhino Review has completely transformed our customer feedback process. We've seen a 230% increase in positive reviews within just three months of using the platform.",
-      image: "/placeholder.svg",
+      image: img,
       stars: 5,
     },
     {
@@ -54,7 +55,7 @@ const defaultContent: TestimonialsContent = {
       role: "Director, Chen's Restaurant Group",
       content:
         "Managing reviews across our 5 restaurant locations used to be a nightmare. Now with Rhino Review, we can monitor and respond to all reviews from one dashboard. Our overall rating has increased from 3.8 to 4.6!",
-      image: "/placeholder.svg",
+      image: img,
       stars: 5,
     },
     {
@@ -62,7 +63,7 @@ const defaultContent: TestimonialsContent = {
       role: "Marketing Manager, City Dental",
       content:
         "The automated review collection campaigns have been a game-changer for us. We're now collecting 5x more reviews than before, and our new patients frequently mention they chose us because of our stellar online reviews.",
-      image: "/placeholder.svg",
+      image: img,
       stars: 5,
     },
   ],
@@ -149,7 +150,7 @@ const TestimonialSection = () => {
               <div className="md:w-1/3 flex justify-center">
                 <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200">
                   <img
-                    src={content.items[activeIndex]?.image || "/placeholder.svg"}
+                    src={img || "/placeholder.svg"}
                     alt={content.items[activeIndex]?.name || ""}
                     className="w-full h-full object-cover"
                   />
