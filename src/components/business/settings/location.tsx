@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MapPin, Plus, Edit, Trash2, Copy, ExternalLink, AlertCircle } from 'lucide-react'
+import { MapPin, Plus, Edit, Trash2, Copy, ExternalLink, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,7 +18,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { motion } from "framer-motion"
 import { auth, db } from "@/firebase/firebase"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
@@ -56,6 +55,7 @@ export default function LocationPage() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [locationLimit, setLocationLimit] = useState(1)
   const [canAddMoreLocations, setCanAddMoreLocations] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const checkPlanAccess = (userData: any, currentBranchCount: number) => {
     let hasAccess = false
@@ -75,12 +75,8 @@ export default function LocationPage() {
         maxLocations = 5
         hasAccess = true
         showPrompt = false
-      } else if (
-        planName.includes("enterprise") ||
-        planName.includes("plan_premium") ||
-        planName.includes("custom")
-      ) {
-        maxLocations = Infinity // Unlimited locations for Enterprise
+      } else if (planName.includes("enterprise") || planName.includes("plan_premium") || planName.includes("custom")) {
+        maxLocations = Number.POSITIVE_INFINITY // Unlimited locations for Enterprise
         hasAccess = true
         showPrompt = false
       } else {
@@ -98,7 +94,7 @@ export default function LocationPage() {
       showPrompt = true
     }
 
-    const canAddMore = maxLocations === Infinity ? true : currentBranchCount < maxLocations
+    const canAddMore = maxLocations === Number.POSITIVE_INFINITY ? true : currentBranchCount < maxLocations
 
     return { hasAccess, showPrompt, maxLocations, canAddMore }
   }
@@ -130,7 +126,7 @@ export default function LocationPage() {
         setBusinessName(businessInfo.businessName || "Your Business")
 
         const branchesData = businessInfo.branches || []
-        
+
         const formattedBranches = branchesData
           .filter((branch: any) => branch && typeof branch === "object")
           .map((branch: any, index: number) => ({
@@ -143,10 +139,7 @@ export default function LocationPage() {
 
         setBranches(formattedBranches)
 
-        const { hasAccess, showPrompt, maxLocations, canAddMore } = checkPlanAccess(
-          userData,
-          formattedBranches.length,
-        )
+        const { hasAccess, showPrompt, maxLocations, canAddMore } = checkPlanAccess(userData, formattedBranches.length)
         setHasLocationAccess(hasAccess)
         setShowUpgradePrompt(showPrompt)
         setLocationLimit(maxLocations)
@@ -341,271 +334,208 @@ export default function LocationPage() {
     toast.success("Copied to clipboard")
   }
 
+  const filteredBranches = branches.filter(
+    (branch) =>
+      branch.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      branch.location.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
-        <div className="flex flex-col md:flex-row">
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex">
           <Sidebar />
-          <div className="flex-1 md:ml-64 p-3 sm:p-4 lg:p-8">
-            <div className="max-w-7xl mx-auto">
-              <motion.div
-                className="space-y-6 lg:space-y-8"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <motion.div
-                  className="text-center mb-8 lg:mb-12"
-                  initial={{ opacity: 0, y: -30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.2 }}
-                >
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-                    Location Management
-                  </h1>
-                  <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                    Manage your business locations and customize review collection for each branch
-                  </p>
-                </motion.div>
-
-                {/* Plan Info and Upgrade Prompt */}
-                <motion.div
-                  className="mb-6 lg:mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-6 lg:p-8 rounded-2xl lg:rounded-3xl shadow-xl"
-                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                      className="flex-shrink-0"
-                    >
-                      <MapPin className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600" />
-                    </motion.div>
-                    <div className="flex-1">
-                      <p className="text-blue-800 font-semibold text-base sm:text-lg mb-2">
-                        📍 Location Limits by Plan:
+          <div className="flex-1 md:ml-64">
+            <div className="p-6">
+              {/* Premium Plan Card */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                      <Settings className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-green-800">Premium Plan</h3>
+                      <p className="text-sm text-green-600">
+                        Branch usage: {branches.length} /{" "}
+                        {locationLimit === Number.POSITIVE_INFINITY ? "∞" : locationLimit}
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                        <div className="bg-white/60 p-3 rounded-lg">
-                          <span className="font-bold text-blue-700">Trial:</span> 1 location
-                        </div>
-                        <div className="bg-white/60 p-3 rounded-lg">
-                          <span className="font-bold text-blue-700">Basic:</span> 3 locations
-                        </div>
-                        <div className="bg-white/60 p-3 rounded-lg">
-                          <span className="font-bold text-blue-700">Professional:</span> 5 locations
-                        </div>
-                        <div className="bg-white/60 p-3 rounded-lg">
-                          <span className="font-bold text-blue-700">Enterprise:</span> Unlimited locations
-                        </div>
-                      </div>
-                      <p className="text-blue-700 mt-3">
-                        Current: <strong>{branches.length}{locationLimit === Infinity ? "" : `/${locationLimit}`}</strong> locations used
-                        {showUpgradePrompt && (
-                          <button
-                            onClick={() => window.location.assign("/#pricing")}
-                            className="ml-2 font-bold text-blue-900 hover:underline hover:text-blue-700 transition-colors"
-                          >
-                            Upgrade your plan
-                          </button>
-                        )}
+                      <p className="text-xs text-green-600">
+                        {locationLimit === Number.POSITIVE_INFINITY
+                          ? "Unlimited branches"
+                          : `${locationLimit} branches allowed`}{" "}
+                        - 14 days left in trial - Renews on 23/08/2025
                       </p>
                     </div>
                   </div>
-                </motion.div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-green-300 text-green-700 hover:bg-green-100 bg-transparent"
+                    onClick={() => window.location.assign("/#pricing")}
+                  >
+                    Manage Plan
+                  </Button>
+                </div>
+              </div>
 
-                {/* Main Content */}
-                <motion.div
-                  className="bg-white/90 border border-slate-200/60 rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl backdrop-blur-sm"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-6 mb-6 lg:mb-8">
+              {/* Branch Locations Header */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <MapPin className="w-5 h-5 text-purple-600" />
+                    </div>
                     <div>
-                      <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">Your Locations</h2>
-                      <p className="text-slate-600 text-sm sm:text-base">
-                        Manage your business branches and customize review collection settings for each location
-                      </p>
+                      <h1 className="text-xl font-semibold text-gray-900">Branch Locations</h1>
+                      <p className="text-sm text-gray-600">Manage your business locations and settings</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <MapPin className="w-4 h-4" />
+                      <span>
+                        {branches.length} of {locationLimit === Number.POSITIVE_INFINITY ? "∞" : locationLimit}
+                      </span>
                     </div>
                     <Button
                       onClick={() => setIsAddDialogOpen(true)}
-                      className={`bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm ${
-                        !hasLocationAccess || !canAddMoreLocations ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
                       disabled={!hasLocationAccess || !canAddMoreLocations}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Add New Location
+                      Add Location
                     </Button>
                   </div>
+                </div>
 
-                  {loading ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-                    </div>
-                  ) : branches.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                      {branches.map((branch, index) => (
-                        <motion.div
-                          key={branch.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.1 * index }}
-                          className={`relative group overflow-hidden rounded-xl lg:rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
-                            branch.isActive
-                              ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50"
-                              : "border-gray-200 bg-gradient-to-br from-gray-50 to-slate-100"
-                          }`}
-                        >
-                          <div className="p-4 sm:p-6">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className={`p-2 rounded-lg ${
-                                    branch.isActive
-                                      ? "bg-gradient-to-r from-green-400 to-emerald-500"
-                                      : "bg-gradient-to-r from-gray-300 to-slate-400"
-                                  }`}
-                                >
-                                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                                </div>
-                                <div>
-                                  <h3 className="font-bold text-slate-800 text-base sm:text-lg">{branch.name}</h3>
-                                  <Badge
-                                    variant={branch.isActive ? "success" : "secondary"}
-                                    className={`mt-1 ${
-                                      branch.isActive
-                                        ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                        : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                                    }`}
-                                  >
-                                    {branch.isActive ? "Active" : "Inactive"}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-8 w-8 p-0 rounded-lg"
-                                      onClick={() => {
-                                        setCurrentBranch(branch)
-                                        setIsEditDialogOpen(true)
-                                      }}
-                                      disabled={!hasLocationAccess}
-                                    >
-                                      <Edit className="h-4 w-4 text-slate-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Edit Location</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-8 w-8 p-0 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50"
-                                      onClick={() => {
-                                        setCurrentBranch(branch)
-                                        setIsDeleteDialogOpen(true)
-                                      }}
-                                      disabled={!hasLocationAccess}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Delete Location</TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </div>
+                {/* Search Bar */}
+                <div className="relative mb-6">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search branches by name or location..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
 
-                            <div className="space-y-3 mb-4">
-                              <div className="flex items-start gap-2">
-                                <MapPin className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
-                                <p className="text-slate-700 text-sm">{branch.location}</p>
-                              </div>
-                              {branch.googleReviewLink && (
-                                <div className="flex items-start gap-2">
-                                  <ExternalLink className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
-                                  <div className="flex flex-col">
-                                    <p className="text-slate-700 text-sm mb-1">Google Review Link:</p>
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-xs text-slate-500 truncate max-w-[180px]">
-                                        {branch.googleReviewLink}
-                                      </p>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-6 w-6 p-0 rounded-md"
-                                        onClick={() => copyToClipboard(branch.googleReviewLink || "")}
-                                      >
-                                        <Copy className="h-3 w-3 text-slate-500" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                              <span className="text-xs text-slate-500">
-                                {branch.isActive ? "Visible to customers" : "Hidden from customers"}
-                              </span>
-                              <Switch
-                                checked={branch.isActive}
-                                onCheckedChange={() => handleToggleActive(branch)}
-                                disabled={!hasLocationAccess}
-                                className={!hasLocationAccess ? "opacity-50 cursor-not-allowed" : ""}
-                              />
+                {/* Branches List */}
+                {loading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                  </div>
+                ) : filteredBranches.length > 0 ? (
+                  <div className="space-y-3">
+                    {filteredBranches.map((branch) => (
+                      <div
+                        key={branch.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={branch.isActive}
+                              onCheckedChange={() => handleToggleActive(branch)}
+                              disabled={!hasLocationAccess}
+                              className="data-[state=checked]:bg-green-500"
+                            />
+                            <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">{branch.name}</h3>
+                            <div className="flex items-center gap-1 text-sm text-gray-600">
+                              <MapPin className="w-3 h-3" />
+                              <span>{branch.location}</span>
                             </div>
                           </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <motion.div
-                      className="text-center py-12 lg:py-16"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.4 }}
-                    >
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-2xl lg:rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <MapPin className="h-10 w-10 sm:h-12 sm:w-12 text-slate-400" />
+                          <Badge
+                            variant={branch.isActive ? "default" : "secondary"}
+                            className={branch.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}
+                          >
+                            {branch.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {branch.googleReviewLink && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => copyToClipboard(branch.googleReviewLink || "")}
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy Review Link</TooltipContent>
+                            </Tooltip>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => window.open(branch.googleReviewLink, "_blank")}
+                            disabled={!branch.googleReviewLink}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setCurrentBranch(branch)
+                              setIsEditDialogOpen(true)
+                            }}
+                            disabled={!hasLocationAccess}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setCurrentBranch(branch)
+                              setIsDeleteDialogOpen(true)
+                            }}
+                            disabled={!hasLocationAccess}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-slate-700 mb-2">No Locations Found</h3>
-                      <p className="text-slate-500 text-base sm:text-lg mb-6 lg:mb-8 max-w-md mx-auto">
-                        {hasLocationAccess
-                          ? "Add your first business location to start collecting location-specific reviews."
-                          : "Upgrade your plan to add multiple business locations."}
-                      </p>
-                      {hasLocationAccess && canAddMoreLocations && (
-                        <Button
-                          onClick={() => setIsAddDialogOpen(true)}
-                          className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg"
-                        >
-                          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                          Add Your First Location
-                        </Button>
-                      )}
-                    </motion.div>
-                  )}
-                </motion.div>
-              </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No locations found</h3>
+                    <p className="text-gray-600 mb-4">
+                      {searchQuery
+                        ? "No locations match your search."
+                        : "Add your first business location to get started."}
+                    </p>
+                    {!searchQuery && hasLocationAccess && canAddMoreLocations && (
+                      <Button
+                        onClick={() => setIsAddDialogOpen(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Your First Location
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Add Branch Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Add New Location</DialogTitle>
+              <DialogTitle>Add New Location</DialogTitle>
               <DialogDescription>Add a new branch or location for your business</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -635,8 +565,8 @@ export default function LocationPage() {
                   value={newBranch.googleReviewLink}
                   onChange={(e) => setNewBranch({ ...newBranch, googleReviewLink: e.target.value })}
                 />
-                <p className="text-xs text-slate-500">
-                  <strong>Required:</strong> Add your Google My Business review link for this specific location
+                <p className="text-xs text-gray-500">
+                  Add your Google My Business review link for this specific location
                 </p>
               </div>
               <div className="flex items-center justify-between">
@@ -654,16 +584,18 @@ export default function LocationPage() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddBranch}>Add Location</Button>
+              <Button onClick={handleAddBranch} className="bg-purple-600 hover:bg-purple-700">
+                Add Location
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Edit Branch Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Edit Location</DialogTitle>
+              <DialogTitle>Edit Location</DialogTitle>
               <DialogDescription>Update your branch or location details</DialogDescription>
             </DialogHeader>
             {currentBranch && (
@@ -691,9 +623,6 @@ export default function LocationPage() {
                     value={currentBranch.googleReviewLink || ""}
                     onChange={(e) => setCurrentBranch({ ...currentBranch, googleReviewLink: e.target.value })}
                   />
-                  <p className="text-xs text-slate-500">
-                    <strong>Required:</strong> Add your Google My Business review link for this specific location
-                  </p>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="edit-isActive" className="cursor-pointer">
@@ -711,16 +640,18 @@ export default function LocationPage() {
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleEditBranch}>Save Changes</Button>
+              <Button onClick={handleEditBranch} className="bg-purple-600 hover:bg-purple-700">
+                Save Changes
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Delete Branch Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Delete Location</DialogTitle>
+              <DialogTitle>Delete Location</DialogTitle>
               <DialogDescription>
                 Are you sure you want to delete this location? This action cannot be undone.
               </DialogDescription>
@@ -733,9 +664,9 @@ export default function LocationPage() {
                       <div className="p-2 rounded-lg bg-red-100">
                         <MapPin className="h-4 w-4 text-red-500" />
                       </div>
-                      <h3 className="font-bold text-slate-800">{currentBranch.name}</h3>
+                      <h3 className="font-bold text-gray-800">{currentBranch.name}</h3>
                     </div>
-                    <p className="text-sm text-slate-600">{currentBranch.location}</p>
+                    <p className="text-sm text-gray-600">{currentBranch.location}</p>
                   </CardContent>
                 </Card>
               </div>
