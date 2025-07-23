@@ -23,6 +23,7 @@ import {
   Copy,
   Eye,
   QrCode,
+  Share2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,7 +53,7 @@ import { onAuthStateChanged } from "firebase/auth"
 import { motion } from "framer-motion"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
-import { format } from "date-fns"
+import { addDays, addHours, addMinutes, format } from "date-fns" // Import date-fns functions
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -62,7 +63,7 @@ interface BusinessInfo {
   businessName: string
   contactEmail: string
   contactPhone: string
-  whatsapp: string
+  whatsapp: string // Added from business form
   secondaryEmail: string
   facebook: string
   instagram: string
@@ -144,12 +145,8 @@ const checkBusinessNameUniqueness = async (businessName: string, currentUserId: 
     const slugDocRef = doc(db, "slug_to_uid", slugToCheck)
     const slugDocSnap = await getDoc(slugDocRef)
 
-    if (slugDocSnap.exists()) {
-      const existingUid = slugDocSnap.data().uid
-      // If the existing UID is different from current user, name is taken
-      if (existingUid !== currentUserId) {
-        return false // Name is taken
-      }
+    if (slugDocSnap.exists() && slugDocSnap.data().uid !== currentUserId) {
+      return false // Name is taken
     }
 
     // Also check in users collection for business names
@@ -229,6 +226,15 @@ export default function ReviewLinkPage() {
   const [nameCheckLoading, setNameCheckLoading] = useState(false)
   const [nameAvailable, setNameAvailable] = useState<boolean | null>(null)
 
+  // New states for shareable link with duration
+  const [expiryDays, setExpiryDays] = useState<number>(0)
+  const [expiryHours, setExpiryHours] = useState<number>(0)
+  const [expiryMinutes, setExpiryMinutes] = useState<number>(0) // Added minutes
+  const [neverExpires, setNeverExpires] = useState<boolean>(false)
+  const [generatedShareableLink, setGeneratedShareableLink] = useState<string>("")
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false)
+  const [shareableLinkCopied, setShareableLinkCopied] = useState(false)
+
   const fetchReviews = useCallback(async () => {
     if (!currentUser || reviewsLimit === null) return
 
@@ -302,7 +308,7 @@ export default function ReviewLinkPage() {
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data()
             const businessInfoData = userData.businessInfo || {}
-            setBusinessInfo(businessInfoData)
+            setBusinessInfo(businessInfoData as BusinessInfo) // Cast to BusinessInfo
             setGoogleReviewLink(businessInfoData.googleReviewLink || "")
             businessNameFromInfo = businessInfoData.businessName || ""
 
@@ -509,7 +515,7 @@ export default function ReviewLinkPage() {
         return
       }
 
-      const newUrl = `${getBaseUrl()}/${newSlug}`
+      const newUrl = `${getBaseUrl()}/review/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
 
@@ -529,7 +535,7 @@ export default function ReviewLinkPage() {
         toast.error("Failed to update URL")
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace(`${getBaseUrl()}/`, ""))
+      setTempBusinessSlug(reviewLinkUrl.replace(`${getBaseUrl()}/review/`, ""))
     }
     setIsEditingUrl(!isEditingUrl)
   }
@@ -743,7 +749,7 @@ export default function ReviewLinkPage() {
     }
   }
 
-  const handleLeaveReview = async () => {
+  const handleLeaveReview = () => {
     if (rating === 0) return
 
     if (!isReviewGatingEnabled) {
@@ -764,7 +770,7 @@ export default function ReviewLinkPage() {
 
     if (!validateForm()) return
 
-    await saveNegativeReview()
+    saveNegativeReview()
   }
 
   const handleToggleReviewGating = () => {
@@ -784,37 +790,120 @@ export default function ReviewLinkPage() {
     navigate("/review")
   }
 
-  const resetForm = () => {
-    setRating(0)
-    setShowForm(false)
-    setSubmitted(false)
-    setSubmissionMessage("")
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      branchname: "",
-      review: "",
-    })
-    setFormErrors({
-      name: false,
-      phone: false,
-      email: false,
-      branchname: false,
-      review: false,
-    })
-  }
-
-  const handlePublicReview = () => {
-    const url = googleReviewLink || reviewLinkUrl
-    window.open(url, "_blank")
-  }
-
   const copyToClipboard = () => {
     navigator.clipboard.writeText(reviewLinkUrl)
     setCopied(true)
     toast.success("URL copied to clipboard!")
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  // New functions for shareable links
+  const handleGenerateShareableLink = async () => {
+    if (!currentUser) {
+      toast.error("You must be logged in to generate shareable links.")
+      return
+    }
+    setIsGeneratingLink(true)
+    setGeneratedShareableLink("")
+
+    try {
+      const uniqueId = uuidv4()
+      let expiresAt: Date | null = null
+
+      if (!neverExpires) {
+        let now = new Date()
+        if (expiryDays > 0) {
+          now = addDays(now, expiryDays)
+        }
+        if (expiryHours > 0) {
+          now = addHours(now, expiryHours)
+        }
+        if (expiryMinutes > 0) {
+          // Added minutes
+          now = addMinutes(now, expiryMinutes)
+        }
+        expiresAt = now
+      }
+
+      if (!neverExpires && expiryDays === 0 && expiryHours === 0 && expiryMinutes === 0) {
+        // Added minutes
+        toast.error("Please set an expiry duration or select 'Never Expires'.")
+        setIsGeneratingLink(false)
+        return
+      }
+
+      const shareableLinkData = {
+        uniqueId: uniqueId,
+        originalReviewLinkUrl: reviewLinkUrl, // Link to your main review page
+        businessId: currentUser.uid,
+        businessName: businessName,
+        expiresAt: expiresAt,
+        createdAt: serverTimestamp(),
+      }
+
+      await addDoc(collection(db, "shareable_links"), shareableLinkData)
+
+      const generatedUrl = `${getBaseUrl()}/review/shareable/${uniqueId}`
+      setGeneratedShareableLink(generatedUrl)
+      toast.success("Shareable link generated successfully!")
+    } catch (error) {
+      console.error("Error generating shareable link:", error)
+      toast.error("Failed to generate shareable link.")
+    } finally {
+      setIsGeneratingLink(false)
+    }
+  }
+
+  const copyShareableLinkToClipboard = () => {
+    if (generatedShareableLink) {
+      navigator.clipboard.writeText(generatedShareableLink)
+      setShareableLinkCopied(true)
+      toast.success("Shareable link copied to clipboard!")
+      setTimeout(() => setShareableLinkCopied(false), 2000)
+    }
+  }
+
+ const handleShareWhatsApp = () => {
+  if (!generatedShareableLink) {
+    toast.error("Please generate a link first.");
+    return;
+  }
+
+  const message = encodeURIComponent(
+    `Hey! Please share your valuable feedback by clicking this link: ${generatedShareableLink}`
+  );
+
+  const whatsappNumber = localStorage.getItem("whatsapp") || ""; // Directly from localStorage
+
+  if (whatsappNumber) {
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, "_blank");
+  } else {
+    window.open(`https://wa.me/?text=${message}`, "_blank"); // Fallback if no number
+  }
+};
+
+const handleShareEmail = () => {
+  if (!generatedShareableLink) {
+    toast.error("Please generate a link first.");
+    return;
+  }
+
+  const businessName = localStorage.getItem("businessName") || "our business"; // Optional fallback
+  const subject = encodeURIComponent(`Feedback Request from ${businessName}`);
+  const body = encodeURIComponent(
+    `Dear customer,\n\nWe would appreciate it if you could share your experience with us through this link: ${generatedShareableLink}\n\nThank you!`
+  );
+
+  const recipientEmail = localStorage.getItem("contactEmail") || ""; // Directly from localStorage
+
+  window.open(`mailto:${recipientEmail}?subject=${subject}&body=${body}`, "_blank");
+};
+
+
+  const resetForm = () => {
+    setSubmitted(false)
+    setFormData(initialState)
+    setRating(0)
   }
 
   if (loading) {
@@ -897,106 +986,242 @@ export default function ReviewLinkPage() {
 
           <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+              {/* Shareable Link with Expiry (now includes main review link) */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
+                transition={{ duration: 0.5, delay: 0.15 }}
                 className="bg-white rounded-2xl shadow-lg overflow-hidden border border-amber-100"
               >
                 <div className="bg-gradient-to-r from-rose-500 to-amber-500 p-6">
                   <h2 className="text-xl font-bold text-white flex items-center">
-                    <ExternalLink className="h-5 w-5 mr-2" />
-                    Share Your Review Link
+                    <Share2 className="h-5 w-5 mr-2" />
+                    Shareable Review Links
                   </h2>
                   <p className="text-white/80 text-sm mt-1">
-                    This is the URL you'll share with customers to collect reviews
+                    Manage your main review link and generate temporary links that expire after a set duration
                   </p>
                 </div>
-                <div className="p-6">
-                  {isEditingUrl ? (
-                    <div className="space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
-                        <span className="whitespace-nowrap sm:mr-2 text-gray-600 font-medium">{getBaseUrl()}/</span>
-                        <Input
-                          value={tempBusinessSlug}
-                          onChange={(e) => setTempBusinessSlug(e.target.value)}
-                          aria-label="Review link business slug"
-                          className="flex-1 border-amber-200 focus:ring-2 focus:ring-amber-300"
-                          placeholder="your-business"
-                        />
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Only use letters, numbers, and hyphens. No spaces or special characters.
-                      </p>
-                      <div className="flex justify-end space-x-2 sm:space-x-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsEditingUrl(false)}
-                          className="border-gray-200"
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleUrlEdit}
-                          className="bg-gradient-to-r from-rose-500 to-amber-500 text-white"
-                        >
-                          Save URL
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <motion.div
-                        className="flex-1 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center"
-                        whileHover={{
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                        }}
-                      >
-                        <div className="flex-1 font-medium text-gray-700 truncate text-sm sm:text-base">
-                          {reviewLinkUrl}
+                <div className="p-6 space-y-6">
+                  {/* Main Review Link Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800">Your Main Review Link</h3>
+                    {isEditingUrl ? (
+                      <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+                          <span className="whitespace-nowrap sm:mr-2 text-gray-600 font-medium">
+                            {getBaseUrl()}/review/
+                          </span>
+                          <Input
+                            value={tempBusinessSlug}
+                            onChange={(e) => setTempBusinessSlug(e.target.value)}
+                            aria-label="Review link business slug"
+                            className="flex-1 border-amber-200 focus:ring-2 focus:ring-amber-300"
+                            placeholder="your-business"
+                          />
                         </div>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={copyToClipboard}
-                                className="ml-2 text-gray-500 hover:text-rose-500"
-                              >
-                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{copied ? "Copied!" : "Copy URL"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </motion.div>
-                      <div className="flex space-x-2 sm:space-x-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(reviewLinkUrl, "_blank")}
-                          className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Test Link
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleUrlEdit}
-                          className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3 bg-transparent"
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit URL
-                        </Button>
+                        <p className="text-sm text-gray-500">
+                          Only use letters, numbers, and hyphens. No spaces or special characters.
+                        </p>
+                        <div className="flex justify-end space-x-2 sm:space-x-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditingUrl(false)}
+                            className="border-gray-200"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleUrlEdit}
+                            className="bg-gradient-to-r from-rose-500 to-amber-500 text-white"
+                          >
+                            Save URL
+                          </Button>
+                        </div>
                       </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <motion.div
+                          className="flex-1 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center"
+                          whileHover={{
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <div className="flex-1 font-medium text-gray-700 truncate text-sm sm:text-base">
+                            {reviewLinkUrl}
+                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={copyToClipboard}
+                                  className="ml-2 text-gray-500 hover:text-rose-500"
+                                >
+                                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{copied ? "Copied!" : "Copy URL"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </motion.div>
+                        <div className="flex space-x-2 sm:space-x-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(reviewLinkUrl, "_blank")}
+                            className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Test Link
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleUrlEdit}
+                            className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3 bg-transparent"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit URL
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-6 space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800">Generate Temporary Link</h3>
+                    <div className="flex items-center justify-between gap-4">
+                      <Label htmlFor="never-expires" className="text-gray-700 font-medium">
+                        Never Expires
+                      </Label>
+                      <Switch
+                        id="never-expires"
+                        checked={neverExpires}
+                        onCheckedChange={setNeverExpires}
+                        aria-label="Toggle never expires"
+                        className="data-[state=checked]:bg-rose-500"
+                      />
                     </div>
-                  )}
+
+                    {!neverExpires && (
+                      <div className="grid grid-cols-3 gap-4">
+                        {" "}
+                        {/* Changed to 3 columns */}
+                        <div className="space-y-2">
+                          <Label htmlFor="expiry-days" className="text-gray-700">
+                            Days
+                          </Label>
+                          <Input
+                            id="expiry-days"
+                            type="number"
+                            value={expiryDays}
+                            onChange={(e) => setExpiryDays(Math.max(0, Number.parseInt(e.target.value) || 0))}
+                            min="0"
+                            className="border-amber-200 focus:ring-2 focus:ring-amber-300"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="expiry-hours" className="text-gray-700">
+                            Hours
+                          </Label>
+                          <Input
+                            id="expiry-hours"
+                            type="number"
+                            value={expiryHours}
+                            onChange={(e) => setExpiryHours(Math.max(0, Number.parseInt(e.target.value) || 0))}
+                            min="0"
+                            max="23"
+                            className="border-amber-200 focus:ring-2 focus:ring-amber-300"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          {" "}
+                          {/* New input for minutes */}
+                          <Label htmlFor="expiry-minutes" className="text-gray-700">
+                            Minutes
+                          </Label>
+                          <Input
+                            id="expiry-minutes"
+                            type="number"
+                            value={expiryMinutes}
+                            onChange={(e) => setExpiryMinutes(Math.max(0, Number.parseInt(e.target.value) || 0))}
+                            min="0"
+                            max="59"
+                            className="border-amber-200 focus:ring-2 focus:ring-amber-300"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleGenerateShareableLink}
+                      disabled={
+                        isGeneratingLink ||
+                        (!neverExpires && expiryDays === 0 && expiryHours === 0 && expiryMinutes === 0)
+                      }
+                      className="w-full bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600"
+                    >
+                      {isGeneratingLink ? "Generating..." : "Generate Shareable Link"}
+                    </Button>
+
+                    {generatedShareableLink && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 p-4 rounded-xl border border-green-200 bg-green-50 space-y-3"
+                      >
+                        <p className="text-sm font-medium text-green-800">Generated Link:</p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={generatedShareableLink}
+                            readOnly
+                            className="flex-1 bg-white border-green-100 text-green-700"
+                          />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={copyShareableLinkToClipboard}
+                                  className="text-green-600 hover:text-green-800"
+                                >
+                                  {shareableLinkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{shareableLinkCopied ? "Copied!" : "Copy Link"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        <div className="flex space-x-2 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleShareWhatsApp}
+                            className="flex-1 border-green-300 text-green-700 hover:bg-green-100 bg-transparent"
+                          >
+                            Share via WhatsApp
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleShareEmail}
+                            className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-100 bg-transparent"
+                          >
+                            Share via Email
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
 
