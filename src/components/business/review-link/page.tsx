@@ -1007,7 +1007,11 @@ export default function ReviewLinkPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.25 }}
               >
-                <SharableLinks currentUser={currentUser} baseUrl={getBaseUrl()} />
+              <SharableLinks 
+                currentUser={currentUser} 
+                baseUrl={getBaseUrl()} 
+                businessSlug={tempBusinessSlug} // Add this prop
+              />              
               </motion.div>
 
               {/* QR Code Generator - Only for Custom Plan */}

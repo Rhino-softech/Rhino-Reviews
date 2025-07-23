@@ -25,7 +25,15 @@ interface SharableLink {
   url: string
 }
 
-export default function SharableLinks({ currentUser, baseUrl }: { currentUser: any; baseUrl: string }) {
+export default function SharableLinks({ 
+  currentUser, 
+  baseUrl, 
+  businessSlug // Add this prop
+}: { 
+  currentUser: any; 
+  baseUrl: string;
+  businessSlug: string; // Add type definition
+}) {
   const [links, setLinks] = useState<SharableLink[]>([])
   const [loading, setLoading] = useState(true)
   const [newLinkDays, setNewLinkDays] = useState(7)
@@ -67,28 +75,34 @@ export default function SharableLinks({ currentUser, baseUrl }: { currentUser: a
   }, [currentUser, baseUrl])
 
   const createNewLink = async () => {
-    if (!currentUser) return
-    setIsCreating(true)
+  if (!currentUser) return
+  setIsCreating(true)
 
-    try {
-      const totalHours = (newLinkDays * 24) + newLinkHours + (newLinkMinutes / 60)
-      if (totalHours <= 0) {
-        toast.error("Duration must be greater than 0")
-        return
-      }
+  try {
+    const totalHours = (newLinkDays * 24) + newLinkHours + (newLinkMinutes / 60)
+    if (totalHours <= 0) {
+      toast.error("Duration must be greater than 0")
+      return
+    }
 
-      const expiresAt = new Date()
-      expiresAt.setHours(expiresAt.getHours() + totalHours)
+    const expiresAt = new Date()
+    expiresAt.setHours(expiresAt.getHours() + totalHours)
 
-      const slug = uuidv4().split('-')[0] // Use first part of UUID as slug
-      const linkData = {
-        slug,
-        expiresAt,
-        createdAt: serverTimestamp(),
-        isActive: true
-      }
+    const slug = uuidv4().split('-')[0]
+    const linkData = {
+      slug,
+      businessSlug,
+      expiresAt,
+      createdAt: serverTimestamp(),
+      isActive: true,
+      userId: currentUser.uid 
+    };
 
-      await setDoc(doc(db, "users", currentUser.uid, "sharable_links", slug), linkData)
+    await setDoc(doc(db, "users", currentUser.uid, "sharable_links", slug), linkData);
+    await setDoc(doc(db, "sharable_links", slug), {
+      ...linkData,
+      userRef: doc(db, "users", currentUser.uid) 
+    });
 
       const newLink = {
         id: slug,
@@ -113,6 +127,7 @@ export default function SharableLinks({ currentUser, baseUrl }: { currentUser: a
       setIsCreating(false)
     }
   }
+  
 
   const toggleLinkStatus = async (linkId: string, currentStatus: boolean) => {
     try {

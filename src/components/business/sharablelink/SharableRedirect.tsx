@@ -10,7 +10,6 @@ import {
   limit,
   getDocs
 } from "firebase/firestore"
-
 function SharableRedirect() {
   const { slug } = useParams()
   const navigate = useNavigate()
@@ -18,7 +17,7 @@ function SharableRedirect() {
   useEffect(() => {
     const checkSlug = async () => {
       try {
-        // 🔹 Check if this is a main review link
+        // 1. Check main review link
         const mainDocRef = doc(db, "slug_to_uid", slug)
         const mainDocSnap = await getDoc(mainDocRef)
 
@@ -27,29 +26,35 @@ function SharableRedirect() {
           return
         }
 
-        // 🔹 Check if this is a sharable link
-        const sharableRef = collection(db, "sharable_links")
-        const sharableQuery = query(
-          sharableRef,
+        // 2. Check global sharable links
+        const globalSharableQuery = query(
+          collection(db, "sharable_links"),
           where("slug", "==", slug),
           limit(1)
         )
-        const sharableSnap = await getDocs(sharableQuery)
+        const globalSharableSnap = await getDocs(globalSharableQuery)
 
-        if (!sharableSnap.empty) {
-          const linkDoc = sharableSnap.docs[0]
-          const linkData = linkDoc.data()
+        if (!globalSharableSnap.empty) {
+          const linkDoc = globalSharableSnap.docs[0]
+          await handleSharableLink(linkDoc)
+          return
+        }
 
-          const now = new Date()
-          const expiresAt = linkData.expiresAt.toDate()
+        // 3. Check user-specific sharable links (if we have userId)
+        if (mainDocSnap.exists()) {
+          const userId = mainDocSnap.data().uid
+          const userSharableQuery = query(
+            collection(db, "users", userId, "sharable_links"),
+            where("slug", "==", slug),
+            limit(1)
+          )
+          const userSharableSnap = await getDocs(userSharableQuery)
 
-          if (now > expiresAt || !linkData.isActive) {
-            alert("This link has expired or is no longer active")
+          if (!userSharableSnap.empty) {
+            const linkDoc = userSharableSnap.docs[0]
+            await handleSharableLink(linkDoc)
             return
           }
-
-          navigate(`/review/${linkData.businessSlug}?sl=${slug}`)
-          return
         }
 
         alert("Link not found")
@@ -59,10 +64,26 @@ function SharableRedirect() {
       }
     }
 
+    const handleSharableLink = async (linkDoc: any) => {
+      const linkData = linkDoc.data()
+      const now = new Date()
+      const expiresAt = linkData.expiresAt.toDate()
+
+      if (now > expiresAt || !linkData.isActive) {
+        alert("This link has expired or is no longer active")
+        return
+      }
+      if (!linkData.businessSlug) {
+        alert("Invalid link configuration")
+        return
+      }
+
+      navigate(`/review/${linkData.businessSlug}?sl=${linkDoc.id}`)
+    }
+
     checkSlug()
   }, [slug, navigate])
 
   return <div>Checking link, please wait...</div>
 }
-
 export default SharableRedirect
