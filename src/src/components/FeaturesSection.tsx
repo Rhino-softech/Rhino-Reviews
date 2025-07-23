@@ -100,7 +100,7 @@ const FeaturesSection = () => {
       <svg
         key="icon1"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -116,7 +116,7 @@ const FeaturesSection = () => {
       <svg
         key="icon2"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -132,7 +132,7 @@ const FeaturesSection = () => {
       <svg
         key="icon3"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -148,7 +148,7 @@ const FeaturesSection = () => {
       <svg
         key="icon4"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -164,7 +164,7 @@ const FeaturesSection = () => {
       <svg
         key="icon5"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -186,7 +186,7 @@ const FeaturesSection = () => {
       <svg
         key="icon6"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-10 w-10"
+        className="h-8 w-8 sm:h-10 sm:w-10"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -204,41 +204,44 @@ const FeaturesSection = () => {
   }
 
   return (
-    <section id="features" className="py-20" style={{ backgroundColor: theme.backgroundColor }}>
+    <section id="features" className="py-12 sm:py-16 lg:py-20" style={{ backgroundColor: theme.backgroundColor }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="lg:text-center">
-          <p className="text-base font-semibold tracking-wide uppercase" style={{ color: theme.primaryColor }}>
+        <div className="text-center lg:text-center">
+          <p
+            className="text-sm sm:text-base font-semibold tracking-wide uppercase"
+            style={{ color: theme.primaryColor }}
+          >
             {content.title}
           </p>
           <h2
-            className="mt-2 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl"
+            className="mt-2 text-2xl sm:text-3xl lg:text-4xl leading-8 font-extrabold tracking-tight"
             style={{ color: theme.textColor }}
           >
             {content.subtitle}
           </h2>
-          <p className="mt-4 max-w-2xl text-xl lg:mx-auto" style={{ color: theme.textColor }}>
+          <p className="mt-4 max-w-2xl text-lg sm:text-xl lg:mx-auto px-4" style={{ color: theme.textColor }}>
             {content.description}
           </p>
         </div>
 
-        <div className="mt-16">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 sm:mt-16">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
             {content.items.map((feature, index) => (
               <div
                 key={index}
-                className="flex flex-col p-8 rounded-lg border shadow-sm hover:shadow-lg transition-shadow duration-300"
+                className="flex flex-col p-6 sm:p-8 rounded-lg border shadow-sm hover:shadow-lg transition-shadow duration-300"
                 style={{ backgroundColor: theme.backgroundColor, borderColor: theme.primaryColor + "20" }}
               >
                 <div
-                  className="flex items-center justify-center h-16 w-16 rounded-full mb-5"
+                  className="flex items-center justify-center h-12 w-12 sm:h-16 sm:w-16 rounded-full mb-4 sm:mb-5"
                   style={{ backgroundColor: theme.primaryColor + "20" }}
                 >
                   {getIcon(index)}
                 </div>
-                <h3 className="text-lg font-medium mb-3" style={{ color: theme.textColor }}>
+                <h3 className="text-base sm:text-lg font-medium mb-2 sm:mb-3" style={{ color: theme.textColor }}>
                   {feature.title}
                 </h3>
-                <p className="text-base flex-grow" style={{ color: theme.textColor }}>
+                <p className="text-sm sm:text-base flex-grow leading-relaxed" style={{ color: theme.textColor }}>
                   {feature.description}
                 </p>
               </div>

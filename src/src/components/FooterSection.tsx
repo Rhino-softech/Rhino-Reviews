@@ -99,7 +99,7 @@ const FooterSection = () => {
           <div className="flex space-x-6 md:order-2">
             <a href="/privacy" className="text-gray-400 hover:text-white text-sm">Privacy Policy</a>
             <a href="/terms" className="text-gray-400 hover:text-white text-sm">Terms of Service</a>
-            {/* <a href="/cookies" className="text-gray-400 hover:text-white text-sm">Cookie Policy</a> */}
+            <a href="/cookies" className="text-gray-400 hover:text-white text-sm">Cookie Policy</a>
           </div>
           <p className="mt-8 md:mt-0 text-base text-gray-400 md:order-1">
             &copy; 

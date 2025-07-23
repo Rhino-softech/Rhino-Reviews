@@ -30,6 +30,7 @@ import {
   Award,
   Heart,
   BookOpen,
+  Grid3X3,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { doc, getDoc, setDoc } from "firebase/firestore"
@@ -567,6 +568,19 @@ export function HomeSettings() {
     }))
   }
 
+  const addFeatureItem = () => {
+    const newFeature = {
+      title: "New Feature",
+      description: "Feature description here...",
+    }
+    updateContent("features", "items", [...content.features.items, newFeature])
+  }
+
+  const removeFeatureItem = (index: number) => {
+    const newItems = content.features.items.filter((_, i) => i !== index)
+    updateContent("features", "items", newItems)
+  }
+
   const addFaqItem = () => {
     const newFaq = {
       question: "New question?",
@@ -628,45 +642,50 @@ export function HomeSettings() {
 
   return (
     <SimpleAdminLayout>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-4 md:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header Section */}
           <div className="text-center space-y-4">
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <div className="p-3 rounded-2xl shadow-lg" style={{ backgroundColor: theme.primaryColor }}>
                 <Settings className="h-8 w-8 text-white" />
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold" style={{ color: theme.primaryColor }}>
+              <h1
+                className="text-3xl sm:text-4xl md:text-5xl font-bold text-center"
+                style={{ color: theme.primaryColor }}
+              >
                 Content Management
               </h1>
             </div>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto px-4">
               Manage your website content, themes, and settings from one centralized dashboard
             </p>
           </div>
 
           {/* Action Bar */}
           <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                 <Button
                   onClick={() => setPreviewMode(!previewMode)}
                   variant="outline"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 w-full sm:w-auto"
+                  size="default"
                 >
                   {previewMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   {previewMode ? "Exit Preview" : "Live Preview"}
                 </Button>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  Auto-save enabled
+                  <span>Auto-save enabled</span>
                 </div>
               </div>
               <Button
                 onClick={saveSettings}
                 disabled={saving}
-                className="shadow-lg"
+                className="shadow-lg w-full sm:w-auto"
                 style={{ backgroundColor: theme.primaryColor }}
+                size="default"
               >
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? "Saving..." : "Save All Changes"}
@@ -677,26 +696,34 @@ export function HomeSettings() {
           {/* Main Tabs */}
           <Tabs defaultValue="home" className="space-y-6">
             <div className="bg-white rounded-2xl p-2 shadow-lg">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-transparent">
-                <TabsTrigger value="home" className="flex items-center gap-2">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-transparent gap-1 h-auto">
+                <TabsTrigger
+                  value="home"
+                  className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm px-3 py-3 sm:py-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+                >
                   <Star className="w-4 h-4" />
-                  <span className="hidden sm:inline">Home Content</span>
-                  <span className="sm:hidden">Home</span>
+                  <span className="text-center">Home</span>
                 </TabsTrigger>
-                <TabsTrigger value="about" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="about"
+                  className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm px-3 py-3 sm:py-2 data-[state=active]:bg-green-50 data-[state=active]:text-green-700"
+                >
                   <BookOpen className="w-4 h-4" />
-                  <span className="hidden sm:inline">About Page</span>
-                  <span className="sm:hidden">About</span>
+                  <span className="text-center">About</span>
                 </TabsTrigger>
-                <TabsTrigger value="theme" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="theme"
+                  className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm px-3 py-3 sm:py-2 data-[state=active]:bg-pink-50 data-[state=active]:text-pink-700"
+                >
                   <Palette className="w-4 h-4" />
-                  <span className="hidden sm:inline">Theme</span>
-                  <span className="sm:hidden">Theme</span>
+                  <span className="text-center">Theme</span>
                 </TabsTrigger>
-                <TabsTrigger value="advanced" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="advanced"
+                  className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm px-3 py-3 sm:py-2 data-[state=active]:bg-purple-50 data-[state=active]:text-purple-700"
+                >
                   <Sparkles className="w-4 h-4" />
-                  <span className="hidden sm:inline">Advanced</span>
-                  <span className="sm:hidden">More</span>
+                  <span className="text-center">More</span>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -705,15 +732,17 @@ export function HomeSettings() {
             <TabsContent value="home" className="space-y-6">
               {/* Hero Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Star className="w-5 h-5 text-blue-600" />
                     Hero Section
                   </CardTitle>
-                  <CardDescription>Main banner content and call-to-action</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">
+                    Main banner content and call-to-action
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="hero-title" className="text-sm font-semibold">
                         Title
@@ -722,7 +751,7 @@ export function HomeSettings() {
                         id="hero-title"
                         value={content.hero.title}
                         onChange={(e) => updateContent("hero", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -733,7 +762,7 @@ export function HomeSettings() {
                         id="hero-subtitle"
                         value={content.hero.subtitle}
                         onChange={(e) => updateContent("hero", "subtitle", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                   </div>
@@ -749,7 +778,7 @@ export function HomeSettings() {
                       className="rounded-xl resize-none"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="hero-cta" className="text-sm font-semibold">
                         CTA Button Text
@@ -758,7 +787,7 @@ export function HomeSettings() {
                         id="hero-cta"
                         value={content.hero.ctaText}
                         onChange={(e) => updateContent("hero", "ctaText", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -769,7 +798,7 @@ export function HomeSettings() {
                         id="hero-demo"
                         value={content.hero.demoText}
                         onChange={(e) => updateContent("hero", "demoText", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                   </div>
@@ -786,8 +815,115 @@ export function HomeSettings() {
                             updateContent("hero", "animatedMessages", newMessages)
                           }}
                           placeholder={`Message ${index + 1}`}
-                          className="rounded-xl"
+                          className="rounded-xl h-11"
                         />
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Features Section */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Grid3X3 className="w-5 h-5 text-orange-600" />
+                    Features Section
+                  </CardTitle>
+                  <CardDescription className="text-sm sm:text-base">
+                    Manage feature items and section content
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Section Title</Label>
+                      <Input
+                        value={content.features.title}
+                        onChange={(e) => updateContent("features", "title", e.target.value)}
+                        className="rounded-xl h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Subtitle</Label>
+                      <Input
+                        value={content.features.subtitle}
+                        onChange={(e) => updateContent("features", "subtitle", e.target.value)}
+                        className="rounded-xl h-11"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Description</Label>
+                    <Textarea
+                      value={content.features.description}
+                      onChange={(e) => updateContent("features", "description", e.target.value)}
+                      rows={2}
+                      className="rounded-xl resize-none"
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <Label className="text-base font-semibold">Feature Items</Label>
+                      <Button
+                        onClick={addFeatureItem}
+                        variant="outline"
+                        size="default"
+                        className="flex items-center gap-2 bg-transparent w-full sm:w-auto"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Feature
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                      {content.features.items.map((feature, index) => (
+                        <Card key={index} className="p-4 border-2 border-gray-100">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                Feature {index + 1}
+                              </Badge>
+                              <Button
+                                onClick={() => removeFeatureItem(index)}
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Feature Title</Label>
+                                <Input
+                                  value={feature.title}
+                                  onChange={(e) => {
+                                    const newItems = [...content.features.items]
+                                    newItems[index].title = e.target.value
+                                    updateContent("features", "items", newItems)
+                                  }}
+                                  className="rounded-lg h-10"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Feature Description</Label>
+                                <Textarea
+                                  value={feature.description}
+                                  onChange={(e) => {
+                                    const newItems = [...content.features.items]
+                                    newItems[index].description = e.target.value
+                                    updateContent("features", "items", newItems)
+                                  }}
+                                  rows={3}
+                                  className="rounded-lg resize-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -796,21 +932,21 @@ export function HomeSettings() {
 
               {/* How It Works Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Workflow className="w-5 h-5 text-green-600" />
                     How It Works Section
                   </CardTitle>
-                  <CardDescription>Step-by-step process explanation</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Step-by-step process explanation</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={content.howItWorks.title}
                         onChange={(e) => updateContent("howItWorks", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -818,7 +954,7 @@ export function HomeSettings() {
                       <Input
                         value={content.howItWorks.subtitle}
                         onChange={(e) => updateContent("howItWorks", "subtitle", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                   </div>
@@ -835,13 +971,13 @@ export function HomeSettings() {
                   <Separator />
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <Label className="text-base font-semibold">Process Steps</Label>
                       <Button
                         onClick={addHowItWorksStep}
                         variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 bg-transparent"
+                        size="default"
+                        className="flex items-center gap-2 bg-transparent w-full sm:w-auto"
                       >
                         <Plus className="w-4 h-4" />
                         Add Step
@@ -859,12 +995,12 @@ export function HomeSettings() {
                                 onClick={() => removeHowItWorksStep(index)}
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium">Number</Label>
                                 <Input
@@ -874,10 +1010,10 @@ export function HomeSettings() {
                                     newSteps[index].number = e.target.value
                                     updateContent("howItWorks", "steps", newSteps)
                                   }}
-                                  className="rounded-lg"
+                                  className="rounded-lg h-10"
                                 />
                               </div>
-                              <div className="space-y-2 md:col-span-2">
+                              <div className="space-y-2 lg:col-span-2">
                                 <Label className="text-sm font-medium">Title</Label>
                                 <Input
                                   value={step.title}
@@ -886,7 +1022,7 @@ export function HomeSettings() {
                                     newSteps[index].title = e.target.value
                                     updateContent("howItWorks", "steps", newSteps)
                                   }}
-                                  className="rounded-lg"
+                                  className="rounded-lg h-10"
                                 />
                               </div>
                             </div>
@@ -913,21 +1049,23 @@ export function HomeSettings() {
 
               {/* FAQ Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <HelpCircle className="w-5 h-5 text-purple-600" />
                     FAQ Section
                   </CardTitle>
-                  <CardDescription>Frequently asked questions and answers</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">
+                    Frequently asked questions and answers
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={content.faq.title}
                         onChange={(e) => updateContent("faq", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -935,7 +1073,7 @@ export function HomeSettings() {
                       <Input
                         value={content.faq.subtitle}
                         onChange={(e) => updateContent("faq", "subtitle", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                   </div>
@@ -952,13 +1090,13 @@ export function HomeSettings() {
                   <Separator />
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <Label className="text-base font-semibold">FAQ Items</Label>
                       <Button
                         onClick={addFaqItem}
                         variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 bg-transparent"
+                        size="default"
+                        className="flex items-center gap-2 bg-transparent w-full sm:w-auto"
                       >
                         <Plus className="w-4 h-4" />
                         Add FAQ
@@ -976,7 +1114,7 @@ export function HomeSettings() {
                                 onClick={() => removeFaqItem(index)}
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -991,7 +1129,7 @@ export function HomeSettings() {
                                     newItems[index].question = e.target.value
                                     updateContent("faq", "items", newItems)
                                   }}
-                                  className="rounded-lg"
+                                  className="rounded-lg h-10"
                                 />
                               </div>
                               <div className="space-y-2">
@@ -1021,21 +1159,21 @@ export function HomeSettings() {
             <TabsContent value="about" className="space-y-6">
               {/* About Hero Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <BookOpen className="w-5 h-5 text-blue-600" />
                     About Page Hero
                   </CardTitle>
-                  <CardDescription>Main about page header content</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Main about page header content</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Page Title</Label>
                       <Input
                         value={aboutContent.hero.title}
                         onChange={(e) => updateAboutContent("hero", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1053,21 +1191,21 @@ export function HomeSettings() {
 
               {/* About Story Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <BookOpen className="w-5 h-5 text-green-600" />
                     Our Story Section
                   </CardTitle>
-                  <CardDescription>Company background and history</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Company background and history</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={aboutContent.story.title}
                         onChange={(e) => updateAboutContent("story", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1089,13 +1227,13 @@ export function HomeSettings() {
                         ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-sm font-semibold">Image URL</Label>
                         <Input
                           value={aboutContent.story.imageUrl}
                           onChange={(e) => updateAboutContent("story", "imageUrl", e.target.value)}
-                          className="rounded-xl"
+                          className="rounded-xl h-11"
                           placeholder="https://example.com/image.jpg"
                         />
                       </div>
@@ -1104,7 +1242,7 @@ export function HomeSettings() {
                         <Input
                           value={aboutContent.story.imageAlt}
                           onChange={(e) => updateAboutContent("story", "imageAlt", e.target.value)}
-                          className="rounded-xl"
+                          className="rounded-xl h-11"
                         />
                       </div>
                     </div>
@@ -1114,15 +1252,15 @@ export function HomeSettings() {
 
               {/* About Values Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Target className="w-5 h-5 text-purple-600" />
                     Company Values
                   </CardTitle>
-                  <CardDescription>Core values and principles</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Core values and principles</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {aboutContent.values.map((value, index) => (
                       <Card key={index} className="p-4 border-2 border-gray-100">
                         <div className="space-y-4">
@@ -1145,7 +1283,7 @@ export function HomeSettings() {
                                   newValues[index].title = e.target.value
                                   setAboutContent((prev) => ({ ...prev, values: newValues }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1181,7 +1319,7 @@ export function HomeSettings() {
                                     newValues[index].iconColor = e.target.value
                                     setAboutContent((prev) => ({ ...prev, values: newValues }))
                                   }}
-                                  className="flex-1 rounded-lg"
+                                  className="flex-1 rounded-lg h-10"
                                 />
                               </div>
                             </div>
@@ -1195,27 +1333,27 @@ export function HomeSettings() {
 
               {/* About Heads Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Users className="w-5 h-5 text-orange-600" />
                     Meet Our Heads
                   </CardTitle>
-                  <CardDescription>Leadership team section</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Leadership team section</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <Label className="text-base font-semibold">Leadership Members</Label>
                     <Button
                       onClick={() => addTeamMember("heads")}
                       variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
+                      size="default"
+                      className="flex items-center gap-2 w-full sm:w-auto"
                     >
                       <Plus className="w-4 h-4" />
                       Add Head
                     </Button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {aboutContent.heads.map((member, index) => (
                       <Card key={index} className="p-4 border-2 border-gray-100">
                         <div className="space-y-4">
@@ -1227,7 +1365,7 @@ export function HomeSettings() {
                               onClick={() => removeTeamMember("heads", index)}
                               variant="ghost"
                               size="sm"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -1242,7 +1380,7 @@ export function HomeSettings() {
                                   newHeads[index].name = e.target.value
                                   setAboutContent((prev) => ({ ...prev, heads: newHeads }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1254,7 +1392,7 @@ export function HomeSettings() {
                                   newHeads[index].role = e.target.value
                                   setAboutContent((prev) => ({ ...prev, heads: newHeads }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1279,7 +1417,7 @@ export function HomeSettings() {
                                   newHeads[index].imageUrl = e.target.value
                                   setAboutContent((prev) => ({ ...prev, heads: newHeads }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                                 placeholder="https://example.com/image.jpg"
                               />
                             </div>
@@ -1293,27 +1431,27 @@ export function HomeSettings() {
 
               {/* About Team Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Users className="w-5 h-5 text-teal-600" />
                     Meet Our Team
                   </CardTitle>
-                  <CardDescription>Full team members section</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">Full team members section</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <Label className="text-base font-semibold">Team Members</Label>
                     <Button
                       onClick={() => addTeamMember("team")}
                       variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
+                      size="default"
+                      className="flex items-center gap-2 w-full sm:w-auto"
                     >
                       <Plus className="w-4 h-4" />
                       Add Member
                     </Button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {aboutContent.team.map((member, index) => (
                       <Card key={index} className="p-4 border-2 border-gray-100">
                         <div className="space-y-4">
@@ -1325,7 +1463,7 @@ export function HomeSettings() {
                               onClick={() => removeTeamMember("team", index)}
                               variant="ghost"
                               size="sm"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -1340,7 +1478,7 @@ export function HomeSettings() {
                                   newTeam[index].name = e.target.value
                                   setAboutContent((prev) => ({ ...prev, team: newTeam }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1352,7 +1490,7 @@ export function HomeSettings() {
                                   newTeam[index].role = e.target.value
                                   setAboutContent((prev) => ({ ...prev, team: newTeam }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1377,7 +1515,7 @@ export function HomeSettings() {
                                   newTeam[index].imageUrl = e.target.value
                                   setAboutContent((prev) => ({ ...prev, team: newTeam }))
                                 }}
-                                className="rounded-lg"
+                                className="rounded-lg h-10"
                                 placeholder="https://example.com/image.jpg"
                               />
                             </div>
@@ -1391,21 +1529,23 @@ export function HomeSettings() {
 
               {/* About Mission Section */}
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Target className="w-5 h-5 text-indigo-600" />
                     Join Our Mission Section
                   </CardTitle>
-                  <CardDescription>Call-to-action and career opportunities</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">
+                    Call-to-action and career opportunities
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Section Title</Label>
                       <Input
                         value={aboutContent.mission.title}
                         onChange={(e) => updateAboutContent("mission", "title", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1418,13 +1558,13 @@ export function HomeSettings() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Primary Button Text</Label>
                       <Input
                         value={aboutContent.mission.primaryButtonText}
                         onChange={(e) => updateAboutContent("mission", "primaryButtonText", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1432,17 +1572,17 @@ export function HomeSettings() {
                       <Input
                         value={aboutContent.mission.secondaryButtonText}
                         onChange={(e) => updateAboutContent("mission", "secondaryButtonText", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Primary Button Link</Label>
                       <Input
                         value={aboutContent.mission.primaryButtonLink}
                         onChange={(e) => updateAboutContent("mission", "primaryButtonLink", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                         placeholder="/careers"
                       />
                     </div>
@@ -1451,7 +1591,7 @@ export function HomeSettings() {
                       <Input
                         value={aboutContent.mission.secondaryButtonLink}
                         onChange={(e) => updateAboutContent("mission", "secondaryButtonLink", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                         placeholder="/contact"
                       />
                     </div>
@@ -1463,25 +1603,26 @@ export function HomeSettings() {
             {/* Theme Tab */}
             <TabsContent value="theme" className="space-y-6">
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-pink-50 to-rose-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-pink-50 to-rose-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Palette className="w-5 h-5 text-pink-600" />
                     Color Theme & Branding
                   </CardTitle>
-                  <CardDescription>Customize colors for all components and sections</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">
+                    Customize colors for all components and sections
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-8 p-6">
+                <CardContent className="space-y-8 p-4 sm:p-6">
                   {/* Quick Color Themes */}
                   <div className="space-y-4">
                     <Label className="text-lg font-semibold">Quick Color Themes</Label>
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
                       {colorOptions.map((color) => (
                         <button
                           key={color.name}
                           onClick={() => {
                             updateTheme("primaryColor", color.value)
                             updateTheme("secondaryColor", color.preview)
-                            // These lines ensure navbarColor and chat/contactWidgetColor match the primary color
                             updateTheme("navbarColor", color.value)
                             updateTheme("chatWidgetColor", color.value)
                             updateTheme("contactWidgetColor", color.value)
@@ -1514,7 +1655,7 @@ export function HomeSettings() {
                   {/* Primary Theme Colors */}
                   <div className="space-y-4">
                     <Label className="text-lg font-semibold">Primary Theme Colors</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <div className="space-y-2">
                         <Label className="text-sm font-semibold">Primary Color</Label>
                         <div className="flex items-center gap-3">
@@ -1527,7 +1668,7 @@ export function HomeSettings() {
                           <Input
                             value={theme.primaryColor}
                             onChange={(e) => updateTheme("primaryColor", e.target.value)}
-                            className="flex-1 rounded-xl"
+                            className="flex-1 rounded-xl h-11"
                           />
                         </div>
                       </div>
@@ -1544,7 +1685,7 @@ export function HomeSettings() {
                           <Input
                             value={theme.secondaryColor}
                             onChange={(e) => updateTheme("secondaryColor", e.target.value)}
-                            className="flex-1 rounded-xl"
+                            className="flex-1 rounded-xl h-11"
                           />
                         </div>
                       </div>
@@ -1561,75 +1702,7 @@ export function HomeSettings() {
                           <Input
                             value={theme.accentColor}
                             onChange={(e) => updateTheme("accentColor", e.target.value)}
-                            className="flex-1 rounded-xl"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Component-Specific Colors */}
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-semibold border-b border-gray-200 pb-2">Component Colors</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold flex items-center gap-2">
-                          <Globe className="w-4 h-4" />
-                          Navbar Color
-                        </Label>
-                        <div className="flex items-center gap-3">
-                          <Input
-                            type="color"
-                            value={theme.navbarColor}
-                            onChange={(e) => updateTheme("navbarColor", e.target.value)}
-                            className="w-16 h-12 rounded-xl cursor-pointer"
-                          />
-                          <Input
-                            value={theme.navbarColor}
-                            onChange={(e) => updateTheme("navbarColor", e.target.value)}
-                            className="flex-1 rounded-xl"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold flex items-center gap-2">
-                          <MessageCircle className="w-4 h-4" />
-                          Chat Widget Color
-                        </Label>
-                        <div className="flex items-center gap-3">
-                          <Input
-                            type="color"
-                            value={theme.chatWidgetColor}
-                            onChange={(e) => updateTheme("chatWidgetColor", e.target.value)}
-                            className="w-16 h-12 rounded-xl cursor-pointer"
-                          />
-                          <Input
-                            value={theme.chatWidgetColor}
-                            onChange={(e) => updateTheme("chatWidgetColor", e.target.value)}
-                            className="flex-1 rounded-xl"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold flex items-center gap-2">
-                          <Phone className="w-4 h-4" />
-                          Contact Widget Color
-                        </Label>
-                        <div className="flex items-center gap-3">
-                          <Input
-                            type="color"
-                            value={theme.contactWidgetColor}
-                            onChange={(e) => updateTheme("contactWidgetColor", e.target.value)}
-                            className="w-16 h-12 rounded-xl cursor-pointer"
-                          />
-                          <Input
-                            value={theme.contactWidgetColor}
-                            onChange={(e) => updateTheme("contactWidgetColor", e.target.value)}
-                            className="flex-1 rounded-xl"
+                            className="flex-1 rounded-xl h-11"
                           />
                         </div>
                       </div>
@@ -1651,7 +1724,7 @@ export function HomeSettings() {
                       <h3 className="text-2xl font-bold" style={{ color: theme.textColor }}>
                         Sample Heading
                       </h3>
-                      <p style={{ color: theme.textColor + "cc" }}>
+                      <p className="text-base" style={{ color: theme.textColor + "cc" }}>
                         This is how your content will look with the selected theme colors. The preview updates in
                         real-time as you make changes.
                       </p>
@@ -1673,36 +1746,6 @@ export function HomeSettings() {
                           Accent Button
                         </Button>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <div key={i} className="w-5 h-5 text-2xl" style={{ color: theme.accentColor }}>
-                              ★
-                            </div>
-                          ))}
-                        </div>
-                        <span style={{ color: theme.textColor }}>5.0 rating</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 mt-6">
-                        <div
-                          className="p-4 rounded-xl text-center shadow-lg"
-                          style={{ backgroundColor: theme.navbarColor, color: "white" }}
-                        >
-                          <div className="text-sm font-medium">Navbar</div>
-                        </div>
-                        <div
-                          className="p-4 rounded-xl text-center shadow-lg"
-                          style={{ backgroundColor: theme.chatWidgetColor, color: "white" }}
-                        >
-                          <div className="text-sm font-medium">Chat Widget</div>
-                        </div>
-                        <div
-                          className="p-4 rounded-xl text-center shadow-lg"
-                          style={{ backgroundColor: theme.contactWidgetColor, color: "white" }}
-                        >
-                          <div className="text-sm font-medium">Contact Widget</div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1712,21 +1755,23 @@ export function HomeSettings() {
             {/* Advanced Tab */}
             <TabsContent value="advanced" className="space-y-6">
               <Card className="shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                     <Phone className="w-5 h-5 text-indigo-600" />
                     Contact Settings
                   </CardTitle>
-                  <CardDescription>Configure contact information and widget settings</CardDescription>
+                  <CardDescription className="text-sm sm:text-base">
+                    Configure contact information and widget settings
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Phone Number</Label>
                       <Input
                         value={contactSettings.phoneNumber}
                         onChange={(e) => updateContactSettings("phoneNumber", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                         placeholder="+1 234 567 8900"
                       />
                     </div>
@@ -1735,7 +1780,7 @@ export function HomeSettings() {
                       <Input
                         value={contactSettings.whatsappNumber}
                         onChange={(e) => updateContactSettings("whatsappNumber", e.target.value)}
-                        className="rounded-xl"
+                        className="rounded-xl h-11"
                         placeholder="+1234567890"
                       />
                     </div>
@@ -1745,14 +1790,14 @@ export function HomeSettings() {
 
                   <div className="space-y-4">
                     <Label className="text-lg font-semibold">Widget Settings</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       {[
                         { key: "enableDemo", label: "Enable Demo Booking", icon: Eye },
                         { key: "enableChatSupport", label: "Enable Chat Support", icon: MessageCircle },
                         { key: "enableContactWidget", label: "Enable Contact Widget", icon: Phone },
                       ].map((setting) => (
                         <div key={setting.key} className="p-4 rounded-2xl border-2 border-gray-100 bg-gray-50">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                               <setting.icon className="w-4 h-4" style={{ color: theme.primaryColor }} />
                               <Label className="font-semibold text-sm">{setting.label}</Label>
@@ -1763,7 +1808,7 @@ export function HomeSettings() {
                                 updateContactSettings(setting.key as keyof ContactSettings, value === "enabled")
                               }
                             >
-                              <SelectTrigger className="w-24 h-8 text-xs">
+                              <SelectTrigger className="w-24 h-8">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1783,7 +1828,7 @@ export function HomeSettings() {
 
           {/* Status Footer */}
           <div className="text-center py-4">
-            <div className="flex items-center justify-center gap-4 flex-wrap text-sm text-gray-500">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap text-sm text-gray-500">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
                 <span>Auto-sync enabled</span>

@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { CheckIcon, StarIcon, Clock, Crown, Zap, ArrowLeft } from "lucide-react"
+import { CheckIcon, StarIcon, Clock, Crown, Zap, ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from "react-router-dom"
 import { auth, db } from "../firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
@@ -21,6 +21,11 @@ interface PricingConfig {
   professional: number
   custom: number
   buttonsDisabled: boolean
+  features?: {
+    starter: string[]
+    professional: string[]
+    custom: string[]
+  }
 }
 
 interface ThemeSettings {
@@ -31,6 +36,44 @@ interface ThemeSettings {
 const defaultTheme: ThemeSettings = {
   primaryColor: "#ea580c",
   textColor: "#111827",
+}
+
+// Default features as fallback
+const defaultFeatures = {
+  starter: [
+    "3 Business Locations",
+    "100 Review Requests/Month",
+    "Email Support",
+    "Chat Support",
+    "Mobile responsive dashboard",
+    "Basic Analytics",
+    "Review Response Templates",
+  ],
+  professional: [
+    "5 Business Locations",
+    "500 Review Requests/Month",
+    "Priority Email Support",
+    "Priority Whatsapp Support",
+    "Advanced Analytics Dashboard",
+    "Location-based Filtering",
+    "Sentiment Analysis",
+    "Mobile responsive dashboard",
+    "Performance Trends",
+    "Team Management",
+    "Custom Branding",
+  ],
+  custom: [
+    "Unlimited Business Locations",
+    "Unlimited Review Requests",
+    "Advanced Analytics & Insights",
+    "Priority Chat Support",
+    "Customized Templates",
+    "QR Generator",
+    "Location-based Filtering",
+    "Sentiment Analysis",
+    "Predicted Analysis",
+    "Mobile responsive dashboard",
+  ],
 }
 
 const PricingSection = () => {
@@ -47,6 +90,7 @@ const PricingSection = () => {
     professional: 99,
     custom: 299,
     buttonsDisabled: false,
+    features: defaultFeatures,
   })
 
   // Map currency symbols to country codes
@@ -98,6 +142,7 @@ const PricingSection = () => {
             professional: configData.professional || 99,
             custom: configData.custom || 299,
             buttonsDisabled: configData.buttonsDisabled || false,
+            features: configData.features || defaultFeatures,
           })
         }
       } catch (error) {
@@ -244,15 +289,7 @@ const PricingSection = () => {
       price: getConvertedPrice(pricingConfig.starter),
       basePrice: pricingConfig.starter,
       description: "Perfect for small businesses just getting started with review management.",
-      features: [
-        "3 Business Locations",
-        "100 Review Requests/Month",
-        "Email Support",
-        "Chat Support",
-        "Mobile responsive dashboard",
-        "Basic Analytics",
-        "Review Response Templates",
-      ],
+      features: pricingConfig.features?.starter || defaultFeatures.starter,
       cta: "Starter Plan",
       popular: false,
       monthlyLimit: 100,
@@ -265,19 +302,7 @@ const PricingSection = () => {
       price: getConvertedPrice(pricingConfig.professional),
       basePrice: pricingConfig.professional,
       description: "Ideal for growing businesses that need advanced features and analytics.",
-      features: [
-        "5 Business Locations",
-        "500 Review Requests/Month",
-        "Priority Email Support",
-        "Priority Whatsapp Support",
-        "Advanced Analytics Dashboard",
-        "Location-based Filtering",
-        "Sentiment Analysis",
-        "Mobile responsive dashboard",
-        "Performance Trends",
-        "Team Management",
-        "Custom Branding",
-      ],
+      features: pricingConfig.features?.professional || defaultFeatures.professional,
       cta: "Professional Plan",
       popular: true,
       monthlyLimit: 500,
@@ -290,18 +315,7 @@ const PricingSection = () => {
       price: getConvertedPrice(pricingConfig.custom),
       basePrice: pricingConfig.custom,
       description: "Enterprise solution with unlimited everything and premium support.",
-      features: [
-        "Unlimited Business Locations",
-        "Unlimited Review Requests",
-        "Advanced Analytics & Insights",
-        "Priority Chat Support",
-        "Customized Templates",
-        "QR Generator",
-        "Location-based Filtering",
-        "Sentiment Analysis",
-        "Predicted Analysis",
-        "Mobile responsive dashboard",
-      ],
+      features: pricingConfig.features?.custom || defaultFeatures.custom,
       cta: "Get Custom Plan",
       popular: false,
       monthlyLimit: 0,
@@ -323,7 +337,7 @@ const PricingSection = () => {
   }
 
   return (
-    <section id="pricing" className="py-20 bg-gradient-to-b from-gray-50 to-white">
+    <section id="pricing" className="py-12 sm:py-16 lg:py-20 bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button - Only shown when accessed via /pricing route */}
         {location.pathname === "/pricing" && (
@@ -338,45 +352,31 @@ const PricingSection = () => {
           </Button>
         )}
 
-        <div className="lg:text-center">
+        <div className="text-center lg:text-center">
           <p
-            className="inline-flex items-center px-4 py-1 rounded-full text-sm font-semibold tracking-wide uppercase"
+            className="inline-flex items-center px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-semibold tracking-wide uppercase"
             style={{
               backgroundColor: theme.primaryColor + "20",
               color: theme.primaryColor,
             }}
           >
-            <StarIcon className="mr-1 h-4 w-4" />
+            <StarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
             Pricing Plans
           </p>
           <h2
-            className="mt-4 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl"
+            className="mt-4 text-2xl sm:text-3xl lg:text-4xl leading-8 font-extrabold tracking-tight"
             style={{ color: theme.textColor }}
           >
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 max-w-2xl text-xl lg:mx-auto" style={{ color: theme.textColor }}>
+          <p className="mt-4 max-w-2xl text-lg sm:text-xl lg:mx-auto px-4" style={{ color: theme.textColor }}>
             Choose the plan that's right for your business. All plans include a 14-day free trial.
           </p>
-
-          {/* Back to Home Button (visible when user is logged in but has no active subscription or trial) */}
-          {/* {auth.currentUser && (!userPlan || (!userPlan.subscriptionActive && !userPlan.trialActive)) && (
-            <div className="mt-8 text-center">
-              <Button
-                variant="outline" 
-                onClick={() => navigate("/")}
-                className="px-6 py-3 text-lg font-semibold"
-                style={{ backgroundColor: theme.primaryColor }}
-              >
-                Back to Home
-              </Button>
-            </div>
-          )} */}
         </div>
 
         {/* Buttons Disabled Warning */}
         {pricingConfig.buttonsDisabled && (
-          <div className="mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 max-w-4xl mx-auto rounded-r-lg">
+          <div className="mt-6 sm:mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 max-w-4xl mx-auto rounded-r-lg">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <Clock className="h-5 w-5 text-yellow-400" />
@@ -393,7 +393,7 @@ const PricingSection = () => {
 
         {/* Subscription Status Banner */}
         {userPlan?.subscriptionActive && (
-          <div className="mt-8 bg-green-50 border-l-4 border-green-500 p-4 max-w-4xl mx-auto rounded-r-lg">
+          <div className="mt-6 sm:mt-8 bg-green-50 border-l-4 border-green-500 p-4 max-w-4xl mx-auto rounded-r-lg">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <CheckIcon className="h-5 w-5 text-green-500" />
@@ -413,7 +413,7 @@ const PricingSection = () => {
 
         {/* Trial Status Banner */}
         {!userPlan?.subscriptionActive && userPlan?.trialActive && userPlan.trialDaysLeft > 0 && (
-          <div className="mt-8 bg-blue-50 border-l-4 border-blue-500 p-4 max-w-4xl mx-auto rounded-r-lg">
+          <div className="mt-6 sm:mt-8 bg-blue-50 border-l-4 border-blue-500 p-4 max-w-4xl mx-auto rounded-r-lg">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <Clock className="h-5 w-5 text-blue-500" />
@@ -429,7 +429,7 @@ const PricingSection = () => {
           </div>
         )}
 
-        <div className="mt-16 grid gap-8 lg:grid-cols-3">
+        <div className="mt-12 sm:mt-16 grid gap-6 sm:gap-8 lg:grid-cols-3">
           {plans.map((plan, index) => {
             const isCurrentUserPlan = isCurrentPlan(plan.name)
 
@@ -437,7 +437,7 @@ const PricingSection = () => {
               <div
                 key={index}
                 className={`bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl relative ${plan.popular
-                    ? "ring-2 transform scale-105 shadow-2xl"
+                    ? "ring-2 transform lg:scale-105 shadow-2xl"
                     : isCurrentUserPlan
                       ? "ring-2 ring-green-500 shadow-xl"
                       : "hover:scale-105"
@@ -449,27 +449,27 @@ const PricingSection = () => {
                 {/* Popular Badge */}
                 {plan.popular && (
                   <div
-                    className="absolute top-0 right-0 text-white text-xs font-bold px-4 py-2 rounded-bl-xl shadow-lg"
+                    className="absolute top-0 right-0 text-white text-xs font-bold px-3 sm:px-4 py-2 rounded-bl-xl shadow-lg"
                     style={{ backgroundColor: theme.primaryColor }}
                   >
                     <div className="flex items-center gap-1">
                       <Crown className="h-3 w-3" />
-                      MOST POPULAR
+                      <span className="hidden sm:inline">MOST </span>POPULAR
                     </div>
                   </div>
                 )}
 
                 {/* Current Plan Badge */}
                 {isCurrentUserPlan && (
-                  <div className="absolute top-0 left-0 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-4 py-2 rounded-br-xl shadow-lg">
+                  <div className="absolute top-0 left-0 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-3 sm:px-4 py-2 rounded-br-xl shadow-lg">
                     <div className="flex items-center gap-1">
                       <CheckIcon className="h-3 w-3" />
-                      CURRENT PLAN
+                      <span className="hidden sm:inline">CURRENT </span>PLAN
                     </div>
                   </div>
                 )}
 
-                <div className="px-8 py-10">
+                <div className="px-6 sm:px-8 py-8 sm:py-10">
                   {/* Plan Header */}
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`p-2 rounded-xl bg-gradient-to-r ${plan.bgGradient}`}>
@@ -477,25 +477,25 @@ const PricingSection = () => {
                         {plan.icon}
                       </div>
                     </div>
-                    <h3 className="text-2xl font-bold" style={{ color: theme.textColor }}>
+                    <h3 className="text-xl sm:text-2xl font-bold" style={{ color: theme.textColor }}>
                       {plan.name}
                     </h3>
                   </div>
 
                   {/* Price */}
                   <div className="mt-4 flex items-baseline">
-                    <span className="text-5xl font-extrabold" style={{ color: theme.textColor }}>
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-extrabold" style={{ color: theme.textColor }}>
                       {plan.price}
                     </span>
-                    <span className="text-gray-500 ml-2 text-lg">/month</span>
+                    <span className="text-gray-500 ml-2 text-base sm:text-lg">/month</span>
                   </div>
 
                   {/* Description */}
-                  <p className="mt-4 text-gray-600 leading-relaxed">{plan.description}</p>
+                  <p className="mt-4 text-gray-600 leading-relaxed text-sm sm:text-base">{plan.description}</p>
 
                   {/* CTA Button */}
                   <Button
-                    className={`mt-8 w-full py-6 text-lg font-semibold transition-all duration-300 ${isCurrentUserPlan
+                    className={`mt-6 sm:mt-8 w-full py-4 sm:py-6 text-base sm:text-lg font-semibold transition-all duration-300 ${isCurrentUserPlan
                         ? "bg-green-500 hover:bg-green-600 cursor-default"
                         : pricingConfig.buttonsDisabled
                           ? "bg-gray-400 cursor-not-allowed opacity-50"
@@ -528,21 +528,21 @@ const PricingSection = () => {
 
                 {/* Features List */}
                 <div
-                  className={`px-8 pt-8 pb-10 border-t border-gray-200 ${plan.popular ? "bg-gradient-to-b from-orange-50/50 to-orange-100/50" : "bg-gray-50"
+                  className={`px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10 border-t border-gray-200 ${plan.popular ? "bg-gradient-to-b from-orange-50/50 to-orange-100/50" : "bg-gray-50"
                     }`}
                 >
-                  <h4 className="text-sm font-medium text-gray-900 tracking-wide uppercase mb-6">What's included</h4>
-                  <ul className="space-y-4">
+                  <h4 className="text-xs sm:text-sm font-medium text-gray-900 tracking-wide uppercase mb-4 sm:mb-6">What's included</h4>
+                  <ul className="space-y-3 sm:space-y-4">
                     {plan.features.map((feature, featureIndex) => (
                       <li key={featureIndex} className="flex items-start">
                         <CheckIcon
-                          className={`h-5 w-5 flex-shrink-0 mt-0.5 ${plan.popular ? "text-orange-500" : "text-green-500"
+                          className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5 ${plan.popular ? "text-orange-500" : "text-green-500"
                             }`}
                           style={{
                             color: plan.popular ? theme.primaryColor : "#10b981",
                           }}
                         />
-                        <span className="ml-3 text-gray-700 leading-relaxed">{feature}</span>
+                        <span className="ml-3 text-gray-700 leading-relaxed text-sm sm:text-base">{feature}</span>
                       </li>
                     ))}
                   </ul>

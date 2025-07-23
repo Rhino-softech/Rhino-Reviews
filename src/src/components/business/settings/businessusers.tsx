@@ -317,9 +317,9 @@ export default function BusinessUsersPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
         <Sidebar isAdmin={false} />
-        <div className="flex-1 md:ml-64 p-8">
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
           <div className="flex items-center justify-center h-64">
             <motion.div
               className="flex items-center gap-4"
@@ -343,22 +343,22 @@ export default function BusinessUsersPage() {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
         <Sidebar isAdmin={false} />
 
-        <div className="flex-1 md:ml-64 p-8">
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
           <div className="space-y-8 max-w-7xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: -30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
             >
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4 sm:mb-2">
                 <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
                   <Users className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                     Business Users
                   </h1>
                   <p className="text-gray-600 font-medium">Manage your team members and their permissions</p>
@@ -379,8 +379,8 @@ export default function BusinessUsersPage() {
             >
               <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden">
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 p-8">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                    <CardTitle className="flex items-center gap-3 text-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                    <CardTitle className="flex items-center gap-3 text-xl md:text-2xl">
                       <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
                         <Users className="h-6 w-6 text-white" />
                       </div>
@@ -408,7 +408,7 @@ export default function BusinessUsersPage() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-[600px] rounded-3xl border-0 shadow-2xl">
                         <DialogHeader className="pb-6">
-                          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
+                          <DialogTitle className="text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
                             <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
                               <Users className="h-5 w-5 text-white" />
                             </div>
@@ -551,7 +551,7 @@ export default function BusinessUsersPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                     <motion.div
                       className="relative group"
                       initial={{ opacity: 0, y: 20 }}
@@ -600,12 +600,12 @@ export default function BusinessUsersPage() {
                   </div>
 
                   <motion.div
-                    className="border border-gray-200 rounded-3xl overflow-hidden shadow-lg bg-white"
+                    className="border border-gray-200 rounded-3xl overflow-hidden shadow-lg bg-white overflow-x-auto"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
                   >
-                    <Table>
+                    <Table className="min-w-[800px]">
                       <TableHeader>
                         <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                           <TableHead className="font-bold text-gray-700 py-4 px-6">Name</TableHead>
@@ -647,14 +647,16 @@ export default function BusinessUsersPage() {
                                     <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
                                       {user.name.charAt(0).toUpperCase()}
                                     </div>
-                                    {user.name}
+                                    <span className="truncate max-w-[120px] sm:max-w-none">{user.name}</span>
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-gray-600 py-4 px-6">{user.email}</TableCell>
+                                <TableCell className="text-gray-600 py-4 px-6">
+                                  <span className="truncate max-w-[120px] sm:max-w-none block">{user.email}</span>
+                                </TableCell>
                                 <TableCell className="text-gray-600 py-4 px-6">
                                   <div className="flex items-center gap-2">
                                     <MapPin className="h-4 w-4 text-gray-400" />
-                                    {user.locations}
+                                    <span className="truncate max-w-[120px] sm:max-w-none">{user.locations}</span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-4 px-6">
@@ -714,16 +716,16 @@ export default function BusinessUsersPage() {
 
                   {filteredUsers.length > usersPerPage && (
                     <motion.div
-                      className="flex items-center justify-between pt-8"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 md:pt-8"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5 }}
                     >
-                      <div className="text-sm text-gray-600 font-medium">
+                      <div className="text-sm text-gray-600 font-medium text-center sm:text-left">
                         Showing {indexOfFirstUser + 1}-{Math.min(indexOfLastUser, filteredUsers.length)} of{" "}
                         {filteredUsers.length} users
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 justify-center sm:justify-end">
                         <Button
                           variant="outline"
                           size="sm"
@@ -756,3 +758,4 @@ export default function BusinessUsersPage() {
     </TooltipProvider>
   )
 }
+

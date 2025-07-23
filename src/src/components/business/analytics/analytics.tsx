@@ -5,7 +5,33 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Star, BarChart2, MessageSquare, ThumbsUp, ThumbsDown, TrendingUp, Users, Award, Heart, Calendar, ArrowUp, Activity, Globe, Smartphone, Monitor, ArrowDown, MapPin, Brain, Target, Zap, Eye, Clock, Filter, LineChart, PieChart, TrendingDown } from 'lucide-react'
+import {
+  Star,
+  BarChart2,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  TrendingUp,
+  Users,
+  Award,
+  Heart,
+  Calendar,
+  ArrowUp,
+  Activity,
+  Globe,
+  Smartphone,
+  Monitor,
+  ArrowDown,
+  MapPin,
+  Brain,
+  Target,
+  Zap,
+  Eye,
+  Clock,
+  Filter,
+  LineChart,
+  TrendingDown,
+} from "lucide-react"
 import { auth, db } from "@/firebase/firebase"
 import { collection, query, getDocs, doc, getDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
@@ -138,14 +164,14 @@ const InteractiveChart = ({ data, type = "bar" }: { data: any[]; type?: "bar" | 
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   if (type === "bar") {
-    const maxValue = Math.max(...data.map(d => d.reviews || d.count || 0))
-    
+    const maxValue = Math.max(...data.map((d) => d.reviews || d.count || 0))
+
     return (
-      <div className="h-64 flex items-end justify-between gap-2 p-4">
+      <div className="h-64 flex items-end justify-between gap-1 sm:gap-2 p-2 sm:p-4 overflow-x-auto">
         {data.map((item, index) => {
           const height = ((item.reviews || item.count || 0) / maxValue) * 200
           const isHovered = hoveredIndex === index
-          
+
           return (
             <div
               key={index}
@@ -155,18 +181,18 @@ const InteractiveChart = ({ data, type = "bar" }: { data: any[]; type?: "bar" | 
             >
               <div className="relative">
                 {isHovered && (
-                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10 max-w-[120px] sm:max-w-none truncate sm:whitespace-normal">
                     {item.reviews || item.count}: {item.month || item.day || item.hour}
                   </div>
                 )}
                 <div
                   className={`w-8 bg-gradient-to-t from-blue-600 to-purple-500 rounded-t transition-all duration-300 ${
-                    isHovered ? 'scale-110 shadow-lg' : ''
+                    isHovered ? "scale-110 shadow-lg" : ""
                   }`}
                   style={{ height: `${Math.max(height, 4)}px` }}
                 />
               </div>
-              <span className="text-xs text-gray-600 text-center">
+              <span className="text-xs text-gray-600 text-center truncate max-w-[40px] sm:max-w-none">
                 {item.month || item.day || item.hour}
               </span>
             </div>
@@ -266,7 +292,7 @@ export default function AnalyticPage() {
       let negativeCount = 0
 
       // Filter by time range
-      const daysBack = parseInt(selectedTimeRange)
+      const daysBack = Number.parseInt(selectedTimeRange)
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - daysBack)
 
@@ -488,9 +514,9 @@ export default function AnalyticPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <Sidebar />
-        <div className="flex-1 md:ml-64 p-8">
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
           <div className="flex items-center justify-center h-64">
             <div className="relative">
               <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-rose-500"></div>
@@ -504,9 +530,9 @@ export default function AnalyticPage() {
 
   if (!hasAccess) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <Sidebar />
-        <div className="flex-1 md:ml-64 p-8">
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
           <div className="max-w-6xl mx-auto">
             <div className="text-center py-20">
               <div className="mb-8 animate-bounce">
@@ -564,19 +590,19 @@ export default function AnalyticPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <Sidebar />
-      <div className="flex-1 md:ml-64 p-8">
+      <div className="flex-1 md:ml-64 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-gradient-to-r from-orange-400 to-pink-400 rounded-2xl shadow-lg">
                   <TrendingUp className="h-8 w-8 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-700 to-gray-500 bg-clip-text text-transparent">
+                <div className="flex-1">
+                  <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-700 to-gray-500 bg-clip-text text-transparent">
                     Analytics Dashboard
                     {hasCustomAccess && (
                       <span className="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800">
@@ -585,7 +611,7 @@ export default function AnalyticPage() {
                       </span>
                     )}
                   </h1>
-                  <p className="text-gray-600 text-lg">
+                  <p className="text-gray-600 text-base md:text-lg">
                     {hasCustomAccess
                       ? "Advanced AI-powered insights and predictive analytics"
                       : "Professional insights and performance metrics"}{" "}
@@ -597,10 +623,10 @@ export default function AnalyticPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3 mt-2 sm:mt-0">
                 {/* Time Range Selector */}
-                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-                  <SelectTrigger className="w-[150px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange} className="w-full sm:w-auto">
+                  <SelectTrigger className="w-full sm:w-[150px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-400" />
                       <SelectValue placeholder="Time Range" />
@@ -616,8 +642,8 @@ export default function AnalyticPage() {
 
                 {/* Location Dropdown - Only show for Professional/Premium plans */}
                 {showLocationDropdown && (
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="w-[200px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation} className="w-full sm:w-auto">
+                    <SelectTrigger className="w-full sm:w-[200px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-gray-400" />
                         <SelectValue placeholder="Select Location" />
@@ -650,7 +676,7 @@ export default function AnalyticPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
                           <Target className="h-4 w-4" />
@@ -701,7 +727,7 @@ export default function AnalyticPage() {
               )}
 
               {/* Key Metrics */}
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="bg-gradient-to-br from-blue-100 to-blue-200 border-0 shadow-lg transform hover:scale-105 transition-all duration-300 animate-slide-up">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -738,9 +764,7 @@ export default function AnalyticPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-green-700 text-sm font-medium">Average Rating</p>
-                        <p className="text-3xl font-bold text-green-800">
-                          {analyticsData.averageRating.toFixed(1)}
-                        </p>
+                        <p className="text-3xl font-bold text-green-800">{analyticsData.averageRating.toFixed(1)}</p>
                         <div className="flex items-center mt-2">
                           {[...Array(5)].map((_, i) => (
                             <Star
@@ -809,7 +833,7 @@ export default function AnalyticPage() {
 
               {/* Custom Plan Exclusive: Predictive Analytics */}
               {hasCustomAccess && analyticsData.predictiveAnalytics && (
-                <div className="grid gap-8 lg:grid-cols-3">
+                <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   <Card className="shadow-xl border-0 bg-gradient-to-br from-indigo-50 to-purple-50 animate-fade-in">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-3 text-xl text-indigo-700">
@@ -913,7 +937,7 @@ export default function AnalyticPage() {
               )}
 
               {/* Interactive Charts Section */}
-              <div className="grid gap-8 lg:grid-cols-2">
+              <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
                 {/* Rating Distribution */}
                 <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
                   <CardHeader className="pb-4">
@@ -951,11 +975,11 @@ export default function AnalyticPage() {
                             />
                           </div>
                           <span className="text-sm text-gray-600 w-16 text-right font-medium">
-                            {analyticsData.ratingDistribution[index]} ({
-                              analyticsData.totalReviews > 0
-                                ? Math.round((analyticsData.ratingDistribution[index] / analyticsData.totalReviews) * 100)
-                                : 0
-                            }%)
+                            {analyticsData.ratingDistribution[index]} (
+                            {analyticsData.totalReviews > 0
+                              ? Math.round((analyticsData.ratingDistribution[index] / analyticsData.totalReviews) * 100)
+                              : 0}
+                            %)
                           </span>
                         </div>
                       ))}
@@ -1087,7 +1111,7 @@ export default function AnalyticPage() {
               </Card>
 
               {/* Additional Analytics */}
-              <div className="grid gap-8 lg:grid-cols-3">
+              <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {/* Weekly Performance */}
                 <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
                   <CardHeader className="pb-4">
@@ -1257,7 +1281,7 @@ export default function AnalyticPage() {
 
               {/* Custom Plan Exclusive: Advanced Insights */}
               {hasCustomAccess && (
-                <div className="grid gap-8 lg:grid-cols-2">
+                <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
                   <Card className="shadow-xl border-0 bg-gradient-to-br from-violet-50 to-purple-50 animate-fade-in">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-3 text-xl text-violet-700">

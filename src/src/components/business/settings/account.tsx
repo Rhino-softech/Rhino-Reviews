@@ -352,9 +352,9 @@ export default function AccountPage() {
 
   if (isLoadingBusiness) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
         <Sidebar isAdmin={false} />
-        <div className="flex-1 md:ml-64 p-8">
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
           <div className="flex items-center justify-center h-64">
             <motion.div
               className="flex items-center gap-4"
@@ -377,25 +377,25 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
       <Sidebar isAdmin={false} />
 
-      <div className="flex-1 md:ml-64 p-8">
-        <div className="space-y-8 max-w-5xl mx-auto">
+      <div className="flex-1 md:ml-64 p-4 md:p-8">
+        <div className="space-y-6 md:space-y-8 max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
           >
-            <div className="flex items-center gap-4 mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4 sm:mb-2">
               <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
                 <User className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                 Account Settings
               </h1>
             </div>
-            <p className="text-gray-600 font-medium ml-16">Manage your account and business information</p>
+            <p className="text-gray-600 font-medium sm:ml-16">Manage your account and business information</p>
           </motion.div>
 
           <motion.div
@@ -442,12 +442,12 @@ export default function AccountPage() {
                     </div>
                     Business Information
                   </CardTitle>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 sm:gap-3">
                     <AnimatePresence mode="wait">
                       {isEditingBusiness ? (
                         <motion.div
                           key="editing"
-                          className="flex gap-3"
+                          className="flex gap-2 sm:gap-3"
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -20 }}
@@ -457,16 +457,16 @@ export default function AccountPage() {
                             size="sm"
                             onClick={handleBusinessCancel}
                             disabled={isSavingBusiness}
-                            className="rounded-xl hover:bg-gray-50 transition-all duration-300"
+                            className="rounded-xl hover:bg-gray-50 transition-all duration-300 text-xs sm:text-sm px-2 sm:px-3 bg-transparent"
                           >
-                            <FaTimes className="w-4 h-4 mr-2" />
+                            <FaTimes className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                             Cancel
                           </Button>
                           <Button
                             size="sm"
                             onClick={handleBusinessSave}
                             disabled={isSavingBusiness || !validateBusinessData()}
-                            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-xs sm:text-sm px-2 sm:px-3"
                           >
                             {isSavingBusiness ? (
                               <>
@@ -474,13 +474,13 @@ export default function AccountPage() {
                                   animate={{ rotate: 360 }}
                                   transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                                 >
-                                  <FaSpinner className="w-4 h-4 mr-2" />
+                                  <FaSpinner className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                                 </motion.div>
                                 Saving...
                               </>
                             ) : (
                               <>
-                                <FaSave className="w-4 h-4 mr-2" />
+                                <FaSave className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                                 Save Changes
                               </>
                             )}
@@ -497,9 +497,9 @@ export default function AccountPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => setIsEditingBusiness(true)}
-                            className="rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition-all duration-300"
+                            className="rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition-all duration-300 text-xs sm:text-sm px-2 sm:px-3"
                           >
-                            <FaEdit className="w-4 h-4 mr-2" />
+                            <FaEdit className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                             Edit Information
                           </Button>
                         </motion.div>
@@ -522,7 +522,7 @@ export default function AccountPage() {
                     </div>
                     Basic Details
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                     <motion.div className="space-y-3" whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
                       <Label className="text-sm font-semibold text-gray-700">Business Name *</Label>
                       {isEditingBusiness ? (
@@ -650,7 +650,7 @@ export default function AccountPage() {
                           </h5>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-3">
                             <Label className="text-sm font-semibold text-gray-700">Branch Name *</Label>
                             {isEditingBusiness ? (
@@ -723,7 +723,7 @@ export default function AccountPage() {
                     </div>
                     Contact Information
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                     <motion.div className="space-y-3" whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
                       <Label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                         Contact Email *
@@ -830,7 +830,7 @@ export default function AccountPage() {
                     </div>
                     Online Presence
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                     <motion.div className="space-y-3" whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
                       <Label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                         <FaFacebook className="text-blue-600" />
@@ -1036,7 +1036,7 @@ export default function AccountPage() {
                       <Button
                         type="submit"
                         disabled={isUpdating}
-                        className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-8 py-2.5 rounded-xl font-semibold"
+                        className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-8 py-2 sm:py-2.5 rounded-xl font-semibold text-sm sm:text-base w-full sm:w-auto"
                       >
                         {isUpdating ? (
                           <>
@@ -1045,13 +1045,13 @@ export default function AccountPage() {
                               transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                               className="mr-2"
                             >
-                              <FaSpinner className="w-4 h-4" />
+                              <FaSpinner className="w-3 h-3 sm:w-4 sm:h-4" />
                             </motion.div>
                             Updating...
                           </>
                         ) : (
                           <>
-                            <Shield className="w-4 h-4 mr-2" />
+                            <Shield className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                             Update Password
                           </>
                         )}

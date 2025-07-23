@@ -3,7 +3,27 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Edit, Mountain, Star, Upload, ChevronRight, ThumbsUp, ThumbsDown, Trash2, Award, Sparkles, Heart, ExternalLink, Settings, ImageIcon, Palette, Check, Copy, Eye, QrCode } from 'lucide-react'
+import {
+  Edit,
+  Mountain,
+  Star,
+  Upload,
+  ChevronRight,
+  ThumbsUp,
+  ThumbsDown,
+  Trash2,
+  Award,
+  Sparkles,
+  Heart,
+  ExternalLink,
+  Settings,
+  ImageIcon,
+  Palette,
+  Check,
+  Copy,
+  Eye,
+  QrCode,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -96,20 +116,20 @@ const getBaseUrl = () => {
     // Client-side: use window.location.origin
     return window.location.origin
   }
-  
+
   // Server-side: check environment variables in order of preference
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
   }
-  
+
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`
   }
-  
+
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL
   }
-  
+
   // Development fallback
   return process.env.NODE_ENV === "development" ? "http://localhost:8081" : "https://rhino-review.rhinosoft.in"
 }
@@ -119,11 +139,11 @@ const checkBusinessNameUniqueness = async (businessName: string, currentUserId: 
   try {
     // Check if any other user has this business name
     const slugToCheck = businessName.toLowerCase().replace(/\s+/g, "-")
-    
+
     // Query the slug_to_uid collection to see if this slug exists for another user
     const slugDocRef = doc(db, "slug_to_uid", slugToCheck)
     const slugDocSnap = await getDoc(slugDocRef)
-    
+
     if (slugDocSnap.exists()) {
       const existingUid = slugDocSnap.data().uid
       // If the existing UID is different from current user, name is taken
@@ -131,21 +151,18 @@ const checkBusinessNameUniqueness = async (businessName: string, currentUserId: 
         return false // Name is taken
       }
     }
-    
+
     // Also check in users collection for business names
-    const usersQuery = query(
-      collection(db, "users"),
-      where("businessInfo.businessName", "==", businessName)
-    )
+    const usersQuery = query(collection(db, "users"), where("businessInfo.businessName", "==", businessName))
     const usersSnapshot = await getDocs(usersQuery)
-    
+
     // Check if any other user has this business name
     for (const userDoc of usersSnapshot.docs) {
       if (userDoc.id !== currentUserId) {
         return false // Name is taken by another user
       }
     }
-    
+
     return true // Name is available
   } catch (error) {
     console.error("Error checking business name uniqueness:", error)
@@ -288,7 +305,7 @@ export default function ReviewLinkPage() {
             setBusinessInfo(businessInfoData)
             setGoogleReviewLink(businessInfoData.googleReviewLink || "")
             businessNameFromInfo = businessInfoData.businessName || ""
-            
+
             // Set user plan and custom access
             const plan = userData.subscriptionPlan || userData.plan || ""
             setUserPlan(plan)
@@ -393,17 +410,17 @@ export default function ReviewLinkPage() {
   const handleBusinessNameChange = async (newName: string) => {
     setTempBusinessName(newName)
     setNameAvailable(null)
-    
+
     if (!newName.trim() || !currentUser) {
       return
     }
-    
+
     setNameCheckLoading(true)
-    
+
     try {
       const isAvailable = await checkBusinessNameUniqueness(newName.trim(), currentUser.uid)
       setNameAvailable(isAvailable)
-      
+
       if (!isAvailable) {
         toast.error("This business name is already taken. Please choose a different name.")
       }
@@ -480,18 +497,18 @@ export default function ReviewLinkPage() {
     if (isEditingUrl) {
       // FIX: Check uniqueness before saving URL
       if (!currentUser) return
-      
+
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
-      
+
       // Check if this slug is available
       const slugDocRef = doc(db, "slug_to_uid", newSlug)
       const slugDocSnap = await getDoc(slugDocRef)
-      
+
       if (slugDocSnap.exists() && slugDocSnap.data().uid !== currentUser.uid) {
         toast.error("This URL is already taken by another business. Please choose a different one.")
         return
       }
-      
+
       const newUrl = `${getBaseUrl()}/${newSlug}`
       setReviewLinkUrl(newUrl)
       setTempBusinessSlug(newSlug)
@@ -527,7 +544,7 @@ export default function ReviewLinkPage() {
           return
         }
       }
-      
+
       setBusinessName(tempBusinessName)
       setPreviewText(tempPreviewText)
       setWelcomeTitle(tempWelcomeTitle)
@@ -697,7 +714,7 @@ export default function ReviewLinkPage() {
       const userName = formData.name.trim() || "Anonymous User"
       const userEmail = formData.email.trim() || ""
       const userPhone = formData.phone.trim() || ""
-      
+
       const reviewData = {
         name: userName, // FIX: Always ensure we have a name
         email: userEmail,
@@ -840,15 +857,14 @@ export default function ReviewLinkPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-rose-50 via-amber-50 to-teal-50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-rose-50 via-amber-50 to-teal-50">
       <Sidebar />
-
-      <div className="flex-1 md:ml-64 p-4 md:p-8">
+      <div className="flex-1 md:ml-64 p-3 sm:p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
             <div>
               <motion.h1
-                className="text-3xl font-bold mb-2 bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent"
+                className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
@@ -865,7 +881,7 @@ export default function ReviewLinkPage() {
                 Customize your review collection page and manage how customers leave feedback
               </p>
             </div>
-            <div className="mt-4 md:mt-0 flex space-x-3">
+            <div className="mt-2 sm:mt-0 flex space-x-3">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   size="sm"
@@ -879,8 +895,8 @@ export default function ReviewLinkPage() {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -899,8 +915,8 @@ export default function ReviewLinkPage() {
                 <div className="p-6">
                   {isEditingUrl ? (
                     <div className="space-y-4">
-                      <div className="flex items-center">
-                        <span className="whitespace-nowrap mr-2 text-gray-600 font-medium">{getBaseUrl()}/</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+                        <span className="whitespace-nowrap sm:mr-2 text-gray-600 font-medium">{getBaseUrl()}/</span>
                         <Input
                           value={tempBusinessSlug}
                           onChange={(e) => setTempBusinessSlug(e.target.value)}
@@ -912,7 +928,7 @@ export default function ReviewLinkPage() {
                       <p className="text-sm text-gray-500">
                         Only use letters, numbers, and hyphens. No spaces or special characters.
                       </p>
-                      <div className="flex justify-end space-x-3">
+                      <div className="flex justify-end space-x-2 sm:space-x-3">
                         <Button
                           variant="outline"
                           size="sm"
@@ -931,14 +947,16 @@ export default function ReviewLinkPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <motion.div
                         className="flex-1 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center"
                         whileHover={{
                           boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                         }}
                       >
-                        <div className="flex-1 font-medium text-gray-700 truncate">{reviewLinkUrl}</div>
+                        <div className="flex-1 font-medium text-gray-700 truncate text-sm sm:text-base">
+                          {reviewLinkUrl}
+                        </div>
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -957,12 +975,12 @@ export default function ReviewLinkPage() {
                           </Tooltip>
                         </TooltipProvider>
                       </motion.div>
-                      <div className="flex space-x-3">
+                      <div className="flex space-x-2 sm:space-x-3">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(reviewLinkUrl, "_blank")}
-                          className="border-rose-200 hover:bg-rose-50 flex-1 md:flex-none"
+                          className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3"
                         >
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Test Link
@@ -971,7 +989,7 @@ export default function ReviewLinkPage() {
                           variant="outline"
                           size="sm"
                           onClick={handleUrlEdit}
-                          className="border-rose-200 hover:bg-rose-50 flex-1 md:flex-none"
+                          className="border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-3 bg-transparent"
                         >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit URL
@@ -989,11 +1007,7 @@ export default function ReviewLinkPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.15 }}
                 >
-                  <QRGenerator 
-                    reviewUrl={reviewLinkUrl} 
-                    businessName={businessName} 
-                    hasCustomPlan={hasCustomAccess} 
-                  />
+                  <QRGenerator reviewUrl={reviewLinkUrl} businessName={businessName} hasCustomPlan={hasCustomAccess} />
                 </motion.div>
               )}
 
@@ -1011,10 +1025,10 @@ export default function ReviewLinkPage() {
                   <p className="text-white/80 text-sm mt-1">Control how customer feedback is collected</p>
                 </div>
                 <div className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center">
-                        <h3 className="text-lg font-semibold text-gray-800">Star Filter</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800">Star Filter</h3>
                         <Badge
                           className={`ml-3 ${
                             isReviewGatingEnabled
@@ -1025,7 +1039,7 @@ export default function ReviewLinkPage() {
                           {isReviewGatingEnabled ? "Enabled" : "Disabled"}
                         </Badge>
                       </div>
-                      <p className="text-gray-600">
+                      <p className="text-gray-600 text-sm sm:text-base">
                         When enabled, only customers with positive experiences (4-5 stars) will be directed to leave
                         public reviews. Negative reviews will be collected privately.
                       </p>
@@ -1034,7 +1048,7 @@ export default function ReviewLinkPage() {
                         whileHover={{ y: -2 }}
                         transition={{ duration: 0.3 }}
                       >
-                        <p className="text-sm text-gray-700">
+                        <p className="text-xs sm:text-sm text-gray-700">
                           {isReviewGatingEnabled
                             ? "Negative reviews will be sent to your feedback form"
                             : "All reviews will be sent to public review sites"}
@@ -1061,9 +1075,9 @@ export default function ReviewLinkPage() {
                 className="bg-white rounded-2xl shadow-lg overflow-hidden border border-amber-100"
               >
                 <div className="bg-gradient-to-r from-rose-500 to-amber-500 p-6">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center">
+                      <h2 className="text-lg sm:text-xl font-bold text-white flex items-center">
                         <Palette className="h-5 w-5 mr-2" />
                         Customize Your Review Page
                       </h2>
@@ -1074,7 +1088,7 @@ export default function ReviewLinkPage() {
                         <Button
                           variant="secondary"
                           onClick={handlePreviewEdit}
-                          className="bg-white/20 hover:bg-white/30 text-white border-none"
+                          className="bg-white/20 hover:bg-white/30 text-white border-none w-full sm:w-auto"
                         >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit Design
@@ -1087,9 +1101,13 @@ export default function ReviewLinkPage() {
                   {isEditingPreview ? (
                     <div className="space-y-6">
                       <Tabs defaultValue="content" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 mb-4">
-                          <TabsTrigger value="content">Content</TabsTrigger>
-                          <TabsTrigger value="images">Images</TabsTrigger>
+                        <TabsList className="grid w-full grid-cols-2 mb-4 h-auto">
+                          <TabsTrigger value="content" className="py-2 text-sm">
+                            Content
+                          </TabsTrigger>
+                          <TabsTrigger value="images" className="py-2 text-sm">
+                            Images
+                          </TabsTrigger>
                         </TabsList>
                         <TabsContent value="content" className="space-y-6">
                           <div className="space-y-4">
@@ -1105,7 +1123,11 @@ export default function ReviewLinkPage() {
                                   aria-label="Business name"
                                   placeholder="Enter your business name"
                                   className={`border-amber-200 focus:ring-2 focus:ring-amber-300 ${
-                                    nameAvailable === false ? 'border-red-500' : nameAvailable === true ? 'border-green-500' : ''
+                                    nameAvailable === false
+                                      ? "border-red-500"
+                                      : nameAvailable === true
+                                        ? "border-green-500"
+                                        : ""
                                   }`}
                                 />
                                 {nameCheckLoading && (
@@ -1120,9 +1142,7 @@ export default function ReviewLinkPage() {
                                 </p>
                               )}
                               {nameAvailable === true && (
-                                <p className="text-sm text-green-600">
-                                  ✓ Business name is available!
-                                </p>
+                                <p className="text-sm text-green-600">✓ Business name is available!</p>
                               )}
                             </div>
                             <div className="space-y-2">
@@ -1185,7 +1205,7 @@ export default function ReviewLinkPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleDeleteImage}
-                                    className="text-red-500 border-red-200 hover:bg-red-50"
+                                    className="text-red-500 border-red-200 hover:bg-red-50 bg-transparent"
                                   >
                                     <Trash2 className="h-3.5 w-3.5 mr-1" />
                                     Remove
@@ -1255,7 +1275,7 @@ export default function ReviewLinkPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleDeleteLogo}
-                                    className="text-red-500 border-red-200 hover:bg-red-50"
+                                    className="text-red-500 border-red-200 hover:bg-red-50 bg-transparent"
                                   >
                                     <Trash2 className="h-3.5 w-3.5 mr-1" />
                                     Remove
@@ -1338,10 +1358,10 @@ export default function ReviewLinkPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col md:flex-row gap-6">
+                    <div className="flex flex-col sm:flex-row gap-6">
                       <div className="flex-1 space-y-6">
                         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.3 }}>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2">Content</h3>
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">Content</h3>
                           <div className="space-y-3">
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-gray-500">Business Name</span>
@@ -1364,8 +1384,8 @@ export default function ReviewLinkPage() {
                           </div>
                         </motion.div>
                         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.3 }}>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2">Images</h3>
-                          <div className="grid grid-cols-2 gap-4">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">Images</h3>
+                          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <span className="text-sm font-medium text-gray-500">Background Image</span>
                               {previewImage ? (
@@ -1401,7 +1421,7 @@ export default function ReviewLinkPage() {
                           </div>
                         </motion.div>
                       </div>
-                      <div className="md:w-1/3 flex flex-col items-center justify-center">
+                      <div className="sm:w-1/3 flex flex-col items-center justify-center">
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full">
                           <Button
                             onClick={handlePreviewEdit}
@@ -1431,7 +1451,7 @@ export default function ReviewLinkPage() {
                 >
                   <Card className="border-amber-200 shadow-xl transition-all hover:shadow-2xl overflow-hidden">
                     <CardHeader className="bg-gradient-to-r from-rose-500 to-amber-500 p-6">
-                      <CardTitle className="text-xl font-bold text-white flex items-center">
+                      <CardTitle className="text-lg sm:text-xl font-bold text-white flex items-center">
                         <Eye className="h-5 w-5 mr-2" />
                         Live Preview
                       </CardTitle>
@@ -1442,11 +1462,11 @@ export default function ReviewLinkPage() {
                     <CardContent className="p-0">
                       <div
                         className="w-full bg-white overflow-hidden flex flex-col"
-                        style={{ maxHeight: "calc(100vh - 200px)" }}
+                        style={{ maxHeight: "calc(100vh - 150px)" }}
                       >
                         <div ref={previewRef} className="overflow-y-auto">
                           {/* Left Side - Image Background Section */}
-                          <div className="w-full relative overflow-hidden flex flex-col justify-center items-center p-4 lg:p-8 bg-gradient-to-br from-rose-700 via-amber-700 to-teal-700 h-64">
+                          <div className="w-full relative overflow-hidden flex flex-col justify-center items-center p-3 sm:p-4 lg:p-8 bg-gradient-to-br from-rose-700 via-amber-700 to-teal-700 h-48 sm:h-64">
                             {/* Dark overlay for better text readability */}
                             <div className="absolute inset-0 bg-black/40" />
 
@@ -1471,8 +1491,10 @@ export default function ReviewLinkPage() {
                                   transition={{ duration: 0.5 }}
                                 >
                                   <div className="text-center p-8">
-                                    <Mountain className="h-24 w-24 mx-auto text-white/80 mb-6" />
-                                    <h3 className="text-2xl font-bold text-white">{businessName || "Your Business"}</h3>
+                                    <Mountain className="h-16 w-16 sm:h-24 sm:w-24 mx-auto text-white/80 mb-3 sm:mb-6" />
+                                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                                      {businessName || "Your Business"}
+                                    </h3>
                                   </div>
                                 </motion.div>
                               )}
@@ -1489,7 +1511,7 @@ export default function ReviewLinkPage() {
                                   >
                                     <Sparkles className="h-6 w-6 text-yellow-300" />
                                   </motion.div>
-                                  <h3 className="font-bold text-white text-4xl lg:text-5xl">
+                                  <h3 className="font-bold text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl">
                                     {welcomeTitle || "We value your opinion!"}
                                   </h3>
                                   <motion.div
@@ -1504,7 +1526,7 @@ export default function ReviewLinkPage() {
                                     <Heart className="h-6 w-6 text-pink-300" />
                                   </motion.div>
                                 </div>
-                                <p className="text-white/90 leading-relaxed text-lg lg:text-xl">
+                                <p className="text-white/90 leading-relaxed text-sm sm:text-base md:text-lg lg:text-xl">
                                   {welcomeText || "Share your experience and help us improve"}
                                 </p>
                               </div>
@@ -1512,7 +1534,7 @@ export default function ReviewLinkPage() {
                           </div>
 
                           {/* Right Side - Form Section */}
-                          <div className="w-full bg-white p-6 flex flex-col justify-center">
+                          <div className="w-full bg-white p-4 sm:p-6 flex flex-col justify-center">
                             <div className="max-w-xs mx-auto w-full">
                               {submitted ? (
                                 <div className="text-center space-y-6">
@@ -1533,7 +1555,9 @@ export default function ReviewLinkPage() {
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.3 }}
                                   >
-                                    <p className="text-gray-700 font-medium text-lg">{submissionMessage}</p>
+                                    <p className="text-gray-700 font-medium text-base sm:text-lg">
+                                      {submissionMessage}
+                                    </p>
                                   </motion.div>
                                   <motion.button
                                     onClick={resetForm}
@@ -1557,21 +1581,23 @@ export default function ReviewLinkPage() {
                                   )}
 
                                   <div className="text-center mb-6">
-                                    <h2 className="font-bold bg-gradient-to-r from-rose-600 to-amber-600 bg-clip-text text-transparent mb-2 text-3xl">
+                                    <h2 className="font-bold bg-gradient-to-r from-rose-600 to-amber-600 bg-clip-text text-transparent mb-2 text-2xl sm:text-3xl">
                                       Rate Your Experience
                                     </h2>
-                                    <p className="text-gray-600 text-lg">{previewText || "How was your experience?"}</p>
+                                    <p className="text-gray-600 text-base sm:text-lg">
+                                      {previewText || "How was your experience?"}
+                                    </p>
                                   </div>
 
                                   <div className="mb-6">
-                                    <div className="flex justify-center space-x-2 mb-4">
+                                    <div className="flex justify-center space-x-1 sm:space-x-2 mb-4">
                                       {[1, 2, 3, 4, 5].map((star) => (
                                         <motion.button
                                           key={star}
                                           onClick={() => setRating(star)}
                                           onMouseEnter={() => setHoveredStar(star)}
                                           onMouseLeave={() => setHoveredStar(0)}
-                                          className={`p-3 rounded-2xl transition-all duration-300 ${
+                                          className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl transition-all duration-300 ${
                                             star <= (hoveredStar || rating)
                                               ? "bg-gradient-to-r from-amber-100 to-rose-100 shadow-lg"
                                               : "hover:bg-gray-50"
@@ -1580,7 +1606,7 @@ export default function ReviewLinkPage() {
                                           whileTap={{ scale: 0.95 }}
                                         >
                                           <Star
-                                            className={`h-10 w-10 transition-all duration-300 ${
+                                            className={`h-8 w-8 sm:h-10 sm:w-10 transition-all duration-300 ${
                                               star <= (hoveredStar || rating)
                                                 ? "fill-amber-400 text-amber-400 drop-shadow-sm"
                                                 : "text-gray-300"
@@ -1591,13 +1617,13 @@ export default function ReviewLinkPage() {
                                     </div>
 
                                     <div className="flex justify-between text-gray-500 mb-4">
-                                      <span>Not satisfied</span>
-                                      <span>Very satisfied</span>
+                                      <span className="text-xs sm:text-sm">Not satisfied</span>
+                                      <span className="text-xs sm:text-sm">Very satisfied</span>
                                     </div>
 
                                     {rating > 0 && (
                                       <motion.div
-                                        className={`mt-4 p-6 rounded-2xl border-2 ${
+                                        className={`mt-4 p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 ${
                                           rating >= 4
                                             ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
                                             : "bg-gradient-to-r from-amber-50 to-rose-50 border-amber-200"
@@ -1610,7 +1636,7 @@ export default function ReviewLinkPage() {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         transition={{ duration: 0.4 }}
                                       >
-                                        <p className="text-gray-700 font-semibold text-center flex items-center justify-center text-lg">
+                                        <p className="text-gray-700 font-semibold text-center flex items-center justify-center text-sm sm:text-base md:text-lg">
                                           {rating >= 4 ? (
                                             <>
                                               <ThumbsUp className="mr-3 text-green-500 h-6 w-6" />
@@ -1631,13 +1657,13 @@ export default function ReviewLinkPage() {
                                     onClick={handleLeaveReview}
                                     disabled={rating === 0}
                                     className={`
-                                      w-full py-4 px-6 rounded-2xl font-semibold text-white flex items-center justify-center transition-all duration-300 shadow-lg hover:shadow-xl text-lg
-                                      ${
-                                        rating === 0
-                                          ? "bg-gray-300 cursor-not-allowed"
-                                          : "bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700"
-                                      }
-                                    `}
+                                    w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-semibold text-white flex items-center justify-center transition-all duration-300 shadow-lg hover:shadow-xl text-base sm:text-lg
+                                    ${
+                                      rating === 0
+                                        ? "bg-gray-300 cursor-not-allowed"
+                                        : "bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700"
+                                    }
+                                  `}
                                     whileHover={rating > 0 ? { scale: 1.05 } : {}}
                                     whileTap={rating > 0 ? { scale: 0.95 } : {}}
                                   >

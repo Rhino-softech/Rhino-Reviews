@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { X, FileText, User, Briefcase, GraduationCap, Upload, LinkIcon } from "lucide-react"
+import { X, FileText, User, Briefcase, GraduationCap, Upload, LinkIcon } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { collection, addDoc } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { toast } from "@/hooks/use-toast"
 
 interface JobOpening {
@@ -137,49 +136,29 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
     }
   }
 
-
- const handleSubmit = async () => {
+  const handleSubmit = async () => {
     if (!job) return
 
     setIsSubmitting(true)
     try {
-      let uploadedResumeURL = ""
-
-      // Upload resume to Firebase Storage
-      if (applicationData.resumeType === "upload" && applicationData.resumeFile) {
-        const storage = getStorage()
-        const storageRef = ref(
-          storage,
-          `resumes/${Date.now()}_${applicationData.resumeFile.name}`
-        )
-        await uploadBytes(storageRef, applicationData.resumeFile)
-        uploadedResumeURL = await getDownloadURL(storageRef)
+      // Prepare application data for Firebase
+      const applicationSubmission = {
+        jobId: job.id,
+        jobTitle: job.title,
+        applicantName: `${applicationData.firstName} ${applicationData.lastName}`,
+        applicantEmail: applicationData.email,
+        applicantPhone: applicationData.phone,
+        applicationData: {
+          ...applicationData,
+          resumeFileName: applicationData.resumeFile?.name || null,
+          resumeFileSize: applicationData.resumeFile?.size || null,
+        },
+        status: "pending",
+        appliedAt: new Date(),
+        notes: "",
       }
-        const {
-          resumeFile,
-          ...restApplicationData
-        } = applicationData
 
-        const applicationSubmission = {
-          jobId: job.id,
-          jobTitle: job.title,
-          applicantName: `${applicationData.firstName} ${applicationData.lastName}`,
-          applicantEmail: applicationData.email,
-          applicantPhone: applicationData.phone,
-          applicationData: {
-            ...restApplicationData,
-            resumeFileName: resumeFile?.name || null,
-            resumeFileSize: resumeFile?.size || null,
-            resumeUrl: applicationData.resumeType === "upload"
-              ? uploadedResumeURL
-              : applicationData.resumeLink.trim(),
-          },
-          status: "pending",
-          appliedAt: new Date(),
-          notes: "",
-        }
-
-
+      // Save to Firebase
       await addDoc(collection(db, "jobApplications"), applicationSubmission)
 
       toast({
@@ -187,38 +166,6 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
         description: "Thank you for your application. We will review it and get back to you soon.",
       })
 
-      // Reset
-      setApplicationData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        address: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
-        currentJobTitle: "",
-        currentCompany: "",
-        totalExperience: "",
-        relevantExperience: "",
-        currentSalary: "",
-        expectedSalary: "",
-        noticePeriod: "",
-        highestEducation: "",
-        university: "",
-        graduationYear: "",
-        coverLetter: "",
-        portfolioUrl: "",
-        linkedinUrl: "",
-        githubUrl: "",
-        availability: "",
-        relocateWillingness: "",
-        resumeType: "upload",
-        resumeFile: null,
-        resumeLink: "",
-      })
-      setCurrentStep(1)
       onClose()
     } catch (error) {
       console.error("Error submitting application:", error)
@@ -408,10 +355,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="totalExperience">Total Experience *</Label>
-                  <Select 
-                    value={applicationData.totalExperience}
-                    onValueChange={(value) => handleInputChange("totalExperience", value)}
-                  >
+                  <Select onValueChange={(value) => handleInputChange("totalExperience", value)}>
                     <SelectTrigger className={!applicationData.totalExperience ? "border-red-300" : ""}>
                       <SelectValue placeholder="Select experience" />
                     </SelectTrigger>
@@ -427,10 +371,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
                 </div>
                 <div>
                   <Label htmlFor="relevantExperience">Relevant Experience</Label>
-                  <Select 
-                    value={applicationData.relevantExperience}
-                    onValueChange={(value) => handleInputChange("relevantExperience", value)}
-                  >
+                  <Select onValueChange={(value) => handleInputChange("relevantExperience", value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select relevant experience" />
                     </SelectTrigger>
@@ -470,10 +411,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
 
               <div>
                 <Label htmlFor="noticePeriod">Notice Period *</Label>
-                <Select 
-                  value={applicationData.noticePeriod}
-                  onValueChange={(value) => handleInputChange("noticePeriod", value)}
-                >
+                <Select onValueChange={(value) => handleInputChange("noticePeriod", value)}>
                   <SelectTrigger className={!applicationData.noticePeriod ? "border-red-300" : ""}>
                     <SelectValue placeholder="Select notice period" />
                   </SelectTrigger>
@@ -501,10 +439,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="highestEducation">Highest Education *</Label>
-                  <Select 
-                    value={applicationData.highestEducation}
-                    onValueChange={(value) => handleInputChange("highestEducation", value)}
-                  >
+                  <Select onValueChange={(value) => handleInputChange("highestEducation", value)}>
                     <SelectTrigger className={!applicationData.highestEducation ? "border-red-300" : ""}>
                       <SelectValue placeholder="Select education level" />
                     </SelectTrigger>
@@ -572,10 +507,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="availability">When can you start? *</Label>
-                  <Select 
-                    value={applicationData.availability}
-                    onValueChange={(value) => handleInputChange("availability", value)}
-                  >
+                  <Select onValueChange={(value) => handleInputChange("availability", value)}>
                     <SelectTrigger className={!applicationData.availability ? "border-red-300" : ""}>
                       <SelectValue placeholder="Select availability" />
                     </SelectTrigger>
@@ -590,10 +522,7 @@ export default function JobApplicationModal({ isOpen, onClose, job, whatsappNumb
                 </div>
                 <div>
                   <Label htmlFor="relocateWillingness">Willing to Relocate?</Label>
-                  <Select 
-                    value={applicationData.relocateWillingness}
-                    onValueChange={(value) => handleInputChange("relocateWillingness", value)}
-                  >
+                  <Select onValueChange={(value) => handleInputChange("relocateWillingness", value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select option" />
                     </SelectTrigger>

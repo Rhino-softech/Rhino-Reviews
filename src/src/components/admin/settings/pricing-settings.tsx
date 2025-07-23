@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DollarSign, Save, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react"
+import { DollarSign, Save, Plus, Trash2, ToggleLeft, ToggleRight, Edit3, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,42 @@ function PricingSettingsContent() {
     professional: 99,
     custom: 299,
     buttonsDisabled: false,
+    features: {
+      starter: [
+        "3 Business Locations",
+        "100 Review Requests/Month",
+        "Email Support",
+        "Chat Support",
+        "Mobile responsive dashboard",
+        "Basic Analytics",
+        "Review Response Templates",
+      ],
+      professional: [
+        "5 Business Locations",
+        "500 Review Requests/Month",
+        "Priority Email Support",
+        "Priority Whatsapp Support",
+        "Advanced Analytics Dashboard",
+        "Location-based Filtering",
+        "Sentiment Analysis",
+        "Mobile responsive dashboard",
+        "Performance Trends",
+        "Team Management",
+        "Custom Branding",
+      ],
+      custom: [
+        "Unlimited Business Locations",
+        "Unlimited Review Requests",
+        "Advanced Analytics & Insights",
+        "Priority Chat Support",
+        "Customized Templates",
+        "QR Generator",
+        "Location-based Filtering",
+        "Sentiment Analysis",
+        "Predicted Analysis",
+        "Mobile responsive dashboard",
+      ],
+    },
   })
   const [addonPackages, setAddonPackages] = useState([
     {
@@ -57,6 +93,8 @@ function PricingSettingsContent() {
     description: "",
     icon: "📦",
   })
+  const [editingFeatures, setEditingFeatures] = useState<string | null>(null)
+  const [newFeature, setNewFeature] = useState("")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,6 +109,7 @@ function PricingSettingsContent() {
             professional: data.professional || 99,
             custom: data.custom || 299,
             buttonsDisabled: data.buttonsDisabled || false,
+            features: data.features || pricing.features,
           })
         }
 
@@ -192,6 +231,39 @@ function PricingSettingsContent() {
     setAddonPackages((prev) => prev.map((pkg) => (pkg.id === id ? { ...pkg, [field]: value } : pkg)))
   }
 
+  const handleAddFeature = (planType: string) => {
+    if (newFeature.trim()) {
+      setPricing((prev) => ({
+        ...prev,
+        features: {
+          ...prev.features,
+          [planType]: [...prev.features[planType], newFeature.trim()],
+        },
+      }))
+      setNewFeature("")
+    }
+  }
+
+  const handleRemoveFeature = (planType: string, index: number) => {
+    setPricing((prev) => ({
+      ...prev,
+      features: {
+        ...prev.features,
+        [planType]: prev.features[planType].filter((_, i) => i !== index),
+      },
+    }))
+  }
+
+  const handleEditFeature = (planType: string, index: number, newValue: string) => {
+    setPricing((prev) => ({
+      ...prev,
+      features: {
+        ...prev.features,
+        [planType]: prev.features[planType].map((feature, i) => (i === index ? newValue : feature)),
+      },
+    }))
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 flex items-center justify-center">
@@ -226,7 +298,7 @@ function PricingSettingsContent() {
             </h1>
           </div>
           <p className="text-xl text-slate-600 max-w-4xl mx-auto leading-relaxed">
-            Configure subscription plans and add-on packages that automatically sync across your platform
+            Configure subscription plans, features, and add-on packages that automatically sync across your platform
           </p>
         </motion.div>
 
@@ -277,7 +349,9 @@ function PricingSettingsContent() {
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-3xl font-bold text-slate-800 mb-2">Subscription Plans</h2>
-                  <p className="text-slate-600 text-lg">Set competitive pricing for your subscription tiers</p>
+                  <p className="text-slate-600 text-lg">
+                    Set competitive pricing and manage features for your subscription tiers
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -327,7 +401,7 @@ function PricingSettingsContent() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Starter Plan */}
                 <div className="relative p-8 border-2 border-green-200 rounded-3xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-all duration-300">
                   <div className="absolute -top-4 left-6">
@@ -357,19 +431,72 @@ function PricingSettingsContent() {
                         />
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>100 reviews/month</span>
+
+                    {/* Features Management */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-sm font-semibold text-gray-700">Features</Label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingFeatures(editingFeatures === "starter" ? null : "starter")}
+                          className="text-xs"
+                        >
+                          <Edit3 className="h-3 w-3 mr-1" />
+                          {editingFeatures === "starter" ? "Done" : "Edit"}
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>Basic templates</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>Email support</span>
-                      </div>
+
+                      {editingFeatures === "starter" ? (
+                        <div className="space-y-2">
+                          {pricing.features.starter.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={feature}
+                                onChange={(e) => handleEditFeature("starter", index, e.target.value)}
+                                className="text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRemoveFeature("starter", index)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={newFeature}
+                              onChange={(e) => setNewFeature(e.target.value)}
+                              placeholder="Add new feature..."
+                              className="text-sm"
+                              onKeyPress={(e) => {
+                                if (e.key === "Enter") {
+                                  handleAddFeature("starter")
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddFeature("starter")}
+                              className="bg-green-500 hover:bg-green-600"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 space-y-2 max-h-32 overflow-y-auto">
+                          {pricing.features.starter.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -403,23 +530,72 @@ function PricingSettingsContent() {
                         />
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        <span>500 reviews/month</span>
+
+                    {/* Features Management */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-sm font-semibold text-gray-700">Features</Label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingFeatures(editingFeatures === "professional" ? null : "professional")}
+                          className="text-xs"
+                        >
+                          <Edit3 className="h-3 w-3 mr-1" />
+                          {editingFeatures === "professional" ? "Done" : "Edit"}
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        <span>Advanced templates</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        <span>Priority support</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        <span>Analytics dashboard</span>
-                      </div>
+
+                      {editingFeatures === "professional" ? (
+                        <div className="space-y-2">
+                          {pricing.features.professional.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={feature}
+                                onChange={(e) => handleEditFeature("professional", index, e.target.value)}
+                                className="text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRemoveFeature("professional", index)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={newFeature}
+                              onChange={(e) => setNewFeature(e.target.value)}
+                              placeholder="Add new feature..."
+                              className="text-sm"
+                              onKeyPress={(e) => {
+                                if (e.key === "Enter") {
+                                  handleAddFeature("professional")
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddFeature("professional")}
+                              className="bg-orange-500 hover:bg-orange-600"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 space-y-2 max-h-32 overflow-y-auto">
+                          {pricing.features.professional.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -453,23 +629,72 @@ function PricingSettingsContent() {
                         />
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span>Unlimited reviews</span>
+
+                    {/* Features Management */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-sm font-semibold text-gray-700">Features</Label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingFeatures(editingFeatures === "custom" ? null : "custom")}
+                          className="text-xs"
+                        >
+                          <Edit3 className="h-3 w-3 mr-1" />
+                          {editingFeatures === "custom" ? "Done" : "Edit"}
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span>Custom templates</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span>Dedicated support</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span>White-label options</span>
-                      </div>
+
+                      {editingFeatures === "custom" ? (
+                        <div className="space-y-2">
+                          {pricing.features.custom.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={feature}
+                                onChange={(e) => handleEditFeature("custom", index, e.target.value)}
+                                className="text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRemoveFeature("custom", index)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={newFeature}
+                              onChange={(e) => setNewFeature(e.target.value)}
+                              placeholder="Add new feature..."
+                              className="text-sm"
+                              onKeyPress={(e) => {
+                                if (e.key === "Enter") {
+                                  handleAddFeature("custom")
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddFeature("custom")}
+                              className="bg-purple-500 hover:bg-purple-600"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 space-y-2 max-h-32 overflow-y-auto">
+                          {pricing.features.custom.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

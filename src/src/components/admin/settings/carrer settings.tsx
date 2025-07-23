@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog" // Added DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Trash2,
   Edit,
@@ -127,16 +127,6 @@ interface EmailReply {
   isFromAdmin?: boolean
 }
 
-interface EmailDraft {
-  subject: string
-  body: string
-  applicantEmail: string
-  applicantName: string
-  applicationId: string
-  newStatus: string
-  emailType: "shortlisted" | "rejected"
-}
-
 export default function CareerSettingsPage() {
   const [careerSettings, setCareerSettings] = useState<CareerSettings>({
     whatsappNumber: "+1234567890",
@@ -215,10 +205,6 @@ export default function CareerSettingsPage() {
   const [replyMessage, setReplyMessage] = useState("")
   const [activeContentTab, setActiveContentTab] = useState("about")
 
-  // New state for email preview modal
-  const [isEmailPreviewModalOpen, setIsEmailPreviewModalOpen] = useState(false)
-  const [currentEmailDraft, setCurrentEmailDraft] = useState<EmailDraft | null>(null)
-
   const [newJob, setNewJob] = useState<Partial<JobOpening>>({
     title: "",
     department: "",
@@ -230,7 +216,7 @@ export default function CareerSettingsPage() {
   })
 
   const emailTemplates = {
-    shortlisted: {
+    shortlist: {
       subject: "🎉 Great News! You've Been Shortlisted - {jobTitle} at {companyName}",
       body: `Dear {applicantName},
 
@@ -256,7 +242,7 @@ HR Team
 ---
 You can reply to this email for any questions or concerns.`,
     },
-    rejected: {
+    reject: {
       subject: "Thank You for Your Interest - {jobTitle} Application Update",
       body: `Dear {applicantName},
 
@@ -493,108 +479,78 @@ You can reply to this email for any questions or feedback.`,
     }
   }
 
-  const openEmailPreviewModal = (application: JobApplication, newStatus: "shortlisted" | "rejected") => {
-    const template = emailTemplates[newStatus]
-    if (!template) {
+  const updateApplicationStatus = async (applicationId: string, status: string) => {
+    try {
+      await updateDoc(doc(db, "jobApplications", applicationId), { status })
+
+      // Auto-send email when status is shortlisted
+      if (status === "shortlisted") {
+        const application = jobApplications.find((app) => app.id === applicationId)
+        if (application) {
+          await sendEmail(emailTemplates.shortlist, application, "shortlist")
+        }
+      }
+
+      fetchJobApplications()
+      toast({
+        title: "✅ Success",
+        description: "Application status updated successfully",
+      })
+    } catch (error) {
+      console.error("Error updating application status:", error)
       toast({
         title: "Error",
-        description: "Email template not found.",
+        description: "Failed to update application status",
         variant: "destructive",
       })
-      return
     }
-
-    const personalizedSubject = template.subject
-      .replace("{jobTitle}", application.jobTitle)
-      .replace("{companyName}", careerSettings.companyName)
-      .replace("{applicantName}", application.applicantName)
-
-    const personalizedBody = template.body
-      .replace(/{jobTitle}/g, application.jobTitle)
-      .replace(/{companyName}/g, careerSettings.companyName)
-      .replace(/{applicantName}/g, application.applicantName)
-
-    setCurrentEmailDraft({
-      subject: personalizedSubject,
-      body: personalizedBody,
-      applicantEmail: application.applicantEmail,
-      applicantName: application.applicantName,
-      applicationId: application.id,
-      newStatus: newStatus,
-      emailType: newStatus,
-    })
-    setIsEmailPreviewModalOpen(true)
   }
 
-  const confirmSendEmailAndUpdateStatus = async () => {
-    if (!currentEmailDraft) return
-
-    const { subject, body, applicantEmail, applicantName, applicationId, newStatus, emailType } = currentEmailDraft
-
+  const sendEmail = async (template: EmailTemplate, recipient: JobApplication, emailType: string) => {
     try {
-      // 1. Update application status in Firebase
-      await updateDoc(doc(db, "jobApplications", applicationId), { status: newStatus })
+      // Replace placeholders in email template
+      const personalizedSubject = template.subject
+        .replace("{jobTitle}", recipient.jobTitle)
+        .replace("{companyName}", careerSettings.companyName)
+        .replace("{applicantName}", recipient.applicantName)
 
-      // 2. Store email record in Firebase
+      const personalizedBody = template.body
+        .replace(/{jobTitle}/g, recipient.jobTitle)
+        .replace(/{companyName}/g, careerSettings.companyName)
+        .replace(/{applicantName}/g, recipient.applicantName)
+
+      // Store email record for reply tracking
       await addDoc(collection(db, "sentEmails"), {
-        applicationId: applicationId,
-        applicantEmail: applicantEmail,
-        applicantName: applicantName,
-        subject: subject,
-        body: body,
+        applicationId: recipient.id,
+        applicantEmail: recipient.applicantEmail,
+        applicantName: recipient.applicantName,
+        subject: personalizedSubject,
+        body: personalizedBody,
         emailType: emailType,
         sentAt: new Date(),
         replyEnabled: true,
       })
 
-      // 3. Open Outlook Mailto link
-      const mailtoLink = `mailto:${applicantEmail}?subject=${encodeURIComponent(
-        subject,
-      )}&body=${encodeURIComponent(body)}`
-      window.open(mailtoLink, "_blank")
+      // Here you would integrate with your email service (EmailJS, SendGrid, etc.)
+      // For now, we'll simulate the email sending
+      console.log("Sending email to:", recipient.applicantEmail)
+      console.log("Subject:", personalizedSubject)
+      console.log("Body:", personalizedBody)
+
+      // Simulate email sending delay
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       toast({
-        title: "📧 Email Sent & Status Updated",
-        description: `${emailType === "shortlisted" ? "Shortlist" : "Rejection"} email prepared and status updated for ${applicantName}`,
+        title: "📧 Email Sent Successfully",
+        description: `${emailType === "shortlist" ? "Shortlist" : "Rejection"} email sent to ${recipient.applicantName}`,
       })
-
-      // Refresh data
-      fetchJobApplications()
-      setIsEmailPreviewModalOpen(false)
-      setCurrentEmailDraft(null)
-      setSelectedApplication((prev) => (prev ? { ...prev, status: newStatus } : null)) // Update selected application status in modal if open
     } catch (error) {
-      console.error("Error sending email and updating status:", error)
+      console.error("Error sending email:", error)
       toast({
         title: "Error",
-        description: "Failed to send email and update status",
+        description: "Failed to send email",
         variant: "destructive",
       })
-    }
-  }
-
-  const updateApplicationStatus = async (applicationId: string, status: string) => {
-    const application = jobApplications.find((app) => app.id === applicationId)
-    if (!application) return
-
-    if (status === "shortlisted" || status === "rejected") {
-      openEmailPreviewModal(application, status)
-    } else {
-      try {
-        await updateDoc(doc(db, "jobApplications", applicationId), { status })
-        fetchJobApplications()
-        toast({
-          title: "✅ Success",
-          description: "Application status updated successfully",
-        })
-      } catch (error) {
-        console.error("Error updating application status:", error)
-        toast({
-          title: "Error",
-          description: "Failed to update application status",
-          variant: "destructive",
-        })
-      }
     }
   }
 
@@ -625,9 +581,8 @@ You can reply to this email for any questions or feedback.`,
       })
 
       // Here you would send the actual email
-      // For Outlook, you could open a mailto link here as well if desired
-      const mailtoLink = `mailto:${selectedReply.applicantEmail}?subject=${encodeURIComponent(`Re: ${selectedReply.subject}`)}&body=${encodeURIComponent(replyMessage)}`
-      window.open(mailtoLink, "_blank")
+      console.log("Sending reply to:", selectedReply.applicantEmail)
+      console.log("Reply message:", replyMessage)
 
       toast({
         title: "✅ Reply Sent",
@@ -762,17 +717,12 @@ You can reply to this email for any questions or feedback.`,
   }
 
   const handleResumeDownload = (application: JobApplication) => {
-    const data = application.applicationData
-
-    if (data?.resumeType === "link" && data?.resumeLink) {
-      window.open(data.resumeLink, "_blank")
-    } else if (data?.resumeType === "upload" && data?.resumeUrl) {
-      window.open(data.resumeUrl, "_blank")
-    } else {
+    if (application.applicationData?.resumeType === "link" && application.applicationData?.resumeLink) {
+      window.open(application.applicationData.resumeLink, "_blank")
+    } else if (application.applicationData?.resumeFile) {
       toast({
-        title: "Resume not available",
-        description: "This applicant has not uploaded or linked a resume.",
-        variant: "destructive",
+        title: "Resume File",
+        description: `Resume file: ${application.applicationData.resumeFileName || "resume.pdf"}`,
       })
     }
   }
@@ -796,81 +746,85 @@ You can reply to this email for any questions or feedback.`,
   return (
     <SimpleAdminLayout>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="container mx-auto px-6 py-8">
-          {/* Header Section */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                <Briefcase className="h-8 w-8 text-white" />
+        <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+          {/* Header Section - Responsive */}
+          <div className="mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4">
+              <div className="p-2 sm:p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+                <Briefcase className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
               </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent leading-tight">
                   Career Management Hub
                 </h1>
-                <p className="text-gray-600 mt-2 text-lg">
+                <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base md:text-lg">
                   Manage your careers page, job openings, candidate applications, and email communications
                 </p>
               </div>
             </div>
           </div>
 
-          <Tabs defaultValue="settings" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg rounded-xl p-1">
+          <Tabs defaultValue="settings" className="space-y-6 sm:space-y-8">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-white/80 backdrop-blur-sm border border-gray-200 shadow-lg rounded-xl p-1 h-auto gap-1">
               <TabsTrigger
                 value="settings"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm py-2 px-1"
               >
-                <Settings className="h-4 w-4 mr-2" />
-                Career Settings
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Career Settings</span>
+                <span className="sm:hidden">Settings</span>
               </TabsTrigger>
               <TabsTrigger
                 value="jobs"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm py-2 px-1"
               >
-                <Briefcase className="h-4 w-4 mr-2" />
-                Job Openings ({jobOpenings.length})
+                <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Job Openings ({jobOpenings.length})</span>
+                <span className="sm:hidden">Jobs ({jobOpenings.length})</span>
               </TabsTrigger>
               <TabsTrigger
                 value="applications"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm py-2 px-1"
               >
-                <Users className="h-4 w-4 mr-2" />
-                Applications ({stats.total})
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Applications ({stats.total})</span>
+                <span className="sm:hidden">Apps ({stats.total})</span>
                 {stats.pending > 0 && (
-                  <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
-                    {stats.pending} new
+                  <Badge variant="secondary" className="ml-1 sm:ml-2 bg-amber-100 text-amber-800 text-xs px-1">
+                    {stats.pending}
                   </Badge>
                 )}
               </TabsTrigger>
-              {/* <TabsTrigger
+              <TabsTrigger
                 value="emails"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm py-2 px-1"
               >
-                <Mail className="h-4 w-4 mr-2" />
-                Email Replies
+                <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Email Replies</span>
+                <span className="sm:hidden">Emails</span>
                 {unreadReplies > 0 && (
-                  <Badge variant="secondary" className="ml-2 bg-red-100 text-red-800">
-                    {unreadReplies} new
+                  <Badge variant="secondary" className="ml-1 sm:ml-2 bg-red-100 text-red-800 text-xs px-1">
+                    {unreadReplies}
                   </Badge>
                 )}
-              </TabsTrigger> */}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="settings">
-              <div className="space-y-6">
-                {/* Basic Settings */}
+              <div className="space-y-4 sm:space-y-6">
+                {/* Basic Settings - Responsive */}
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
-                    <CardTitle className="flex items-center gap-3 text-2xl">
-                      <Settings className="h-6 w-6" />
+                  <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl md:text-2xl">
+                      <Settings className="h-5 w-5 sm:h-6 sm:w-6" />
                       Basic Company Information
                     </CardTitle>
-                    <CardDescription className="text-blue-100">
+                    <CardDescription className="text-blue-100 text-sm sm:text-base">
                       Configure the basic information and contact details for your careers page
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-8 space-y-8">
-                    <div className="grid grid-cols-2 gap-6">
+                  <CardContent className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div className="space-y-2">
                         <Label htmlFor="companyName" className="text-sm font-semibold text-gray-700">
                           Company Name
@@ -966,25 +920,39 @@ You can reply to this email for any questions or feedback.`,
                   </CardContent>
                 </Card>
 
-                {/* Content Management */}
+                {/* Content Management - Responsive */}
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-lg">
-                    <CardTitle className="flex items-center gap-3 text-2xl">
-                      <FileText className="h-6 w-6" />
+                  <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-lg p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl md:text-2xl">
+                      <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
                       Career Page Content
                     </CardTitle>
-                    <CardDescription className="text-emerald-100">
+                    <CardDescription className="text-emerald-100 text-sm sm:text-base">
                       Manage detailed content for your careers page
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-8">
-                    <Tabs value={activeContentTab} onValueChange={setActiveContentTab} className="space-y-6">
-                      <TabsList className="grid w-full grid-cols-5">
-                        <TabsTrigger value="about">About Company</TabsTrigger>
-                        <TabsTrigger value="culture">Work Culture</TabsTrigger>
-                        <TabsTrigger value="growth">Career Growth</TabsTrigger>
-                        <TabsTrigger value="benefits">Benefits</TabsTrigger>
-                        <TabsTrigger value="social">Social Links</TabsTrigger>
+                  <CardContent className="p-4 sm:p-6 md:p-8">
+                    <Tabs
+                      value={activeContentTab}
+                      onValueChange={setActiveContentTab}
+                      className="space-y-4 sm:space-y-6"
+                    >
+                      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 h-auto">
+                        <TabsTrigger value="about" className="text-xs sm:text-sm py-2">
+                          About Company
+                        </TabsTrigger>
+                        <TabsTrigger value="culture" className="text-xs sm:text-sm py-2">
+                          Work Culture
+                        </TabsTrigger>
+                        <TabsTrigger value="growth" className="text-xs sm:text-sm py-2">
+                          Career Growth
+                        </TabsTrigger>
+                        <TabsTrigger value="benefits" className="text-xs sm:text-sm py-2">
+                          Benefits
+                        </TabsTrigger>
+                        <TabsTrigger value="social" className="text-xs sm:text-sm py-2">
+                          Social Links
+                        </TabsTrigger>
                       </TabsList>
 
                       <TabsContent value="about" className="space-y-4">
@@ -1047,7 +1015,7 @@ You can reply to this email for any questions or feedback.`,
                                 variant="outline"
                                 size="sm"
                                 onClick={() => removeBenefit(index)}
-                                className="border-red-300 text-red-600 hover:bg-red-50"
+                                className="border-red-300 text-red-600 hover:bg-red-50 flex-shrink-0"
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -1066,7 +1034,7 @@ You can reply to this email for any questions or feedback.`,
                       </TabsContent>
 
                       <TabsContent value="social" className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="linkedin" className="text-sm font-semibold text-gray-700">
                               LinkedIn URL
@@ -1148,34 +1116,35 @@ You can reply to this email for any questions or feedback.`,
             </TabsContent>
 
             <TabsContent value="jobs">
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                  <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
                     Job Openings Management
                   </h2>
                   <Button
                     onClick={() => setIsAddingJob(true)}
-                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-4 py-2 sm:px-6 sm:py-3 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-[1.02] w-full sm:w-auto"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add New Job Opening
+                    <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add New Job Opening</span>
+                    <span className="sm:hidden">Add Job Opening</span>
                   </Button>
                 </div>
 
-                {/* Add New Job Form */}
+                {/* Add New Job Form - Responsive */}
                 {isAddingJob && (
                   <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                    <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-lg">
-                      <CardTitle className="flex items-center gap-3">
-                        <Plus className="h-5 w-5" />
+                    <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-lg p-4 sm:p-6">
+                      <CardTitle className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl">
+                        <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
                         Add New Job Opening
                       </CardTitle>
-                      <CardDescription className="text-emerald-100">
+                      <CardDescription className="text-emerald-100 text-sm sm:text-base">
                         Create a new job opening for your careers page
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="p-6 space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
+                    <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="newJobTitle" className="text-sm font-semibold text-gray-700">
                             Job Title
@@ -1199,7 +1168,7 @@ You can reply to this email for any questions or feedback.`,
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="newJobLocation" className="text-sm font-semibold text-gray-700">
                             Location
@@ -1256,7 +1225,7 @@ You can reply to this email for any questions or feedback.`,
                                   setNewJob((prev) => ({ ...prev, requirements: reqs })),
                                 )
                               }
-                              className="border-red-300 text-red-600 hover:bg-red-50"
+                              className="border-red-300 text-red-600 hover:bg-red-50 flex-shrink-0"
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -1276,17 +1245,17 @@ You can reply to this email for any questions or feedback.`,
                           Add Requirement
                         </Button>
                       </div>
-                      <div className="flex justify-end gap-3">
+                      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                         <Button
                           variant="outline"
                           onClick={() => setIsAddingJob(false)}
-                          className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                          className="border-gray-300 text-gray-600 hover:bg-gray-50 w-full sm:w-auto"
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={addJobOpening}
-                          className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                          className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white w-full sm:w-auto"
                         >
                           Add Job Opening
                         </Button>
@@ -1295,48 +1264,50 @@ You can reply to this email for any questions or feedback.`,
                   </Card>
                 )}
 
-                {/* Job Openings List */}
-                <div className="grid gap-6">
+                {/* Job Openings List - Responsive */}
+                <div className="grid gap-4 sm:gap-6">
                   {jobOpenings.map((job) => (
                     <Card
                       key={job.id}
                       className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="flex items-center gap-3 text-xl">
-                              <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
-                                <Briefcase className="h-5 w-5 text-white" />
+                      <CardHeader className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-lg sm:text-xl">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="p-1.5 sm:p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex-shrink-0">
+                                  <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                                </div>
+                                <span className="truncate">{job.title}</span>
                               </div>
-                              {job.title}
                               <Badge
                                 variant={job.isActive ? "default" : "secondary"}
                                 className={`${
                                   job.isActive
                                     ? "bg-emerald-100 text-emerald-800 border-emerald-200"
                                     : "bg-gray-100 text-gray-800 border-gray-200"
-                                } border`}
+                                } border text-xs sm:text-sm`}
                               >
                                 {job.isActive ? "Active" : "Inactive"}
                               </Badge>
                             </CardTitle>
-                            <CardDescription className="flex items-center gap-4 mt-2 text-base">
+                            <CardDescription className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-sm sm:text-base">
                               <span className="flex items-center gap-1">
-                                <Briefcase className="h-4 w-4" />
+                                <Briefcase className="h-3 w-3 sm:h-4 sm:w-4" />
                                 {job.department}
                               </span>
                               <span className="flex items-center gap-1">
-                                <MapPin className="h-4 w-4" />
+                                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                                 {job.location}
                               </span>
                               <span className="flex items-center gap-1">
-                                <Clock className="h-4 w-4" />
+                                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                                 {job.type}
                               </span>
                             </CardDescription>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                             <Switch
                               checked={job.isActive}
                               onCheckedChange={(checked) => toggleJobStatus(job.id, checked)}
@@ -1345,24 +1316,26 @@ You can reply to this email for any questions or feedback.`,
                               variant="outline"
                               size="sm"
                               onClick={() => setIsEditingJob(job.id)}
-                              className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                              className="border-blue-300 text-blue-600 hover:bg-blue-50 flex-1 sm:flex-none"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-0 sm:only:mr-0" />
+                              <span className="sm:hidden">Edit</span>
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => deleteJobOpening(job.id)}
-                              className="border-red-300 text-red-600 hover:bg-red-50"
+                              className="border-red-300 text-red-600 hover:bg-red-50 flex-1 sm:flex-none"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-0 sm:only:mr-0" />
+                              <span className="sm:hidden">Delete</span>
                             </Button>
                           </div>
                         </div>
                       </CardHeader>
                       {isEditingJob === job.id ? (
-                        <CardContent className="space-y-4 border-t bg-gray-50/50">
-                          <div className="grid grid-cols-2 gap-4">
+                        <CardContent className="space-y-4 border-t bg-gray-50/50 p-4 sm:p-6">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <Label className="text-sm font-semibold text-gray-700">Job Title</Label>
                               <Input
@@ -1388,7 +1361,7 @@ You can reply to this email for any questions or feedback.`,
                               />
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <Label className="text-sm font-semibold text-gray-700">Location</Label>
                               <Input
@@ -1450,7 +1423,7 @@ You can reply to this email for any questions or feedback.`,
                                       prev.map((j) => (j.id === job.id ? { ...j, requirements: updatedReqs } : j)),
                                     )
                                   }}
-                                  className="border-red-300 text-red-600 hover:bg-red-50"
+                                  className="border-red-300 text-red-600 hover:bg-red-50 flex-shrink-0"
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -1471,28 +1444,28 @@ You can reply to this email for any questions or feedback.`,
                               Add Requirement
                             </Button>
                           </div>
-                          <div className="flex justify-end gap-3 pt-4">
+                          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4">
                             <Button
                               variant="outline"
                               onClick={() => setIsEditingJob(null)}
-                              className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                              className="border-gray-300 text-gray-600 hover:bg-gray-50 w-full sm:w-auto"
                             >
                               Cancel
                             </Button>
                             <Button
                               onClick={() => updateJobOpening(job.id, job)}
-                              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white w-full sm:w-auto"
                             >
                               Save Changes
                             </Button>
                           </div>
                         </CardContent>
                       ) : (
-                        <CardContent>
-                          <p className="text-gray-700 mb-4 leading-relaxed">{job.description}</p>
+                        <CardContent className="p-4 sm:p-6">
+                          <p className="text-gray-700 mb-4 leading-relaxed text-sm sm:text-base">{job.description}</p>
                           <div>
-                            <h4 className="font-semibold mb-3 text-gray-900">Requirements:</h4>
-                            <ul className="list-disc list-inside space-y-2 text-gray-600">
+                            <h4 className="font-semibold mb-3 text-gray-900 text-sm sm:text-base">Requirements:</h4>
+                            <ul className="list-disc list-inside space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
                               {job.requirements.map((req, index) => (
                                 <li key={index} className="leading-relaxed">
                                   {req}
@@ -1508,9 +1481,9 @@ You can reply to this email for any questions or feedback.`,
 
                 {jobOpenings.length === 0 && (
                   <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                    <CardContent className="text-center py-12">
-                      <Briefcase className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 text-lg">
+                    <CardContent className="text-center py-8 sm:py-12">
+                      <Briefcase className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-base sm:text-lg">
                         No job openings created yet. Add your first job opening to get started.
                       </p>
                     </CardContent>
@@ -1520,72 +1493,72 @@ You can reply to this email for any questions or feedback.`,
             </TabsContent>
 
             <TabsContent value="applications">
-              <div className="space-y-6">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="space-y-4 sm:space-y-6">
+                {/* Stats Cards - Responsive Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                   <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 shadow-lg">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-100 text-sm">Total</p>
-                          <p className="text-2xl font-bold">{stats.total}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-blue-100 text-xs sm:text-sm truncate">Total</p>
+                          <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
                         </div>
-                        <Users className="h-8 w-8 text-blue-200" />
+                        <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-200 flex-shrink-0" />
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-r from-amber-500 to-amber-600 text-white border-0 shadow-lg">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-amber-100 text-sm">Pending</p>
-                          <p className="text-2xl font-bold">{stats.pending}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-amber-100 text-xs sm:text-sm truncate">Pending</p>
+                          <p className="text-xl sm:text-2xl font-bold">{stats.pending}</p>
                         </div>
-                        <AlertCircle className="h-8 w-8 text-amber-200" />
+                        <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-amber-200 flex-shrink-0" />
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 shadow-lg">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-100 text-sm">Reviewed</p>
-                          <p className="text-2xl font-bold">{stats.reviewed}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-blue-100 text-xs sm:text-sm truncate">Reviewed</p>
+                          <p className="text-xl sm:text-2xl font-bold">{stats.reviewed}</p>
                         </div>
-                        <Eye className="h-8 w-8 text-blue-200" />
+                        <Eye className="h-6 w-6 sm:h-8 sm:w-8 text-blue-200 flex-shrink-0" />
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-0 shadow-lg">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-emerald-100 text-sm">Shortlisted</p>
-                          <p className="text-2xl font-bold">{stats.shortlisted}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-emerald-100 text-xs sm:text-sm truncate">Shortlisted</p>
+                          <p className="text-xl sm:text-2xl font-bold">{stats.shortlisted}</p>
                         </div>
-                        <CheckCircle className="h-8 w-8 text-emerald-200" />
+                        <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-emerald-200 flex-shrink-0" />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg">
-                    <CardContent className="p-4">
+                  <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg col-span-2 sm:col-span-1">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-red-100 text-sm">Rejected</p>
-                          <p className="text-2xl font-bold">{stats.rejected}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-red-100 text-xs sm:text-sm truncate">Rejected</p>
+                          <p className="text-xl sm:text-2xl font-bold">{stats.rejected}</p>
                         </div>
-                        <XCircle className="h-8 w-8 text-red-200" />
+                        <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-200 flex-shrink-0" />
                       </div>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Filters */}
+                {/* Filters - Responsive */}
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <Filter className="h-5 w-5 text-gray-600" />
-                      <div className="flex gap-4 flex-1">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                      <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 flex-shrink-0" />
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1 w-full">
                         <div className="flex-1">
                           <Label className="text-sm font-semibold text-gray-700">Filter by Job</Label>
                           <Select value={selectedJobFilter} onValueChange={setSelectedJobFilter}>
@@ -1622,56 +1595,63 @@ You can reply to this email for any questions or feedback.`,
                   </CardContent>
                 </Card>
 
-                {/* Applications List */}
-                <div className="space-y-4">
+                {/* Applications List - Responsive */}
+                <div className="space-y-3 sm:space-y-4">
                   {filteredApplications.map((application) => (
                     <Card
                       key={application.id}
                       className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="flex items-center gap-3 text-xl">
-                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
-                                <Users className="h-5 w-5 text-white" />
+                      <CardHeader className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-lg sm:text-xl">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="p-1.5 sm:p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg flex-shrink-0">
+                                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                                </div>
+                                <span className="truncate">{application.applicantName}</span>
                               </div>
-                              {application.applicantName}
-                              <Badge className={`${getStatusColor(application.status)} border font-medium`}>
+                              <Badge
+                                className={`${getStatusColor(application.status)} border font-medium text-xs sm:text-sm`}
+                              >
                                 {getStatusIcon(application.status)}
                                 <span className="ml-1">{application.status || "pending"}</span>
                               </Badge>
                             </CardTitle>
-                            <CardDescription className="text-base mt-2">
+                            <CardDescription className="text-sm sm:text-base mt-2">
                               Applied for: <span className="font-semibold text-gray-700">{application.jobTitle}</span> •{" "}
                               {application.appliedAt?.toDate?.()?.toLocaleDateString() || "Recently"}
                             </CardDescription>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setSelectedApplication(application)}
-                              className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                              className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs sm:text-sm"
                             >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View Details
+                              <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                              <span className="hidden sm:inline">View Details</span>
+                              <span className="sm:hidden">Details</span>
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleResumeDownload(application)}
-                              className="border-green-300 text-green-600 hover:bg-green-50"
+                              className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm"
                             >
                               {application.applicationData?.resumeType === "link" ? (
                                 <>
-                                  <ExternalLink className="h-4 w-4 mr-1" />
-                                  View Resume
+                                  <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                  <span className="hidden sm:inline">View Resume</span>
+                                  <span className="sm:hidden">Resume</span>
                                 </>
                               ) : (
                                 <>
-                                  <Download className="h-4 w-4 mr-1" />
-                                  Resume
+                                  <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                  <span className="hidden sm:inline">Resume</span>
+                                  <span className="sm:hidden">Resume</span>
                                 </>
                               )}
                             </Button>
@@ -1679,81 +1659,83 @@ You can reply to this email for any questions or feedback.`,
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                const whatsappUrl = `https://wa.me/${application.applicantPhone?.replace(/\D/g, "")}`
+                                const whatsappUrl = `https://wa.me/${application.applicationData?.phone?.replace(/\D/g, "")}`
                                 window.open(whatsappUrl, "_blank")
                               }}
-                              className="border-green-300 text-green-600 hover:bg-green-50"
+                              className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm"
                             >
-                              <MessageCircle className="h-4 w-4 mr-1" />
+                              <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                               Contact
                             </Button>
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm mb-4">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Email:</span>
-                            <p className="text-gray-900 mt-1">{application.applicantEmail}</p>
+                            <p className="text-gray-900 mt-1 truncate">{application.applicantEmail}</p>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Phone:</span>
                             <p className="text-gray-900 mt-1">{application.applicantPhone}</p>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Experience:</span>
-                            <p className="text-gray-900 mt-1">
+                            <p className="text-gray-900 mt-1 truncate">
                               {application.applicationData?.totalExperience || "Not specified"}
                             </p>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Expected Salary:</span>
-                            <p className="text-gray-900 mt-1">
+                            <p className="text-gray-900 mt-1 truncate">
                               {application.applicationData?.expectedSalary || "Not specified"}
                             </p>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Resume Type:</span>
                             <p className="text-gray-900 mt-1">
                               {application.applicationData?.resumeType === "upload" ? "File Upload" : "Drive Link"}
                             </p>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                             <span className="font-medium text-gray-600">Availability:</span>
-                            <p className="text-gray-900 mt-1">
+                            <p className="text-gray-900 mt-1 truncate">
                               {application.applicationData?.availability || "Not specified"}
                             </p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => updateApplicationStatus(application.id, "reviewed")}
                             disabled={application.status === "reviewed"}
-                            className="border-blue-300 text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50 disabled:opacity-50 text-xs sm:text-sm"
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Mark as Reviewed
+                            <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                            <span className="hidden sm:inline">Mark as Reviewed</span>
+                            <span className="sm:hidden">Reviewed</span>
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => updateApplicationStatus(application.id, "shortlisted")}
                             disabled={application.status === "shortlisted"}
-                            className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                            className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 text-xs sm:text-sm"
                           >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Shortlist & Auto Email
+                            <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                            <span className="hidden sm:inline">Shortlist & Auto Email</span>
+                            <span className="sm:hidden">Shortlist</span>
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => updateApplicationStatus(application.id, "rejected")}
                             disabled={application.status === "rejected"}
-                            className="border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            className="border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs sm:text-sm"
                           >
-                            <XCircle className="h-4 w-4 mr-1" />
+                            <XCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                             Reject
                           </Button>
                         </div>
@@ -1764,14 +1746,14 @@ You can reply to this email for any questions or feedback.`,
 
                 {filteredApplications.length === 0 && (
                   <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                    <CardContent className="text-center py-12">
-                      <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 text-lg">
+                    <CardContent className="text-center py-8 sm:py-12">
+                      <Users className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-base sm:text-lg">
                         {jobApplications.length === 0
                           ? "No job applications received yet."
                           : "No applications match your current filters."}
                       </p>
-                      <p className="text-sm text-gray-400 mt-2">
+                      <p className="text-xs sm:text-sm text-gray-400 mt-2">
                         {jobApplications.length === 0
                           ? "Applications will appear here when candidates apply for your job openings."
                           : "Try adjusting your filters to see more results."}
@@ -1783,18 +1765,18 @@ You can reply to this email for any questions or feedback.`,
             </TabsContent>
 
             <TabsContent value="emails">
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                  <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
                     Email Replies Management
                   </h2>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs sm:text-sm">
                     {emailReplies.length} Total Replies
                   </Badge>
                 </div>
 
-                {/* Email Replies List */}
-                <div className="space-y-4">
+                {/* Email Replies List - Responsive */}
+                <div className="space-y-3 sm:space-y-4">
                   {emailReplies.map((reply) => (
                     <Card
                       key={reply.id}
@@ -1802,27 +1784,33 @@ You can reply to this email for any questions or feedback.`,
                         !reply.isRead && !reply.isFromAdmin ? "ring-2 ring-blue-500" : ""
                       }`}
                     >
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="flex items-center gap-3 text-xl">
-                              <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
-                                <Mail className="h-5 w-5 text-white" />
+                      <CardHeader className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-lg sm:text-xl">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="p-1.5 sm:p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex-shrink-0">
+                                  <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                                </div>
+                                <span className="truncate">{reply.applicantName}</span>
                               </div>
-                              {reply.applicantName}
-                              {!reply.isRead && !reply.isFromAdmin && (
-                                <Badge className="bg-red-100 text-red-800 border-red-200">New Reply</Badge>
-                              )}
-                              {reply.isFromAdmin && (
-                                <Badge className="bg-green-100 text-green-800 border-green-200">Admin Reply</Badge>
-                              )}
+                              <div className="flex flex-wrap gap-1 sm:gap-2">
+                                {!reply.isRead && !reply.isFromAdmin && (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">New Reply</Badge>
+                                )}
+                                {reply.isFromAdmin && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                    Admin Reply
+                                  </Badge>
+                                )}
+                              </div>
                             </CardTitle>
-                            <CardDescription className="text-base mt-2">
+                            <CardDescription className="text-sm sm:text-base mt-2">
                               Subject: <span className="font-semibold text-gray-700">{reply.subject}</span> •{" "}
                               {reply.receivedAt?.toDate?.()?.toLocaleDateString() || "Recently"}
                             </CardDescription>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                             <Button
                               variant="outline"
                               size="sm"
@@ -1832,10 +1820,11 @@ You can reply to this email for any questions or feedback.`,
                                   markReplyAsRead(reply.id)
                                 }
                               }}
-                              className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                              className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs sm:text-sm"
                             >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View Full Message
+                              <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                              <span className="hidden sm:inline">View Full Message</span>
+                              <span className="sm:hidden">View</span>
                             </Button>
                             {!reply.isFromAdmin && (
                               <Button
@@ -1848,21 +1837,21 @@ You can reply to this email for any questions or feedback.`,
                                     markReplyAsRead(reply.id)
                                   }
                                 }}
-                                className="border-green-300 text-green-600 hover:bg-green-50"
+                                className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm"
                               >
-                                <Reply className="h-4 w-4 mr-1" />
+                                <Reply className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                                 Reply
                               </Button>
                             )}
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-2">
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                          <p className="text-xs sm:text-sm text-gray-600 mb-2">
                             <strong>From:</strong> {reply.applicantEmail}
                           </p>
-                          <p className="text-gray-900 line-clamp-3">{reply.message}</p>
+                          <p className="text-gray-900 line-clamp-3 text-sm sm:text-base">{reply.message}</p>
                         </div>
                       </CardContent>
                     </Card>
@@ -1871,10 +1860,10 @@ You can reply to this email for any questions or feedback.`,
 
                 {emailReplies.length === 0 && (
                   <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                    <CardContent className="text-center py-12">
-                      <Mail className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 text-lg">No email replies received yet.</p>
-                      <p className="text-sm text-gray-400 mt-2">
+                    <CardContent className="text-center py-8 sm:py-12">
+                      <Mail className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-base sm:text-lg">No email replies received yet.</p>
+                      <p className="text-xs sm:text-sm text-gray-400 mt-2">
                         Email replies from candidates will appear here when they respond to your emails.
                       </p>
                     </CardContent>
@@ -1884,23 +1873,22 @@ You can reply to this email for any questions or feedback.`,
             </TabsContent>
           </Tabs>
 
-          {/* Reply Modal */}
+          {/* Reply Modal - Responsive */}
           {isReplyModalOpen && selectedReply && (
             <Dialog open={isReplyModalOpen} onOpenChange={setIsReplyModalOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-auto">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Reply className="h-5 w-5" />
+                  <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Reply className="h-4 w-4 sm:h-5 sm:w-5" />
                     Reply to {selectedReply.applicantName}
                   </DialogTitle>
-                  <DialogDescription>Review the original message and compose your reply.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-2">
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2">
                       <strong>Original Message:</strong>
                     </p>
-                    <p className="text-gray-900">{selectedReply.message}</p>
+                    <p className="text-gray-900 text-sm sm:text-base">{selectedReply.message}</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="replyMessage" className="text-sm font-semibold">
@@ -1911,10 +1899,10 @@ You can reply to this email for any questions or feedback.`,
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply here..."
-                      className="min-h-[150px] border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
+                      className="min-h-[120px] sm:min-h-[150px] border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg text-sm sm:text-base"
                     />
                   </div>
-                  <div className="flex justify-end gap-3">
+                  <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -1922,15 +1910,16 @@ You can reply to this email for any questions or feedback.`,
                         setReplyMessage("")
                         setSelectedReply(null)
                       }}
+                      className="w-full sm:w-auto"
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={sendReplyToApplicant}
                       disabled={!replyMessage.trim()}
-                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white w-full sm:w-auto"
                     >
-                      <Send className="h-4 w-4 mr-2" />
+                      <Send className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                       Send Reply
                     </Button>
                   </div>
@@ -1939,86 +1928,23 @@ You can reply to this email for any questions or feedback.`,
             </Dialog>
           )}
 
-          {/* Email Preview and Send Modal */}
-          {isEmailPreviewModalOpen && currentEmailDraft && (
-            <Dialog open={isEmailPreviewModalOpen} onOpenChange={setIsEmailPreviewModalOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
-                    Prepare Email for {currentEmailDraft.applicantName}
-                  </DialogTitle>
-                  <DialogDescription>Review and edit the email content before sending.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="emailSubject" className="text-sm font-semibold">
-                      Subject
-                    </Label>
-                    <Input
-                      id="emailSubject"
-                      value={currentEmailDraft.subject}
-                      onChange={(e) =>
-                        setCurrentEmailDraft((prev) => (prev ? { ...prev, subject: e.target.value } : null))
-                      }
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="emailBody" className="text-sm font-semibold">
-                      Body
-                    </Label>
-                    <Textarea
-                      id="emailBody"
-                      value={currentEmailDraft.body}
-                      onChange={(e) =>
-                        setCurrentEmailDraft((prev) => (prev ? { ...prev, body: e.target.value } : null))
-                      }
-                      placeholder="Type your email message here..."
-                      className="min-h-[200px] border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsEmailPreviewModalOpen(false)
-                        setCurrentEmailDraft(null)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={confirmSendEmailAndUpdateStatus}
-                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Email & Update
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* View Reply Modal */}
+          {/* View Reply Modal - Responsive */}
           {selectedReply && !isReplyModalOpen && (
             <Dialog open={!!selectedReply} onOpenChange={() => setSelectedReply(null)}>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-auto">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
+                  <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Mail className="h-4 w-4 sm:h-5 sm:w-5" />
                     Email from {selectedReply.applicantName}
                   </DialogTitle>
-                  <DialogDescription>View the full message from the applicant.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                    <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                       <span className="font-medium text-gray-600">From:</span>
-                      <p className="text-gray-900 mt-1">{selectedReply.applicantEmail}</p>
+                      <p className="text-gray-900 mt-1 truncate">{selectedReply.applicantEmail}</p>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                       <span className="font-medium text-gray-600">Received:</span>
                       <p className="text-gray-900 mt-1">
                         {selectedReply.receivedAt?.toDate?.()?.toLocaleString() || "Recently"}
@@ -2027,18 +1953,18 @@ You can reply to this email for any questions or feedback.`,
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject</Label>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-gray-900">{selectedReply.subject}</p>
+                    <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                      <p className="text-gray-900 text-sm sm:text-base">{selectedReply.subject}</p>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Message</Label>
-                    <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
-                      <p className="text-gray-900 whitespace-pre-wrap">{selectedReply.message}</p>
+                    <div className="bg-gray-50 p-3 sm:p-4 rounded-lg max-h-48 sm:max-h-64 overflow-y-auto">
+                      <p className="text-gray-900 whitespace-pre-wrap text-sm sm:text-base">{selectedReply.message}</p>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-3">
-                    <Button variant="outline" onClick={() => setSelectedReply(null)}>
+                  <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                    <Button variant="outline" onClick={() => setSelectedReply(null)} className="w-full sm:w-auto">
                       Close
                     </Button>
                     {!selectedReply.isFromAdmin && (
@@ -2046,9 +1972,9 @@ You can reply to this email for any questions or feedback.`,
                         onClick={() => {
                           setIsReplyModalOpen(true)
                         }}
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white w-full sm:w-auto"
                       >
-                        <Reply className="h-4 w-4 mr-2" />
+                        <Reply className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                         Reply
                       </Button>
                     )}
@@ -2058,45 +1984,49 @@ You can reply to this email for any questions or feedback.`,
             </Dialog>
           )}
 
-          {/* Application Details Modal */}
+          {/* Application Details Modal - Responsive */}
           {selectedApplication && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-                <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-pink-600 text-white p-6 rounded-t-xl">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-2xl font-bold">{selectedApplication.applicantName}</h2>
-                      <p className="text-purple-100 mt-1">Application for {selectedApplication.jobTitle}</p>
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+              <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-pink-600 text-white p-4 sm:p-6 rounded-t-xl">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-xl sm:text-2xl font-bold leading-tight">
+                        {selectedApplication.applicantName}
+                      </h2>
+                      <p className="text-purple-100 mt-1 text-sm sm:text-base">
+                        Application for {selectedApplication.jobTitle}
+                      </p>
                     </div>
                     <button
                       onClick={() => setSelectedApplication(null)}
-                      className="text-purple-100 hover:text-white transition-colors"
+                      className="text-purple-100 hover:text-white transition-colors flex-shrink-0"
                     >
-                      <X className="h-6 w-6" />
+                      <X className="h-5 w-5 sm:h-6 sm:w-6" />
                     </button>
                   </div>
                 </div>
-                <div className="p-6 space-y-6">
+                <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                   {/* Personal Information */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <Users className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Personal Information
                     </h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Name:</span>
                         <p className="text-gray-900 mt-1">{selectedApplication.applicantName}</p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Email:</span>
-                        <p className="text-gray-900 mt-1">{selectedApplication.applicantEmail}</p>
+                        <p className="text-gray-900 mt-1 truncate">{selectedApplication.applicantEmail}</p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Phone:</span>
                         <p className="text-gray-900 mt-1">{selectedApplication.applicantPhone}</p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Location:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.city}, {selectedApplication.applicationData?.state}
@@ -2107,42 +2037,42 @@ You can reply to this email for any questions or feedback.`,
 
                   {/* Professional Information */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <Briefcase className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Professional Information
                     </h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Current Role:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.currentJobTitle || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Current Company:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.currentCompany || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Total Experience:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.totalExperience || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Relevant Experience:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.relevantExperience || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Expected Salary:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.expectedSalary || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Notice Period:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.noticePeriod || "Not specified"}
@@ -2153,24 +2083,24 @@ You can reply to this email for any questions or feedback.`,
 
                   {/* Education */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <Star className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Star className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Education
                     </h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Highest Education:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.highestEducation || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">University:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.university || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Graduation Year:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.graduationYear || "Not specified"}
@@ -2181,16 +2111,16 @@ You can reply to this email for any questions or feedback.`,
 
                   {/* Resume Section */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <Download className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Download className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Resume
                     </h3>
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg border border-blue-200">
                       {selectedApplication.applicationData?.resumeType === "link" ? (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-900">Resume Link:</p>
-                            <p className="text-sm text-gray-600 break-all mt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base">Resume Link:</p>
+                            <p className="text-xs sm:text-sm text-gray-600 break-all mt-1">
                               {selectedApplication.applicationData?.resumeLink}
                             </p>
                           </div>
@@ -2198,17 +2128,17 @@ You can reply to this email for any questions or feedback.`,
                             variant="outline"
                             size="sm"
                             onClick={() => window.open(selectedApplication.applicationData?.resumeLink, "_blank")}
-                            className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
                           >
-                            <ExternalLink className="h-4 w-4 mr-1" />
+                            <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                             Open Link
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-900">Resume File:</p>
-                            <p className="text-sm text-gray-600 mt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base">Resume File:</p>
+                            <p className="text-xs sm:text-sm text-gray-600 mt-1">
                               {selectedApplication.applicationData?.resumeFileName || "resume.pdf"}
                             </p>
                           </div>
@@ -2216,9 +2146,9 @@ You can reply to this email for any questions or feedback.`,
                             variant="outline"
                             size="sm"
                             onClick={() => handleResumeDownload(selectedApplication)}
-                            className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
                           >
-                            <Download className="h-4 w-4 mr-1" />
+                            <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                             Download
                           </Button>
                         </div>
@@ -2231,45 +2161,45 @@ You can reply to this email for any questions or feedback.`,
                     selectedApplication.applicationData?.linkedinUrl ||
                     selectedApplication.applicationData?.githubUrl) && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <ExternalLink className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                        <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                         Professional Links
                       </h3>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {selectedApplication.applicationData?.portfolioUrl && (
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <span className="font-medium text-gray-600">Portfolio:</span>
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                            <span className="font-medium text-gray-600 text-xs sm:text-sm">Portfolio:</span>
                             <a
                               href={selectedApplication.applicationData.portfolioUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline block mt-1 break-all"
+                              className="text-blue-600 hover:underline block mt-1 break-all text-xs sm:text-sm"
                             >
                               {selectedApplication.applicationData.portfolioUrl}
                             </a>
                           </div>
                         )}
                         {selectedApplication.applicationData?.linkedinUrl && (
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <span className="font-medium text-gray-600">LinkedIn:</span>
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                            <span className="font-medium text-gray-600 text-xs sm:text-sm">LinkedIn:</span>
                             <a
                               href={selectedApplication.applicationData.linkedinUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline block mt-1 break-all"
+                              className="text-blue-600 hover:underline block mt-1 break-all text-xs sm:text-sm"
                             >
                               {selectedApplication.applicationData.linkedinUrl}
                             </a>
                           </div>
                         )}
                         {selectedApplication.applicationData?.githubUrl && (
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <span className="font-medium text-gray-600">GitHub:</span>
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                            <span className="font-medium text-gray-600 text-xs sm:text-sm">GitHub:</span>
                             <a
                               href={selectedApplication.applicationData.githubUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline block mt-1 break-all"
+                              className="text-blue-600 hover:underline block mt-1 break-all text-xs sm:text-sm"
                             >
                               {selectedApplication.applicationData.githubUrl}
                             </a>
@@ -2282,12 +2212,12 @@ You can reply to this email for any questions or feedback.`,
                   {/* Cover Letter */}
                   {selectedApplication.applicationData?.coverLetter && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                         Cover Letter
                       </h3>
-                      <div className="bg-gray-50 p-4 rounded-lg border">
-                        <p className="text-sm whitespace-pre-wrap text-gray-900 leading-relaxed">
+                      <div className="bg-gray-50 p-3 sm:p-4 rounded-lg border">
+                        <p className="text-xs sm:text-sm whitespace-pre-wrap text-gray-900 leading-relaxed">
                           {selectedApplication.applicationData.coverLetter}
                         </p>
                       </div>
@@ -2296,18 +2226,18 @@ You can reply to this email for any questions or feedback.`,
 
                   {/* Additional Information */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Additional Information
                     </h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Availability:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.availability || "Not specified"}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                         <span className="font-medium text-gray-600">Willing to Relocate:</span>
                         <p className="text-gray-900 mt-1">
                           {selectedApplication.applicationData?.relocateWillingness || "Not specified"}
@@ -2317,12 +2247,12 @@ You can reply to this email for any questions or feedback.`,
                   </div>
 
                   {/* Status Update */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <Settings className="h-5 w-5 text-blue-600" />
+                  <div className="border-t pt-4 sm:pt-6">
+                    <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       Update Application Status
                     </h3>
-                    <div className="flex gap-3 flex-wrap">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
                       <Button
                         variant={selectedApplication.status === "pending" ? "default" : "outline"}
                         size="sm"
@@ -2332,11 +2262,11 @@ You can reply to this email for any questions or feedback.`,
                         }}
                         className={
                           selectedApplication.status === "pending"
-                            ? "bg-amber-500 hover:bg-amber-600 text-white"
-                            : "border-amber-300 text-amber-600 hover:bg-amber-50"
+                            ? "bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm"
+                            : "border-amber-300 text-amber-600 hover:bg-amber-50 text-xs sm:text-sm"
                         }
                       >
-                        <AlertCircle className="h-4 w-4 mr-1" />
+                        <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         Pending
                       </Button>
                       <Button
@@ -2348,11 +2278,11 @@ You can reply to this email for any questions or feedback.`,
                         }}
                         className={
                           selectedApplication.status === "reviewed"
-                            ? "bg-blue-500 hover:bg-blue-600 text-white"
-                            : "border-blue-300 text-blue-600 hover:bg-blue-50"
+                            ? "bg-blue-500 hover:bg-blue-600 text-white text-xs sm:text-sm"
+                            : "border-blue-300 text-blue-600 hover:bg-blue-50 text-xs sm:text-sm"
                         }
                       >
-                        <Eye className="h-4 w-4 mr-1" />
+                        <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         Reviewed
                       </Button>
                       <Button
@@ -2360,31 +2290,32 @@ You can reply to this email for any questions or feedback.`,
                         size="sm"
                         onClick={() => {
                           updateApplicationStatus(selectedApplication.id, "shortlisted")
-                          // Status update and email sending will be handled by the modal confirmation
+                          setSelectedApplication({ ...selectedApplication, status: "shortlisted" })
                         }}
                         className={
                           selectedApplication.status === "shortlisted"
-                            ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                            : "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm col-span-2 sm:col-span-1"
+                            : "border-emerald-300 text-emerald-600 hover:bg-emerald-50 text-xs sm:text-sm col-span-2 sm:col-span-1"
                         }
                       >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Shortlist & Auto Email
+                        <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        <span className="hidden sm:inline">Shortlist & Auto Email</span>
+                        <span className="sm:hidden">Shortlist</span>
                       </Button>
                       <Button
                         variant={selectedApplication.status === "rejected" ? "default" : "outline"}
                         size="sm"
                         onClick={() => {
                           updateApplicationStatus(selectedApplication.id, "rejected")
-                          // Status update and email sending will be handled by the modal confirmation
+                          setSelectedApplication({ ...selectedApplication, status: "rejected" })
                         }}
                         className={
                           selectedApplication.status === "rejected"
-                            ? "bg-red-500 hover:bg-red-600 text-white"
-                            : "border-red-300 text-red-600 hover:bg-red-50"
+                            ? "bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm"
+                            : "border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm"
                         }
                       >
-                        <XCircle className="h-4 w-4 mr-1" />
+                        <XCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         Reject
                       </Button>
                     </div>

@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { MapPin, Clock, Users, Briefcase, Star, Award, Heart, Target } from "lucide-react"
 import { useEffect, useState } from "react"
 import { collection, getDocs, doc, getDoc } from "firebase/firestore"
@@ -40,46 +38,6 @@ interface CareerSettings {
   heroTitle: string
   heroDescription: string
   generalApplicationText: string
-  companyEmail: string
-  hrEmail: string
-  companyAddress: string
-  benefits: string[]
-  companyValues: Array<{
-    title: string
-    description: string
-    icon: string
-  }>
-  perks: Array<{
-    title: string
-    description: string
-    icon: string
-  }>
-  aboutCompany: string
-  workCulture: string
-  careerGrowth: string
-  socialLinks: {
-    linkedin: string
-    twitter: string
-    facebook: string
-    instagram: string
-  }
-}
-
-// Helper to get Lucide icon component by name
-const iconMap: { [key: string]: React.ElementType } = {
-  users: Users,
-  briefcase: Briefcase,
-  clock: Clock,
-  "map-pin": MapPin,
-  heart: Heart,
-  star: Star,
-  award: Award,
-  target: Target,
-}
-
-const getIconComponent = (iconName: string) => {
-  const IconComponent = iconMap[iconName.toLowerCase()]
-  return IconComponent ? IconComponent : Star // Default to Star if not found
 }
 
 export default function CareersPage() {
@@ -101,21 +59,6 @@ export default function CareersPage() {
       "Join our mission to help businesses build better relationships with their customers. We're looking for talented individuals who share our passion for innovation and customer success.",
     generalApplicationText:
       "We're always interested in hearing from talented individuals. Send us your resume via WhatsApp.",
-    companyEmail: "",
-    hrEmail: "",
-    companyAddress: "",
-    benefits: [],
-    companyValues: [],
-    perks: [],
-    aboutCompany: "",
-    workCulture: "",
-    careerGrowth: "",
-    socialLinks: {
-      linkedin: "",
-      twitter: "",
-      facebook: "",
-      instagram: "",
-    },
   })
 
   const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null)
@@ -175,6 +118,63 @@ export default function CareersPage() {
     setIsApplicationModalOpen(true)
   }
 
+  const benefits = [
+    "Competitive salary and equity package",
+    "Comprehensive health, dental, and vision insurance",
+    "Flexible work arrangements and remote-friendly culture",
+    "Unlimited PTO and flexible working hours",
+    "Top-tier equipment and home office setup allowance",
+    "Team retreats and company events",
+    "Parental leave and family support benefits",
+    "Professional development and learning opportunities",
+  ]
+
+  const perks = [
+    {
+      icon: <Users className="h-8 w-8" style={{ color: theme.primaryColor }} />,
+      title: "Great Team",
+      description: "Work with talented, passionate people who care about making a difference.",
+    },
+    {
+      icon: <Briefcase className="h-8 w-8" style={{ color: theme.accentColor }} />,
+      title: "Growth Opportunities",
+      description: "Advance your career with mentorship, training, and leadership opportunities.",
+    },
+    {
+      icon: <Clock className="h-8 w-8" style={{ color: theme.primaryColor }} />,
+      title: "Work-Life Balance",
+      description: "Flexible schedules and remote work options to fit your lifestyle.",
+    },
+    {
+      icon: <MapPin className="h-8 w-8" style={{ color: theme.accentColor }} />,
+      title: "Remote-First",
+      description: "Work from anywhere with a distributed team across multiple time zones.",
+    },
+  ]
+
+  const companyValues = [
+    {
+      icon: <Heart className="h-6 w-6" style={{ color: theme.primaryColor }} />,
+      title: "Customer First",
+      description: "Everything we do is focused on helping our customers succeed.",
+    },
+    {
+      icon: <Star className="h-6 w-6" style={{ color: theme.accentColor }} />,
+      title: "Innovation",
+      description: "We continuously innovate to provide cutting-edge solutions.",
+    },
+    {
+      icon: <Award className="h-6 w-6" style={{ color: theme.primaryColor }} />,
+      title: "Excellence",
+      description: "We strive for excellence in everything we do.",
+    },
+    {
+      icon: <Target className="h-6 w-6" style={{ color: theme.accentColor }} />,
+      title: "Integrity",
+      description: "We operate with transparency and ethical practices.",
+    },
+  ]
+
   return (
     <>
       <div style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}>
@@ -228,145 +228,93 @@ export default function CareersPage() {
           </div>
         </div>
 
-              {/* About + Work Culture Section Side-by-Side */}
-          {(careerSettings.aboutCompany || careerSettings.workCulture) && (
-            <div className="flex flex-col lg:flex-row gap-8 px-4 sm:px-6 lg:px-8 py-20 justify-center items-start">
-              {/* About Company Section */}
-              {careerSettings.aboutCompany && (
-                <div className="flex-1 max-w-xl text-center">
-                  <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                    About {careerSettings.companyName}
-                  </h2>
-                  <p className="text-xl opacity-80 leading-relaxed">{careerSettings.aboutCompany}</p>
-                </div>
-              )}
-
-              {/* Work Culture Section */}
-              {careerSettings.workCulture && (
-                <div className="flex-1 max-w-xl text-center">
-                  <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                    Our Work Culture
-                  </h2>
-                  <p className="text-xl opacity-80 leading-relaxed">{careerSettings.workCulture}</p>
-                </div>
-              )}
+        {/* Why Work Here Section */}
+        <div className="py-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
+                Why Work at {careerSettings.companyName}?
+              </h2>
+              <p className="text-xl opacity-80 max-w-3xl mx-auto">
+                Join a team that values innovation, growth, and making a real impact in the business world.
+              </p>
             </div>
-          )}
-
-          {/* Career Growth Section */}
-          {careerSettings.careerGrowth && (
-            <div className="py-20 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: theme.secondaryColor + "20" }}>
-              <div className="max-w-6xl mx-auto text-center">
-                <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                  Career Growth Opportunities
-                </h2>
-                <p className="text-xl opacity-80 max-w-3xl mx-auto leading-relaxed">{careerSettings.careerGrowth}</p>
-              </div>
-            </div>
-          )}
-        
-
-        {/* Why Work Here Section (Perks) */}
-        {careerSettings.perks.length > 0 && (
-          <div className="py-20 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto">
-              <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                  Why Work at {careerSettings.companyName}?
-                </h2>
-                <p className="text-xl opacity-80 max-w-3xl mx-auto">
-                  Join a team that values innovation, growth, and making a real impact in the business world.
-                </p>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {careerSettings.perks.map((perk, index) => {
-                  const IconComponent = getIconComponent(perk.icon)
-                  return (
-                    <Card
-                      key={index}
-                      className="text-center border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                    >
-                      <CardContent className="p-8">
-                        <div className="mb-6 flex justify-center">
-                          <IconComponent className="h-8 w-8" style={{ color: theme.primaryColor }} />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-4" style={{ color: theme.textColor }}>
-                          {perk.title}
-                        </h3>
-                        <p className="opacity-80 leading-relaxed">{perk.description}</p>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {perks.map((perk, index) => (
+                <Card
+                  key={index}
+                  className="text-center border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <CardContent className="p-8">
+                    <div className="mb-6 flex justify-center">{perk.icon}</div>
+                    <h3 className="text-xl font-semibold mb-4" style={{ color: theme.textColor }}>
+                      {perk.title}
+                    </h3>
+                    <p className="opacity-80 leading-relaxed">{perk.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Company Values Section */}
-        {careerSettings.companyValues.length > 0 && (
-          <div className="py-20 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: theme.secondaryColor + "20" }}>
-            <div className="max-w-6xl mx-auto">
-              <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                  Our Values
-                </h2>
-                <p className="text-xl opacity-80 max-w-3xl mx-auto">
-                  The principles that guide everything we do and shape our company culture.
-                </p>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {careerSettings.companyValues.map((value, index) => {
-                  const IconComponent = getIconComponent(value.icon)
-                  return (
-                    <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-                      <CardContent className="p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <IconComponent className="h-6 w-6" style={{ color: theme.primaryColor }} />
-                          <h3 className="text-lg font-semibold" style={{ color: theme.textColor }}>
-                            {value.title}
-                          </h3>
-                        </div>
-                        <p className="opacity-80 leading-relaxed">{value.description}</p>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+        <div className="py-20 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: theme.secondaryColor + "20" }}>
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
+                Our Values
+              </h2>
+              <p className="text-xl opacity-80 max-w-3xl mx-auto">
+                The principles that guide everything we do and shape our company culture.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {companyValues.map((value, index) => (
+                <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      {value.icon}
+                      <h3 className="text-lg font-semibold" style={{ color: theme.textColor }}>
+                        {value.title}
+                      </h3>
+                    </div>
+                    <p className="opacity-80 leading-relaxed">{value.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
-        )} 
+        </div>
 
         {/* Benefits Section */}
-        {careerSettings.benefits.length > 0 && (
-          <div className="py-20 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto">
-              <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
-                  Benefits & Perks
-                </h2>
-                <p className="text-xl opacity-80 max-w-3xl mx-auto">
-                  We believe in taking care of our team with comprehensive benefits and amazing perks.
-                </p>
-              </div>
-              <Card className="shadow-xl border-0">
-                <CardContent className="p-12">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {careerSettings.benefits.map((benefit, index) => (
-                      <div key={index} className="flex items-center gap-4">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: theme.primaryColor }}
-                        />
-                        <span className="text-lg leading-relaxed">{benefit}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+        <div className="py-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4" style={{ color: theme.textColor }}>
+                Benefits & Perks
+              </h2>
+              <p className="text-xl opacity-80 max-w-3xl mx-auto">
+                We believe in taking care of our team with comprehensive benefits and amazing perks.
+              </p>
             </div>
+            <Card className="shadow-xl border-0">
+              <CardContent className="p-12">
+                <div className="grid md:grid-cols-2 gap-6">
+                  {benefits.map((benefit, index) => (
+                    <div key={index} className="flex items-center gap-4">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: theme.primaryColor }}
+                      />
+                      <span className="text-lg leading-relaxed">{benefit}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
+        </div>
 
         {/* Job Openings Section */}
         <div
