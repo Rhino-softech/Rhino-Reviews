@@ -71,7 +71,7 @@ export default function ReviewPageFixed() {
   const [subscriptionActive, setSubscriptionActive] = useState(false)
   const [currentReviewCount, setCurrentReviewCount] = useState(0)
   const [reviewLimit, setReviewLimit] = useState(0)
-
+  const [sharableLinkId, setSharableLinkId] = useState<string | null>(null)
   // Branch selection states
   const [branches, setBranches] = useState<Branch[]>([])
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null)
@@ -352,6 +352,15 @@ export default function ReviewPageFixed() {
 
     loadBusinessConfig()
   }, [businessSlug])
+
+//useEffect to capture the sharable link ID from URL params
+  useEffect(() => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const slParam = urlParams.get('sl')
+  if (slParam) {
+    setSharableLinkId(slParam)
+  }
+}, []) 
 
   // Reset form states when limit is reached or subscription expired
   useEffect(() => {
@@ -689,30 +698,31 @@ export default function ReviewPageFixed() {
   }
 
   const submitReview = async (reviewData: ReviewFormData) => {
-    try {
-      const reviewToSubmit = {
-        ...reviewData,
-        businessName,
-        createdAt: serverTimestamp(),
-        status: reviewData.status || "pending",
-        timestamp: Date.now(),
-        isComplete: reviewData.isComplete ?? true, // Default to true unless explicitly set to false
-        // FIXED: Ensure platform and reviewType are properly set
-        platform: reviewData.platform || "internal",
-        reviewType: reviewData.reviewType || "internal",
-      }
-
-      const userReviewsRef = collection(db, "users", businessId, "reviews")
-      await addDoc(userReviewsRef, reviewToSubmit)
-
-      if (reviewToSubmit.isComplete) {
-        toast.success("Thank you for your feedback!")
-      }
-    } catch (error) {
-      console.error("Error submitting review:", error)
-      throw error
+  try {
+    const reviewToSubmit = {
+      ...reviewData,
+      businessName,
+      createdAt: serverTimestamp(),
+      status: reviewData.status || "pending",
+      timestamp: Date.now(),
+      isComplete: reviewData.isComplete ?? true,
+      platform: reviewData.platform || "internal",
+      reviewType: reviewData.reviewType || "internal",
+      sharableLinkId: sharableLinkId || null, // Add this line
     }
+
+    const userReviewsRef = collection(db, "users", businessId, "reviews")
+    await addDoc(userReviewsRef, reviewToSubmit)
+
+    if (reviewToSubmit.isComplete) {
+      toast.success("Thank you for your feedback!")
+    }
+  } catch (error) {
+    console.error("Error submitting review:", error)
+    throw error
   }
+}
+
 
   const resetForm = () => {
     setRating(0)
@@ -736,6 +746,8 @@ export default function ReviewPageFixed() {
       review: false,
     })
   }
+
+  
 
   if (loading) {
     return (

@@ -50,6 +50,7 @@ import TermsOfServicePage from "./components/footer/terms";
 import { HomeSettings } from "./components/admin/settings/homesettings";
 import JobApplicationModal from "./components/JobApplicationModal";
 import CareersSettingsPage from "./components/admin/settings/carrer settings";
+import SharableRedirect from "./components/business/sharablelink/SharableRedirect";
 
 
 function useScrollToHash() {
@@ -141,6 +142,8 @@ return (
         <Route path="/sidebar" element={<Sidebar />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/:businessSlug" element={<ReviewPage />} />
+        <Route path="/s/:slug" element={<SharableRedirect />} />
+        
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import QRGenerator from "@/components/qr-generator"
+import SharableLinks from "../sharablelink/sharable-links"
 
 interface BusinessInfo {
   businessName: string
@@ -706,65 +707,65 @@ export default function ReviewLinkPage() {
   }
 
   // FIX: Properly save review with user information to prevent "Abandoned User"
-  const saveNegativeReview = async () => {
-    if (!currentUser) return
+  const saveNegativeReview = async (source: string = "review_form") => {
+  if (!currentUser) return
 
-    try {
-      // Ensure we have proper user identification
-      const userName = formData.name.trim() || "Anonymous User"
-      const userEmail = formData.email.trim() || ""
-      const userPhone = formData.phone.trim() || ""
+  try {
+    // Get sharable link ID from URL if present
+    const urlParams = new URLSearchParams(window.location.search)
+    const source = urlParams.get('sl') ? "sharable_link" : "review_form"
 
-      const reviewData = {
-        name: userName, // FIX: Always ensure we have a name
-        email: userEmail,
-        phone: userPhone,
-        branchname: formData.branchname.trim(),
-        review: formData.review.trim(),
-        message: formData.review.trim(), // Also save as message for compatibility
-        rating,
-        businessName,
-        createdAt: serverTimestamp(),
-        status: "pending",
-        userId: currentUser.uid,
-        platform: "internal",
-        reviewType: "internal",
-        isComplete: true, // Mark as complete since all form fields are filled
-        source: "review_form", // Add source tracking
-      }
-
-      await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
-
-      setSubmitted(true)
-      setSubmissionMessage("We're sorry to hear about your experience. Thank you for your feedback.")
-    } catch (error) {
-      console.error("Error saving negative review:", error)
-      setSubmissionMessage("There was an error submitting your feedback. Please try again.")
+    const reviewData = {
+      name: formData.name.trim() || "Anonymous User",
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      branchname: formData.branchname.trim(),
+      review: formData.review.trim(),
+      message: formData.review.trim(),
+      rating,
+      businessName,
+      createdAt: serverTimestamp(),
+      status: "pending",
+      userId: currentUser.uid,
+      platform: "internal",
+      reviewType: "internal",
+      isComplete: true,
+      source,
+      sharableLinkId: sharableLinkId || null
     }
+
+    await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
+
+    setSubmitted(true)
+    setSubmissionMessage("We're sorry to hear about your experience. Thank you for your feedback.")
+  } catch (error) {
+    console.error("Error saving negative review:", error)
+    setSubmissionMessage("There was an error submitting your feedback. Please try again.")
   }
+}
 
   const handleLeaveReview = async () => {
-    if (rating === 0) return
+  if (rating === 0) return
 
-    if (!isReviewGatingEnabled) {
-      window.open(reviewLinkUrl, "_blank")
-      return
-    }
+  if (!isReviewGatingEnabled) {
+    window.open(reviewLinkUrl, "_blank")
+    return
+  }
 
-    if (rating >= 4) {
-      const url = googleReviewLink || reviewLinkUrl
-      window.open(url, "_blank")
-      return
-    }
+  if (rating >= 4) {
+    const url = googleReviewLink || reviewLinkUrl
+    window.open(url, "_blank")
+    return
+  }
 
-    if (!showForm) {
-      setShowForm(true)
-      return
-    }
+  if (!showForm) {
+    setShowForm(true)
+    return
+  }
 
-    if (!validateForm()) return
+  if (!validateForm()) return
 
-    await saveNegativeReview()
+    await saveNegativeReview(source)
   }
 
   const handleToggleReviewGating = () => {
@@ -998,6 +999,15 @@ export default function ReviewLinkPage() {
                     </div>
                   )}
                 </div>
+              </motion.div>
+              
+              {/* Sharable links */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.25 }}
+              >
+                <SharableLinks currentUser={currentUser} baseUrl={getBaseUrl()} />
               </motion.div>
 
               {/* QR Code Generator - Only for Custom Plan */}
