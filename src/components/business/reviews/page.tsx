@@ -1,31 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import {
-  Check,
-  FolderOpen,
-  MailOpen,
-  Star,
-  Trash2,
-  MapPin,
-  Globe,
-  Sparkles,
-  TrendingUp,
-  Calendar,
-  MessageSquare,
-  Send,
-  Plus,
-  Edit,
-  Crown,
-  Clock,
-  Mail,
-  Gift,
-  ShoppingCart,
-  Package,
-  Copy,
-  CreditCard,
-  AlertCircle,
-} from "lucide-react"
+import { Check, FolderOpen, MailOpen, Star, Trash2, MapPin, Globe, Sparkles, TrendingUp, Calendar, MessageSquare, Send, Plus, Edit, Crown, Clock, Mail, Gift, ShoppingCart, Package, Copy, CreditCard, AlertCircle } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -52,8 +28,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { onAuthStateChanged } from "firebase/auth"
 import { useNavigate } from "react-router-dom"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
-
-const GOOGLE_API_KEY = "AIzaSyA-CiYkNslFVHpkDd-jlJH9LOhabb1yLLw"
 
 // Enhanced template system with extensive negative and neutral review templates
 const CUSTOM_PLAN_TEMPLATES = {
@@ -863,27 +837,18 @@ export default function BusinessReviews() {
         })
       }
 
-      // Fetch Google Reviews - EXISTING LOGIC
-      const businessNameStr = businessInfo.businessName || ""
-      const branchName = branchesData[0]?.name || ""
-      const searchQuery = `${businessNameStr} ${branchName}`.trim()
+      // FIXED: Use server-side API route for Google Reviews to avoid CORS
       const googleReviews: Review[] = []
-
       try {
-        const searchRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
-            searchQuery,
-          )}&inputtype=textquery&fields=place_id&key=${GOOGLE_API_KEY}`,
-        )
-        const searchData = await searchRes.json()
-        const placeId = searchData?.candidates?.[0]?.place_id
+        const businessNameStr = businessInfo.businessName || ""
+        const branchName = branchesData[0]?.name || ""
+        const searchQuery = `${businessNameStr} ${branchName}`.trim()
 
-        if (placeId) {
-          const detailsRes = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews&key=${GOOGLE_API_KEY}`,
-          )
-          const detailsData = await detailsRes.json()
-          const reviewsArray = detailsData.result?.reviews || []
+        // Call our server-side API route instead of direct Google API
+        const response = await fetch(`/api/google-reviews?query=${encodeURIComponent(searchQuery)}`)
+        if (response.ok) {
+          const data = await response.json()
+          const reviewsArray = data.reviews || []
 
           reviewsArray.forEach((r: any, i: number) => {
             googleReviews.push({
@@ -1392,39 +1357,39 @@ export default function BusinessReviews() {
 
     return (
       <motion.div
-        className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/30 border border-slate-200/60 rounded-3xl p-8 mb-8 shadow-xl backdrop-blur-sm"
+        className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/30 border border-slate-200/60 rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 mb-6 lg:mb-8 shadow-xl backdrop-blur-sm"
         initial={{ opacity: 0, y: -20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-2xl lg:rounded-3xl" />
         <div className="relative">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-6">
             <div className="flex-1">
               <motion.div
-                className="flex items-center gap-4 mb-4"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <div className="p-3 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl shadow-lg">
+                <div className="p-2 sm:p-3 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-xl sm:rounded-2xl shadow-lg">
                   {isCustomUser ? (
-                    <Crown className="h-6 w-6 text-white" />
+                    <Crown className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                   ) : (
-                    <Sparkles className="h-6 w-6 text-white" />
+                    <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                   )}
                 </div>
-                <div>
-                  <div className="font-bold text-slate-800 text-xl flex items-center gap-3">
-                    {planName} Plan ({planDuration})
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-800 text-lg sm:text-xl flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span>{planName} Plan ({planDuration})</span>
                     {isCustomUser && (
-                      <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 text-sm font-semibold shadow-lg">
+                      <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold shadow-lg">
                         <Crown className="h-3 w-3 mr-1" />
                         Premium Templates
                       </Badge>
                     )}
                     {bonusReviews > 0 && (
-                      <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1 text-sm font-semibold shadow-lg animate-pulse">
+                      <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold shadow-lg animate-pulse">
                         <Gift className="h-3 w-3 mr-1" />+{bonusReviews} Bonus
                       </Badge>
                     )}
@@ -1449,12 +1414,12 @@ export default function BusinessReviews() {
               </motion.div>
 
               <motion.div
-                className="flex flex-wrap items-center gap-4"
+                className="flex flex-wrap items-center gap-3 sm:gap-4"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.3 }}
               >
-                <div className="flex items-center gap-2 bg-white/90 border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center gap-2 bg-white/90 border border-slate-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 shadow-sm hover:shadow-md transition-all duration-300">
                   <Calendar className="h-4 w-4 text-slate-500" />
                   <select
                     value={viewMode}
@@ -1470,7 +1435,7 @@ export default function BusinessReviews() {
                 {viewMode === "previous" && (
                   <Button
                     onClick={() => setShowAddonDialog(true)}
-                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-2.5 rounded-2xl font-semibold"
+                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm"
                   >
                     <ShoppingCart className="w-4 h-4 mr-2" />
                     Buy Reply Credits
@@ -1480,7 +1445,7 @@ export default function BusinessReviews() {
                 {isCustomUser && (
                   <Button
                     onClick={() => setShowCustomTemplateManager(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-2.5 rounded-2xl font-semibold"
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm"
                   >
                     <Edit className="w-4 h-4 mr-2" />
                     Manage Templates
@@ -1490,7 +1455,7 @@ export default function BusinessReviews() {
             </div>
 
             <motion.div
-              className="flex flex-col sm:flex-row gap-4"
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4"
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
@@ -1501,16 +1466,16 @@ export default function BusinessReviews() {
                   isReviewLimitReached
                     ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
                     : "bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700"
-                } text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-8 py-3 rounded-2xl font-bold text-lg`}
+                } text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg`}
               >
                 {isReviewLimitReached ? (
                   <>
-                    <TrendingUp className="w-5 h-5 mr-2" />
+                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Upgrade Plan
                   </>
                 ) : (
                   <>
-                    <Plus className="w-5 h-5 mr-2" />
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Get New Review
                   </>
                 )}
@@ -1525,326 +1490,313 @@ export default function BusinessReviews() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
-        <div className="flex">
+        <div className="flex flex-col md:flex-row">
           <Sidebar />
-          <div className="flex-1 md:ml-64 p-8 flex items-center justify-center">
-            <div className="text-center">
-              <main className="flex-1 p-8 ml-8">
+          <div className="flex-1 md:ml-64 p-3 sm:p-4 lg:p-8">
+            <div className="max-w-7xl mx-auto">
+              <motion.div
+                className="space-y-6 lg:space-y-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
                 <motion.div
-                  className="max-w-7xl mx-auto space-y-8"
+                  className="text-center mb-8 lg:mb-12"
+                  initial={{ opacity: 0, y: -30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                >
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+                    Business Reviews
+                  </h1>
+                  <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                    Manage and respond to your customer reviews with intelligent templates and comprehensive analytics
+                  </p>
+                </motion.div>
+
+                {renderPlanDetails()}
+
+                {/* EXISTING FILTERS AND CONTROLS - RESPONSIVE */}
+                <motion.div
+                  className="bg-white/90 border border-slate-200/60 rounded-2xl lg:rounded-3xl p-4 sm:p-6 shadow-xl backdrop-blur-sm"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6 }}
+                  transition={{ delay: 0.3 }}
                 >
-                  <motion.div
-                    className="text-center mb-12"
-                    initial={{ opacity: 0, y: -30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.2 }}
-                  >
-                    <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-                      Business Reviews
-                    </h1>
-                    <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                      Manage and respond to your customer reviews with intelligent templates and comprehensive analytics
-                    </p>
-                  </motion.div>
-
-                  {renderPlanDetails()}
-
-                  {/* EXISTING FILTERS AND CONTROLS - UNCHANGED */}
-                  <motion.div
-                    className="bg-white/90 border border-slate-200/60 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                      <div className="flex flex-wrap items-center gap-4">
-                        {activeBranches.length > 0 && (
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-slate-500" />
-                            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                              <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                                <SelectValue placeholder="Select location" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="All">All Locations</SelectItem>
-                                {activeBranches.map((branch) => (
-                                  <SelectItem key={branch} value={branch}>
-                                    {branch}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-6">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
+                      {activeBranches.length > 0 && (
                         <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-slate-500" />
-                          <Select value={filterOption} onValueChange={setFilterOption}>
-                            <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                              <SelectValue placeholder="Filter reviews" />
+                          <MapPin className="h-4 w-4 text-slate-500" />
+                          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                            <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200 rounded-xl">
+                              <SelectValue placeholder="Select location" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="All">All Reviews</SelectItem>
-                              <SelectItem value="Above 3">Above 3 Stars</SelectItem>
-                              <SelectItem value="Below 3">3 Stars & Below</SelectItem>
-                              <SelectItem value="Replied">Replied</SelectItem>
-                              <SelectItem value="Not Replied">Not Replied</SelectItem>
-                              <SelectItem value="Google Reviews">Google Reviews</SelectItem>
-                              <SelectItem value="Abandoned">Abandoned Reviews</SelectItem>
+                              <SelectItem value="All">All Locations</SelectItem>
+                              {activeBranches.map((branch) => (
+                                <SelectItem key={branch} value={branch}>
+                                  {branch}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
+                      )}
 
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-500" />
-                          <Select value={sortOrder} onValueChange={(value: "desc" | "asc") => setSortOrder(value)}>
-                            <SelectTrigger className="w-48 bg-white border-slate-200 rounded-xl">
-                              <SelectValue placeholder="Sort by date" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="desc">Newest First</SelectItem>
-                              <SelectItem value="asc">Oldest First</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4 text-slate-500" />
+                        <Select value={filterOption} onValueChange={setFilterOption}>
+                          <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200 rounded-xl">
+                            <SelectValue placeholder="Filter reviews" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All">All Reviews</SelectItem>
+                            <SelectItem value="Above 3">Above 3 Stars</SelectItem>
+                            <SelectItem value="Below 3">3 Stars & Below</SelectItem>
+                            <SelectItem value="Replied">Replied</SelectItem>
+                            <SelectItem value="Not Replied">Not Replied</SelectItem>
+                            <SelectItem value="Google Reviews">Google Reviews</SelectItem>
+                            <SelectItem value="Abandoned">Abandoned Reviews</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      <div className="text-sm text-slate-600 bg-slate-100 px-4 py-2 rounded-xl font-medium">
-                        Showing {filteredReviews.length} of{" "}
-                        {viewMode === "current"
-                          ? currentSubscriptionReviews.length
-                          : previousSubscriptionReviews.length}{" "}
-                        reviews
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-slate-500" />
+                        <Select value={sortOrder} onValueChange={(value: "desc" | "asc") => setSortOrder(value)}>
+                          <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200 rounded-xl">
+                            <SelectValue placeholder="Sort by date" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="desc">Newest First</SelectItem>
+                            <SelectItem value="asc">Oldest First</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-slate-600 bg-slate-100 px-3 sm:px-4 py-2 rounded-xl font-medium text-center sm:text-left">
+                      Showing {filteredReviews.length} of{" "}
+                      {viewMode === "current"
+                        ? currentSubscriptionReviews.length
+                        : previousSubscriptionReviews.length}{" "}
+                      reviews
+                    </div>
+                  </div>
+                </motion.div>
+
+                {showUpgradePrompt && viewMode === "current" && (
+                  <motion.div
+                    className="mb-6 lg:mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-6 lg:p-8 rounded-2xl lg:rounded-3xl shadow-xl"
+                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        className="flex-shrink-0"
+                      >
+                        <CreditCard className="h-6 w-6 sm:h-7 sm:w-7 text-amber-600" />
+                      </motion.div>
+                      <div className="flex-1">
+                        <p className="text-amber-800 font-semibold text-base sm:text-lg">
+                          🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
+                          <button
+                            onClick={() => window.location.assign("/#pricing")}
+                            className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
+                          >
+                            Upgrade your plan
+                          </button>{" "}
+                          to unlock unlimited reviews and premium features.
+                        </p>
+                        <div className="mt-4 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 flex-shrink-0" />
+                          <p className="text-sm text-amber-700 font-medium">
+                            New review requests will be redirected to Google Reviews.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
+                )}
 
-                  {showUpgradePrompt && viewMode === "current" && (
-                    <motion.div
-                      className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-8 rounded-3xl shadow-xl"
-                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-                    >
-                      <div className="flex items-start">
-                        <motion.div
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                        >
-                          <CreditCard className="h-7 w-7 text-amber-600 mt-0.5 flex-shrink-0" />
-                        </motion.div>
-                        <div className="ml-4">
-                          <p className="text-amber-800 font-semibold text-lg">
-                            🚀 You've reached your monthly review limit ({currentSubscriptionCount}/{reviewsLimit}).
-                            <button
-                              onClick={() => window.location.assign("/#pricing")}
-                              className="ml-2 font-bold text-amber-900 hover:underline hover:text-amber-700 transition-colors"
-                            >
-                              Upgrade your plan
-                            </button>{" "}
-                            to unlock unlimited reviews and premium features.
-                          </p>
-                          <div className="mt-4 flex items-center gap-2">
-                            <AlertCircle className="h-5 w-5 text-amber-600" />
-                            <p className="text-sm text-amber-700 font-medium">
-                              New review requests will be redirected to Google Reviews.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {viewMode === "previous" && (
-                    <motion.div
-                      className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-8 rounded-3xl shadow-xl"
-                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-                    >
-                      <div className="flex items-start">
-                        <motion.div
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                        >
-                          <Calendar className="h-7 w-7 text-blue-600 mt-0.5 flex-shrink-0" />
-                        </motion.div>
-                        <div className="ml-4">
-                          <p className="text-blue-800 font-semibold text-lg">
-                            You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These
-                            are sorted by plan duration and don't count toward your current subscription's limit.
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* EXISTING REVIEWS GRID - UNCHANGED */}
-                  <AnimatePresence>
-                    {filteredReviews.length > 0 ? (
+                {viewMode === "previous" && (
+                  <motion.div
+                    className="mb-6 lg:mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 p-6 lg:p-8 rounded-2xl lg:rounded-3xl shadow-xl"
+                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                       <motion.div
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        className="flex-shrink-0"
                       >
-                        {filteredReviews.map((review, index) => (
-                          <motion.div
-                            key={review.id}
-                            initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -30, scale: 0.9 }}
-                            transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
-                            className="group relative bg-white/95 border border-slate-200/60 rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            <div className="relative">
-                              <div className="flex items-start justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                                    {review.name.charAt(0).toUpperCase()}
-                                  </div>
-                                  <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">{review.name}</h3>
-                                    <div className="flex items-center gap-2">
-                                      {renderStars(review.rating)}
-                                      <span className="text-sm text-slate-500">({review.rating}/5)</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                {/* <div className="flex items-center gap-2">
-                                  {getPlatformIcon(review.platform)}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setReviewToDelete(review)}
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Delete review</TooltipContent>
-                                  </Tooltip>
-                                </div> */}
-                              </div>
+                        <Calendar className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600" />
+                      </motion.div>
+                      <div className="flex-1">
+                        <p className="text-blue-800 font-semibold text-base sm:text-lg">
+                          You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These
+                          are sorted by plan duration and don't count toward your current subscription's limit.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-                              <div className="space-y-3 mb-6">
-                                <p className="text-slate-700 leading-relaxed line-clamp-4">{review.message}</p>
-                                <div className="flex items-center gap-4 text-sm text-slate-500">
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {review.date}
-                                  </span>
-                                  {review.branchname && (
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {review.branchname}
-                                    </span>
-                                  )}
+                {/* EXISTING REVIEWS GRID - RESPONSIVE */}
+                <AnimatePresence>
+                  {filteredReviews.length > 0 ? (
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      {filteredReviews.map((review, index) => (
+                        <motion.div
+                          key={review.id}
+                          initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -30, scale: 0.9 }}
+                          transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
+                          className="group relative bg-white/95 border border-slate-200/60 rounded-2xl lg:rounded-3xl p-4 sm:p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-2xl lg:rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          <div className="relative">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg flex-shrink-0">
+                                  {review.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-bold text-slate-800 text-base sm:text-lg truncate">{review.name}</h3>
+                                  <div className="flex items-center gap-2">
+                                    {renderStars(review.rating)}
+                                    <span className="text-sm text-slate-500">({review.rating}/5)</span>
+                                  </div>
                                 </div>
                               </div>
-
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  {review.replied && (
-                                    <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1 rounded-full">
-                                      <Check className="h-3 w-3 mr-1" />
-                                      Replied
-                                    </Badge>
-                                  )}
-                                  {review.platform === "Google" && (
-                                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1 rounded-full">
-                                      <Globe className="h-3 w-3 mr-1" />
-                                      Google
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  {review.phone && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleOpenTemplateDialog(review, "whatsapp")}
-                                          className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                                        >
-                                          <MessageSquare className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Send WhatsApp message</TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {review.email && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleOpenTemplateDialog(review, "email")}
-                                          className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                                        >
-                                          <Mail className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Send email</TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleToggleReply(review.id)}
-                                        className="border-slate-200 hover:bg-slate-50 rounded-xl"
-                                      >
-                                        <Check className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      {review.replied ? "Mark as not replied" : "Mark as replied"}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {getPlatformIcon(review.platform)}
                               </div>
                             </div>
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        className="text-center py-16"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.4 }}
+
+                            <div className="space-y-3 mb-6">
+                              <p className="text-slate-700 leading-relaxed line-clamp-4 text-sm sm:text-base">{review.message}</p>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {review.date}
+                                </span>
+                                {review.branchname && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="truncate">{review.branchname}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {review.replied && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 px-2 sm:px-3 py-1 rounded-full text-xs">
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Replied
+                                  </Badge>
+                                )}
+                                {review.platform === "Google" && (
+                                  <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-2 sm:px-3 py-1 rounded-full text-xs">
+                                    <Globe className="h-3 w-3 mr-1" />
+                                    Google
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 justify-end">
+                                {review.phone && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleOpenTemplateDialog(review, "whatsapp")}
+                                        className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 p-2"
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Send WhatsApp message</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {review.email && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleOpenTemplateDialog(review, "email")}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 p-2"
+                                      >
+                                        <Mail className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Send email</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleToggleReply(review.id)}
+                                      className="border-slate-200 hover:bg-slate-50 rounded-xl p-2"
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {review.replied ? "Mark as not replied" : "Mark as replied"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      className="text-center py-12 lg:py-16"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-2xl lg:rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <FolderOpen className="h-10 w-10 sm:h-12 sm:w-12 text-slate-400" />
+                      </div>
+                      <h3 className="text-xl sm:text-2xl font-bold text-slate-700 mb-2">No Reviews Found</h3>
+                      <p className="text-slate-500 text-base sm:text-lg mb-6 lg:mb-8 max-w-md mx-auto">
+                        {viewMode === "current"
+                          ? "No reviews found for your current subscription period with the selected filters."
+                          : "No reviews found from your previous subscription periods with the selected filters."}
+                      </p>
+                      <Button
+                        onClick={handleStartReviewProcess}
+                        className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg"
                       >
-                        <div className="w-24 h-24 bg-gradient-to-br from-slate-200 to-slate-300 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                          <FolderOpen className="h-12 w-12 text-slate-400" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-slate-700 mb-2">No Reviews Found</h3>
-                        <p className="text-slate-500 text-lg mb-8">
-                          {viewMode === "current"
-                            ? "No reviews found for your current subscription period with the selected filters."
-                            : "No reviews found from your previous subscription periods with the selected filters."}
-                        </p>
-                        <Button
-                          onClick={handleStartReviewProcess}
-                          className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 px-8 py-3 rounded-2xl font-bold text-lg"
-                        >
-                          <Plus className="w-5 h-5 mr-2" />
-                          Get Your First Review
-                        </Button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              </main>
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                        Get Your First Review
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             </div>
           </div>
         </div>
@@ -1853,86 +1805,86 @@ export default function BusinessReviews() {
 
         {/* Add-on Dialog */}
         <Dialog open={showAddonDialog} onOpenChange={setShowAddonDialog}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border-0 shadow-2xl bg-gradient-to-br from-white via-slate-50 to-blue-50/30">
-            <DialogHeader className="text-center pb-8 border-b border-slate-200/60">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl lg:rounded-3xl border-0 shadow-2xl bg-gradient-to-br from-white via-slate-50 to-blue-50/30">
+            <DialogHeader className="text-center pb-6 lg:pb-8 border-b border-slate-200/60">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.5, type: "spring" }}
-                className="mx-auto w-20 h-20 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-3xl flex items-center justify-center shadow-2xl mb-6"
+                className="mx-auto w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-2xl lg:rounded-3xl flex items-center justify-center shadow-2xl mb-4 lg:mb-6"
               >
-                <Package className="h-10 w-10 text-white" />
+                <Package className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
               </motion.div>
-              <DialogTitle className="text-4xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent mb-4">
+              <DialogTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent mb-4">
                 Reply Credit Packages
               </DialogTitle>
-              <DialogDescription className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              <DialogDescription className="text-base sm:text-lg lg:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
                 Purchase reply credits to respond to reviews from your previous subscription periods
               </DialogDescription>
             </DialogHeader>
 
-            <div className="py-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="py-6 lg:py-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
                 {addonPackages.map((pkg, index) => (
                   <motion.div
                     key={pkg.id}
                     initial={{ opacity: 0, y: 30, scale: 0.9 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ delay: index * 0.1, type: "spring", stiffness: 200 }}
-                    className={`relative overflow-hidden rounded-3xl border-2 transition-all duration-300 hover:scale-105 hover:shadow-2xl group ${
+                    className={`relative overflow-hidden rounded-2xl lg:rounded-3xl border-2 transition-all duration-300 hover:scale-105 hover:shadow-2xl group ${
                       pkg.popular
                         ? "border-gradient-to-r from-green-400 to-emerald-500 bg-gradient-to-br from-green-50 to-emerald-100 shadow-xl"
                         : "border-slate-200 bg-white hover:border-slate-300 shadow-lg"
                     }`}
                   >
                     {pkg.popular && (
-                      <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
-                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg">
-                          <Crown className="h-4 w-4 inline mr-1" />
+                      <div className="absolute -top-3 sm:-top-4 left-1/2 transform -translate-x-1/2 z-10">
+                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold shadow-lg">
+                          <Crown className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                           MOST POPULAR
                         </div>
                       </div>
                     )}
 
-                    <div className="p-8">
-                      <div className="text-center mb-8">
-                        <div className="text-5xl mb-4">{pkg.icon}</div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</h3>
-                        <p className="text-slate-600 text-lg leading-relaxed">{pkg.description}</p>
+                    <div className="p-6 lg:p-8">
+                      <div className="text-center mb-6 lg:mb-8">
+                        <div className="text-4xl sm:text-5xl mb-4">{pkg.icon}</div>
+                        <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">{pkg.name}</h3>
+                        <p className="text-slate-600 text-base sm:text-lg leading-relaxed">{pkg.description}</p>
                       </div>
 
-                      <div className="text-center mb-8">
-                        <div className="text-5xl font-bold text-slate-800 mb-2">{getConvertedPrice(pkg.price)}</div>
-                        <div className="text-slate-600 text-lg">{pkg.replies} Reply Credits</div>
+                      <div className="text-center mb-6 lg:mb-8">
+                        <div className="text-4xl sm:text-5xl font-bold text-slate-800 mb-2">{getConvertedPrice(pkg.price)}</div>
+                        <div className="text-slate-600 text-base sm:text-lg">{pkg.replies} Reply Credits</div>
                         <div className="text-sm text-slate-500 mt-2">
                           {getConvertedPrice(pkg.price / pkg.replies)} per reply
                         </div>
                       </div>
 
-                      <div className="space-y-4 mb-8">
-                        <div className="flex items-center gap-3 text-slate-700">
-                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                      <div className="space-y-3 sm:space-y-4 mb-6 lg:mb-8">
+                        <div className="flex items-center gap-3 text-slate-700 text-sm sm:text-base">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex-shrink-0"></div>
                           <span>Works for WhatsApp & Email replies</span>
                         </div>
-                        <div className="flex items-center gap-3 text-slate-700">
-                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                        <div className="flex items-center gap-3 text-slate-700 text-sm sm:text-base">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex-shrink-0"></div>
                           <span>Credits never expire</span>
                         </div>
-                        <div className="flex items-center gap-3 text-slate-700">
-                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                        <div className="flex items-center gap-3 text-slate-700 text-sm sm:text-base">
+                          <div className="w-2 h-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex-shrink-0"></div>
                           <span>Only for previous plan reviews</span>
                         </div>
                       </div>
 
                       <Button
                         onClick={() => handlePurchaseAddon(pkg)}
-                        className={`w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
+                        className={`w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
                           pkg.popular
                             ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
                             : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
                         }`}
                       >
-                        <ShoppingCart className="w-5 h-5 mr-2" />
+                        <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         Purchase Package
                       </Button>
                     </div>
@@ -1942,8 +1894,8 @@ export default function BusinessReviews() {
 
               {addonPackages.length === 0 && (
                 <div className="text-center py-12">
-                  <Package className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500 text-lg">No add-on packages available at the moment.</p>
+                  <Package className="h-12 w-12 sm:h-16 sm:w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500 text-base sm:text-lg">No add-on packages available at the moment.</p>
                 </div>
               )}
             </div>
@@ -1952,40 +1904,42 @@ export default function BusinessReviews() {
 
         {/* Template Dialog */}
         <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-          <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto rounded-3xl">
-            <DialogHeader className="pb-6">
-              <DialogTitle className="flex items-center gap-3 text-2xl">
-                {templateType === "whatsapp" ? (
-                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg">
-                    <MessageSquare className="h-6 w-6 text-white" />
-                  </div>
-                ) : (
-                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                    <Mail className="h-6 w-6 text-white" />
-                  </div>
-                )}
-                <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
-                  {templateType === "whatsapp" ? "WhatsApp Message" : "Email Template"}
-                </span>
+          <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto rounded-2xl lg:rounded-3xl">
+            <DialogHeader className="pb-4 sm:pb-6">
+              <DialogTitle className="flex flex-col sm:flex-row sm:items-center gap-3 text-xl sm:text-2xl">
+                <div className="flex items-center gap-3">
+                  {templateType === "whatsapp" ? (
+                    <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg">
+                      <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+                      <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                    </div>
+                  )}
+                  <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
+                    {templateType === "whatsapp" ? "WhatsApp Message" : "Email Template"}
+                  </span>
+                </div>
                 {isCustomPlan(userPlan?.subscriptionPlan) && (
-                  <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 text-sm font-bold shadow-lg">
-                    <Crown className="h-4 w-4 mr-2" />
+                  <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold shadow-lg">
+                    <Crown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Premium Templates
                   </Badge>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-lg text-slate-600">
+              <DialogDescription className="text-base sm:text-lg text-slate-600">
                 {isCustomPlan(userPlan?.subscriptionPlan)
                   ? `Choose from multiple professional templates or create custom responses for ${selectedReview?.name}'s ${selectedReview?.rating}-star review`
                   : `Customize your response to ${selectedReview?.name}'s ${selectedReview?.rating}-star review`}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-8">
+            <div className="space-y-6 sm:space-y-8">
               {isCustomPlan(userPlan?.subscriptionPlan) && renderTemplateSelector()}
 
               <div>
-                <Label htmlFor="message" className="text-lg font-semibold text-slate-700 mb-3 block">
+                <Label htmlFor="message" className="text-base sm:text-lg font-semibold text-slate-700 mb-3 block">
                   Message Content
                 </Label>
                 <Textarea
@@ -1993,14 +1947,14 @@ export default function BusinessReviews() {
                   value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
                   rows={10}
-                  className="mt-2 rounded-2xl border-slate-200 focus:ring-2 focus:ring-blue-300 text-base leading-relaxed"
+                  className="mt-2 rounded-xl sm:rounded-2xl border-slate-200 focus:ring-2 focus:ring-blue-300 text-sm sm:text-base leading-relaxed"
                   placeholder={
                     isCustomPlan(userPlan?.subscriptionPlan)
                       ? "Select a template above or write your custom message..."
                       : "Enter your message..."
                   }
                 />
-                <div className="flex items-center justify-between mt-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mt-3">
                   <p className="text-sm text-slate-500 font-medium">{customMessage.length} characters</p>
                   {isCustomPlan(userPlan?.subscriptionPlan) && (
                     <Button
@@ -2009,7 +1963,7 @@ export default function BusinessReviews() {
                       onClick={() => {
                         navigator.clipboard.writeText(customMessage)
                       }}
-                      className="text-slate-500 hover:text-slate-700 rounded-xl"
+                      className="text-slate-500 hover:text-slate-700 rounded-xl self-start sm:self-auto"
                     >
                       <Copy className="h-4 w-4 mr-2" />
                       Copy Message
@@ -2019,20 +1973,20 @@ export default function BusinessReviews() {
               </div>
             </div>
 
-            <DialogFooter className="flex-col sm:flex-row gap-3 pt-6">
+            <DialogFooter className="flex-col sm:flex-row gap-3 pt-4 sm:pt-6">
               <Button
                 variant="outline"
                 onClick={() => setShowTemplateDialog(false)}
-                className="rounded-2xl border-slate-200 hover:bg-slate-50 px-8 py-3"
+                className="rounded-xl sm:rounded-2xl border-slate-200 hover:bg-slate-50 px-6 sm:px-8 py-2.5 sm:py-3 w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSendMessage}
-                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 rounded-2xl px-8 py-3 font-semibold"
+                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 rounded-xl sm:rounded-2xl px-6 sm:px-8 py-2.5 sm:py-3 font-semibold w-full sm:w-auto"
                 disabled={!customMessage.trim()}
               >
-                <Send className="h-5 w-5 mr-2" />
+                <Send className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 Send {templateType === "whatsapp" ? "WhatsApp" : "Email"}
               </Button>
             </DialogFooter>
@@ -2041,56 +1995,58 @@ export default function BusinessReviews() {
 
         {/* Custom Template Manager Dialog */}
         <Dialog open={showCustomTemplateManager} onOpenChange={setShowCustomTemplateManager}>
-          <DialogContent className="sm:max-w-[1100px] max-h-[95vh] rounded-3xl">
-            <DialogHeader className="pb-6">
-              <DialogTitle className="flex items-center gap-3 text-2xl">
-                <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg">
-                  <Crown className="h-6 w-6 text-white" />
+          <DialogContent className="sm:max-w-[1100px] max-h-[95vh] rounded-2xl lg:rounded-3xl">
+            <DialogHeader className="pb-4 sm:pb-6">
+              <DialogTitle className="flex flex-col sm:flex-row sm:items-center gap-3 text-xl sm:text-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg">
+                    <Crown className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                  </div>
+                  <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
+                    Template Manager
+                  </span>
                 </div>
-                <span className="bg-gradient-to-r from-slate-700 to-slate-900 bg-clip-text text-transparent">
-                  Template Manager
-                </span>
-                <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 font-bold shadow-lg">
+                <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 font-bold shadow-lg text-xs sm:text-sm">
                   Custom Plan Feature
                 </Badge>
               </DialogTitle>
-              <DialogDescription className="text-lg text-slate-600">
+              <DialogDescription className="text-base sm:text-lg text-slate-600">
                 Create and manage your custom message templates for different review scenarios
               </DialogDescription>
             </DialogHeader>
 
             <Tabs defaultValue="existing" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-100 rounded-2xl p-1">
-                <TabsTrigger value="existing" className="rounded-xl font-semibold">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-100 rounded-xl sm:rounded-2xl p-1">
+                <TabsTrigger value="existing" className="rounded-lg sm:rounded-xl font-semibold text-sm sm:text-base">
                   Existing Templates
                 </TabsTrigger>
-                <TabsTrigger value="create" className="rounded-xl font-semibold">
+                <TabsTrigger value="create" className="rounded-lg sm:rounded-xl font-semibold text-sm sm:text-base">
                   Create New
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="existing" className="space-y-6 mt-6">
+              <TabsContent value="existing" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
                 <div className="grid gap-4 max-h-96 overflow-y-auto pr-2">
                   {customTemplates.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500">
-                      <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-4">
-                        <MessageSquare className="h-12 w-12 text-slate-300" />
+                    <div className="text-center py-8 sm:py-12 text-slate-500">
+                      <div className="p-3 sm:p-4 bg-slate-100 rounded-xl sm:rounded-2xl w-fit mx-auto mb-4">
+                        <MessageSquare className="h-10 w-10 sm:h-12 sm:w-12 text-slate-300" />
                       </div>
-                      <p className="text-lg font-medium">No custom templates yet</p>
+                      <p className="text-base sm:text-lg font-medium">No custom templates yet</p>
                       <p className="text-sm">Create your first template to get started!</p>
                     </div>
                   ) : (
                     customTemplates.map((template) => (
-                      <Card key={template.id} className="p-6 rounded-2xl shadow-lg border-slate-200">
-                        <div className="flex items-start justify-between">
+                      <Card key={template.id} className="p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl w-fit">
                                 <span className="text-white text-sm">{template.type === "whatsapp" ? "📱" : "📧"}</span>
                               </div>
-                              <div>
-                                <h4 className="font-bold text-lg text-slate-800">{template.name}</h4>
-                                <div className="flex items-center gap-2">
+                              <div className="flex-1">
+                                <h4 className="font-bold text-base sm:text-lg text-slate-800">{template.name}</h4>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                   <Badge variant="outline" className="text-xs">
                                     {template.type === "whatsapp" ? "WhatsApp" : "Email"}
                                   </Badge>
@@ -2100,7 +2056,7 @@ export default function BusinessReviews() {
                                 </div>
                               </div>
                             </div>
-                            <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-4 rounded-xl">
+                            <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-3 sm:p-4 rounded-xl">
                               {template.template}
                             </p>
                           </div>
@@ -2116,7 +2072,7 @@ export default function BusinessReviews() {
                                 })
                               }
                             }}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl ml-4"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl flex-shrink-0"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -2127,8 +2083,8 @@ export default function BusinessReviews() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="create" className="space-y-6 mt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TabsContent value="create" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div>
                     <Label htmlFor="template-name" className="text-sm font-semibold text-slate-700">
                       Template Name
@@ -2194,7 +2150,7 @@ export default function BusinessReviews() {
                 <Button
                   onClick={handleSaveCustomTemplate}
                   disabled={!newTemplateName.trim() || !newTemplateContent.trim()}
-                  className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Save Template
