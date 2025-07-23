@@ -1,7 +1,31 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Check, FolderOpen, MailOpen, Star, Trash2, MapPin, Globe, Sparkles, TrendingUp, Calendar, MessageSquare, Send, Plus, Edit, Crown, Clock, Mail, Gift, ShoppingCart, Package, Copy, CreditCard, AlertCircle } from 'lucide-react'
+import {
+  Check,
+  FolderOpen,
+  MailOpen,
+  Star,
+  Trash2,
+  MapPin,
+  Globe,
+  Sparkles,
+  TrendingUp,
+  Calendar,
+  MessageSquare,
+  Send,
+  Plus,
+  Edit,
+  Crown,
+  Clock,
+  Mail,
+  Gift,
+  ShoppingCart,
+  Package,
+  Copy,
+  CreditCard,
+  AlertCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -586,7 +610,7 @@ export default function BusinessReviews() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
   const [reviewToDelete, setReviewToDelete] = useState<Review | null>(null)
 
-  // SUBSCRIPTION PLAN STATES - UNCHANGED EXISTING LOGIC
+  // SUBSCRIPTION PLAN STATES - FIXED LOGIC
   const [subscriptionPlan, setSubscriptionPlan] = useState<any>(null)
   const [trialInfo, setTrialInfo] = useState<any>(null)
   const [reviewsLimit, setReviewsLimit] = useState<number>(50)
@@ -722,7 +746,7 @@ export default function BusinessReviews() {
     return `${currencySymbol}${convertedPrice.toFixed(2)}`
   }
 
-  // FETCH USER DATA - EXISTING SUBSCRIPTION LOGIC UNCHANGED
+  // FIXED: FETCH USER DATA - PROPER SUBSCRIPTION AND TRIAL LOGIC
   const fetchUserData = useCallback(async (user: any) => {
     try {
       const userRef = doc(db, "users", user.uid)
@@ -735,23 +759,31 @@ export default function BusinessReviews() {
 
       const userData = userSnap.data()
 
-      // Check if this is the first subscription - EXISTING LOGIC
-      const isFirstSubscription = !userData.firstSubscriptionDone
+      // FIXED: Proper subscription plan detection
+      const currentPlan = userData.subscriptionPlan || userData.plan || null
+      const hasActivePlan = currentPlan && currentPlan !== "none" && currentPlan !== ""
+
+      // FIXED: Trial logic - only show trial if no active subscription
+      const isTrialActive = userData.trialActive && !hasActivePlan
+
+      // FIXED: First subscription bonus logic
+      const isFirstSubscription = !userData.firstSubscriptionDone && hasActivePlan
 
       setUserPlan({
         ...userData,
+        subscriptionPlan: currentPlan,
+        trialActive: isTrialActive,
         firstSubscriptionDone: userData.firstSubscriptionDone || false,
         isFirstSubscription,
       })
 
-      // Show bonus prompt for first-time subscribers - EXISTING LOGIC
-      if (isFirstSubscription && userData.subscriptionPlan) {
+      // FIXED: Show bonus prompt for first-time subscribers with active plan
+      if (isFirstSubscription && hasActivePlan) {
         setShowBonusPrompt(true)
         await updateDoc(userRef, { firstSubscriptionDone: true })
       }
 
       // LOAD ADD-ON CREDITS - COMPLETELY SEPARATE FROM SUBSCRIPTION PLAN
-      // These are stored separately and don't affect subscription plan logic
       setAddonCredits(userData.addonCredits || 0)
       setUsedAddonCredits(userData.usedAddonCredits || 0)
 
@@ -760,7 +792,7 @@ export default function BusinessReviews() {
       setBranches(branchesData)
       setBusinessName(businessInfo.businessName || "Your Business")
 
-      const hasAccess = hasLocationAccess(userData.subscriptionPlan, userData.trialActive)
+      const hasAccess = hasLocationAccess(currentPlan, isTrialActive)
       setShowLocationDropdown(hasAccess)
 
       const activeBranchNames = branchesData
@@ -768,7 +800,7 @@ export default function BusinessReviews() {
         .map((branch: any) => branch.name)
       setActiveBranches(activeBranchNames)
 
-      // Get subscription history and sort by start date (newest first) - EXISTING LOGIC
+      // Get subscription history and sort by start date (newest first)
       const subscriptionHistoryData = userData.subscriptionHistory || []
       const sortedHistory = subscriptionHistoryData.sort((a: any, b: any) => {
         const aDate = a.startDate?.toDate()?.getTime() || 0
@@ -776,7 +808,7 @@ export default function BusinessReviews() {
         return bDate - aDate
       })
 
-      // Filter out current subscription from history - EXISTING LOGIC
+      // Filter out current subscription from history
       const currentStart = userData.subscriptionStartDate?.toDate()
       const currentEnd = userData.subscriptionEndDate?.toDate()
 
@@ -790,18 +822,18 @@ export default function BusinessReviews() {
 
       setSubscriptionHistory(filteredHistory)
 
-      // Load custom templates for custom plan users - EXISTING LOGIC
-      if (isCustomPlan(userData.subscriptionPlan)) {
+      // Load custom templates for custom plan users
+      if (isCustomPlan(currentPlan)) {
         setCustomTemplates(userData.customTemplates || [])
       }
 
-      // CALCULATE REVIEW LIMITS WITH FIRST-TIME BONUS - SUBSCRIPTION PLAN ONLY (UNCHANGED)
+      // FIXED: CALCULATE REVIEW LIMITS WITH FIRST-TIME BONUS
       let limit = 50
       let bonus = 0
 
-      if (userData.subscriptionPlan) {
-        setSubscriptionPlan(userData.subscriptionPlan)
-        switch (userData.subscriptionPlan.toLowerCase()) {
+      if (hasActivePlan) {
+        setSubscriptionPlan(currentPlan)
+        switch (currentPlan.toLowerCase()) {
           case "starter":
           case "plan_basic":
             limit = 100
@@ -822,12 +854,17 @@ export default function BusinessReviews() {
             limit = 50
             bonus = 0
         }
+      } else if (isTrialActive) {
+        // Trial users get 50 reviews
+        limit = 50
+        bonus = 0
       }
 
       setBonusReviews(bonus)
-      setReviewsLimit(limit + bonus) // SUBSCRIPTION PLAN LIMIT ONLY
+      setReviewsLimit(limit + bonus)
 
-      if (userData.trialActive) {
+      // FIXED: Trial info - only show if actually in trial
+      if (isTrialActive) {
         const now = new Date()
         const trialEnd = userData.trialEndDate?.toDate()
         const trialDaysLeft = trialEnd ? Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0
@@ -835,6 +872,8 @@ export default function BusinessReviews() {
           active: true,
           daysLeft: trialDaysLeft > 0 ? trialDaysLeft : 0,
         })
+      } else {
+        setTrialInfo({ active: false, daysLeft: 0 })
       }
 
       // FIXED: Use server-side API route for Google Reviews to avoid CORS
@@ -917,7 +956,7 @@ export default function BusinessReviews() {
         reviewsData.push(review)
 
         if (createdAt) {
-          // Check if review belongs to current subscription - EXISTING LOGIC
+          // Check if review belongs to current subscription
           if (
             currentSubscriptionStart &&
             createdAt >= currentSubscriptionStart &&
@@ -925,7 +964,7 @@ export default function BusinessReviews() {
           ) {
             currentSubscriptionReviewsData.push(review)
           } else {
-            // Check if review belongs to any previous subscription - EXISTING LOGIC
+            // Check if review belongs to any previous subscription
             let belongsToPreviousSubscription = false
             for (const prevSub of previousSubscriptions) {
               const prevStart = prevSub.startDate?.toDate()
@@ -946,11 +985,11 @@ export default function BusinessReviews() {
         }
       })
 
-      // Sort reviews by creation date - EXISTING LOGIC
+      // Sort reviews by creation date
       currentSubscriptionReviewsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       previousSubscriptionReviewsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
-      // APPLY REVIEW LIMIT TO CURRENT SUBSCRIPTION REVIEWS ONLY - EXISTING LOGIC
+      // APPLY REVIEW LIMIT TO CURRENT SUBSCRIPTION REVIEWS ONLY
       let limitedCurrentSubscriptionReviews = currentSubscriptionReviewsData
       if (reviewsLimit > 0 && currentSubscriptionReviewsData.length > reviewsLimit) {
         limitedCurrentSubscriptionReviews = currentSubscriptionReviewsData.slice(0, reviewsLimit)
@@ -968,7 +1007,7 @@ export default function BusinessReviews() {
       setCurrentSubscriptionReviews(limitedCurrentSubscriptionReviews)
       setPreviousSubscriptionReviews(previousSubscriptionReviewsData)
 
-      // FIXED: Count valid reviews (excluding abandoned/incomplete) - GOOGLE REVIEWS REMAIN AS GOOGLE REVIEWS
+      // Count valid reviews (excluding abandoned/incomplete)
       const countedReviews = currentSubscriptionReviewsData.filter((r) => {
         // Google Reviews should always be counted as valid Google Reviews, not abandoned
         if (r.platform === "Google") {
@@ -1030,9 +1069,9 @@ export default function BusinessReviews() {
     }
   }, [showAddonDialog])
 
-  // EXISTING HELPER FUNCTIONS - UNCHANGED
+  // FIXED: HELPER FUNCTIONS WITH PROPER PLAN DETECTION
   const formatPlanName = (plan?: string) => {
-    if (!plan) return "Free Trial"
+    if (!plan || plan === "none" || plan === "") return "Free Trial"
     const planMap: Record<string, string> = {
       plan_basic: "Basic",
       plan_pro: "Pro",
@@ -1046,7 +1085,7 @@ export default function BusinessReviews() {
   }
 
   const getPlanDurationText = (plan?: string) => {
-    if (!plan) return ""
+    if (!plan || plan === "none" || plan === "") return ""
     const durationMap: Record<string, string> = {
       plan_basic: "1 Month",
       starter: "1 Month",
@@ -1333,17 +1372,22 @@ export default function BusinessReviews() {
     )
   }
 
-  // RENDER PLAN DETAILS - EXISTING LOGIC WITH ADD-ON CREDIT DISPLAY
+  // FIXED: RENDER PLAN DETAILS WITH PROPER SUBSCRIPTION AND TRIAL LOGIC
   const renderPlanDetails = () => {
     if (!userPlan) return null
 
     const planKey = userPlan.subscriptionPlan || userPlan.plan
+    const hasActivePlan = planKey && planKey !== "none" && planKey !== ""
     const planName = formatPlanName(planKey)
     const planDuration = getPlanDurationText(planKey)
     const isCustomUser = isCustomPlan(planKey)
     const isFirstSub = userPlan.isFirstSubscription
 
-    // SUBSCRIPTION PLAN USAGE - UNCHANGED EXISTING LOGIC
+    // FIXED: Show proper plan status
+    const displayPlanName = hasActivePlan ? planName : "Free Trial"
+    const displayDuration = hasActivePlan ? planDuration : ""
+
+    // SUBSCRIPTION PLAN USAGE
     const usageText =
       reviewsLimit === 0
         ? `Review usage: ${currentSubscriptionCount} valid (Unlimited)`
@@ -1381,8 +1425,10 @@ export default function BusinessReviews() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-lg sm:text-xl flex flex-wrap items-center gap-2 sm:gap-3">
-                    <span>{planName} Plan ({planDuration})</span>
-                    {isCustomUser && (
+                    <span>
+                      {displayPlanName} Plan {displayDuration && `(${displayDuration})`}
+                    </span>
+                    {isCustomUser && hasActivePlan && (
                       <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold shadow-lg">
                         <Crown className="h-3 w-3 mr-1" />
                         Premium Templates
@@ -1404,6 +1450,7 @@ export default function BusinessReviews() {
                       Add-on Credits: {availableAddonCredits} / {addonCredits} available (Previous Plans Only)
                     </div>
                   )}
+                  {/* FIXED: Only show trial info if actually in trial */}
                   {trialInfo?.active && trialInfo.daysLeft !== undefined && (
                     <div className="text-sm text-amber-600 mt-2 font-semibold flex items-center gap-1">
                       <Clock className="h-4 w-4" />
@@ -1442,7 +1489,7 @@ export default function BusinessReviews() {
                   </Button>
                 )}
 
-                {isCustomUser && (
+                {isCustomUser && hasActivePlan && (
                   <Button
                     onClick={() => setShowCustomTemplateManager(true)}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm"
@@ -1578,9 +1625,7 @@ export default function BusinessReviews() {
 
                     <div className="text-sm text-slate-600 bg-slate-100 px-3 sm:px-4 py-2 rounded-xl font-medium text-center sm:text-left">
                       Showing {filteredReviews.length} of{" "}
-                      {viewMode === "current"
-                        ? currentSubscriptionReviews.length
-                        : previousSubscriptionReviews.length}{" "}
+                      {viewMode === "current" ? currentSubscriptionReviews.length : previousSubscriptionReviews.length}{" "}
                       reviews
                     </div>
                   </div>
@@ -1642,8 +1687,8 @@ export default function BusinessReviews() {
                       </motion.div>
                       <div className="flex-1">
                         <p className="text-blue-800 font-semibold text-base sm:text-lg">
-                          You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These
-                          are sorted by plan duration and don't count toward your current subscription's limit.
+                          You're viewing previous plans' reviews ({previousSubscriptionReviews.length} total). These are
+                          sorted by plan duration and don't count toward your current subscription's limit.
                         </p>
                       </div>
                     </div>
@@ -1676,7 +1721,9 @@ export default function BusinessReviews() {
                                   {review.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="font-bold text-slate-800 text-base sm:text-lg truncate">{review.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-base sm:text-lg truncate">
+                                    {review.name}
+                                  </h3>
                                   <div className="flex items-center gap-2">
                                     {renderStars(review.rating)}
                                     <span className="text-sm text-slate-500">({review.rating}/5)</span>
@@ -1689,7 +1736,9 @@ export default function BusinessReviews() {
                             </div>
 
                             <div className="space-y-3 mb-6">
-                              <p className="text-slate-700 leading-relaxed line-clamp-4 text-sm sm:text-base">{review.message}</p>
+                              <p className="text-slate-700 leading-relaxed line-clamp-4 text-sm sm:text-base">
+                                {review.message}
+                              </p>
                               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-500">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
@@ -1854,7 +1903,9 @@ export default function BusinessReviews() {
                       </div>
 
                       <div className="text-center mb-6 lg:mb-8">
-                        <div className="text-4xl sm:text-5xl font-bold text-slate-800 mb-2">{getConvertedPrice(pkg.price)}</div>
+                        <div className="text-4xl sm:text-5xl font-bold text-slate-800 mb-2">
+                          {getConvertedPrice(pkg.price)}
+                        </div>
                         <div className="text-slate-600 text-base sm:text-lg">{pkg.replies} Reply Credits</div>
                         <div className="text-sm text-slate-500 mt-2">
                           {getConvertedPrice(pkg.price / pkg.replies)} per reply
@@ -2037,7 +2088,10 @@ export default function BusinessReviews() {
                     </div>
                   ) : (
                     customTemplates.map((template) => (
-                      <Card key={template.id} className="p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border-slate-200">
+                      <Card
+                        key={template.id}
+                        className="p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg border-slate-200"
+                      >
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
