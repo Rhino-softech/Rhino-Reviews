@@ -98,13 +98,13 @@ export default function ReviewPageFixed() {
       let validReviewCount = 0
       querySnapshot.forEach((doc) => {
         const data = doc.data()
-        
+
         // FIXED: Google Reviews are ALWAYS valid and should never be considered abandoned
         if (data.platform === "Google" || data.reviewType === "Google") {
           validReviewCount++
           return
         }
-        
+
         // For internal reviews, apply the existing abandoned logic
         const isAbandoned =
           data.status === "abandoned" ||
@@ -133,19 +133,38 @@ export default function ReviewPageFixed() {
           return
         }
 
-        const reviewLinksRef = collection(db, "review_link")
-        const querySnapshot = await getDocs(reviewLinksRef)
+        // First try to find the business in slug_to_uid collection
+        const slugDocRef = doc(db, "slug_to_uid", businessSlug)
+        const slugDocSnap = await getDoc(slugDocRef)
 
+        let userId = ""
         let matchedDoc = null
 
-        querySnapshot.forEach((docSnap) => {
-          const data = docSnap.data()
-          const slug =
-            data.reviewLinkUrl?.split("https://reviewuplift.vercel.app/")[1] || data.reviewLinkUrl?.split("/").pop()
-          if (slug === businessSlug) {
-            matchedDoc = { id: docSnap.id, ...data }
+        if (slugDocSnap.exists()) {
+          userId = slugDocSnap.data().uid
+          const userDocRef = doc(db, "users", userId)
+          const userDocSnap = await getDoc(userDocRef)
+
+          if (userDocSnap.exists()) {
+            matchedDoc = { id: userId, ...userDocSnap.data() }
           }
-        })
+        }
+
+        // Fallback to old method if not found in slug_to_uid
+        if (!matchedDoc) {
+          const reviewLinksRef = collection(db, "review_link")
+          const querySnapshot = await getDocs(reviewLinksRef)
+
+          querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data()
+            const slug =
+              data.reviewLinkUrl?.split("https://reviewuplift.vercel.app/")[1] || data.reviewLinkUrl?.split("/").pop()
+            if (slug === businessSlug) {
+              matchedDoc = { id: docSnap.id, ...data }
+              userId = docSnap.id
+            }
+          })
+        }
 
         if (!matchedDoc) {
           toast.error("Business review page not found")
@@ -154,7 +173,7 @@ export default function ReviewPageFixed() {
         }
 
         // Set all the config values
-        setBusinessId(matchedDoc.id)
+        setBusinessId(userId)
         setBusinessName(matchedDoc.businessName || "")
         setPreviewText(matchedDoc.previewText || "")
         setWelcomeTitle(matchedDoc.welcomeTitle || "")
@@ -177,52 +196,67 @@ export default function ReviewPageFixed() {
         setGoogleReviewLink(matchedDoc.googleReviewLink || "")
 
         // Fetch branches from the user document
-        if (matchedDoc) {
-          const userDocRef = doc(db, "users", matchedDoc.id)
+        if (userId) {
+          const userDocRef = doc(db, "users", userId)
           const userDocSnap = await getDoc(userDocRef)
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data()
 
-            // Check subscription and limit status
+            // FIXED: Improved subscription detection logic
             const now = new Date()
             let hasActiveSubscription = false
             let reviewLimitValue = 50 // default limit
 
-            // Check if subscription is active
+            // Check if subscription is active based on subscriptionActive flag
             if (userData.subscriptionActive === true) {
               hasActiveSubscription = true
+              console.log("User has active subscription based on subscriptionActive flag")
             }
 
-            // Check subscription expiry date if subscriptionActive is true
-            if (hasActiveSubscription && userData.subscriptionEndDate) {
+            // Double-check subscription expiry date if available
+            if (userData.subscriptionEndDate) {
               const subscriptionEndDate = userData.subscriptionEndDate.toDate
                 ? userData.subscriptionEndDate.toDate()
                 : new Date(userData.subscriptionEndDate.seconds * 1000)
-              hasActiveSubscription = subscriptionEndDate > now
+
+              if (subscriptionEndDate < now) {
+                // Subscription has expired despite the flag
+                console.log("Subscription has expired based on end date check")
+                hasActiveSubscription = false
+              } else {
+                console.log("Subscription is active and not expired")
+              }
             }
 
-            // Check trial status if no active subscription
+            // Only check trial if no active subscription
             if (!hasActiveSubscription && userData.trialActive === true && userData.trialEndDate) {
               const trialEndDate = userData.trialEndDate.toDate
                 ? userData.trialEndDate.toDate()
                 : new Date(userData.trialEndDate.seconds * 1000)
-              hasActiveSubscription = trialEndDate > now
+
+              if (trialEndDate > now) {
+                console.log("Trial is active")
+                hasActiveSubscription = true
+              } else {
+                console.log("Trial has expired")
+              }
             }
 
             // Set review limit based on subscription plan
             if (userData.subscriptionPlan) {
-              switch (userData.subscriptionPlan.toLowerCase()) {
-                case "starter":
-                case "plan_basic":
+              const planName = userData.subscriptionPlan.toLowerCase()
+              console.log("User plan:", planName)
+
+              switch (true) {
+                case planName.includes("starter") || planName.includes("plan_basic"):
                   reviewLimitValue = 100
                   break
-                case "professional":
-                case "plan_pro":
+                case planName.includes("professional") || planName.includes("plan_pro"):
                   reviewLimitValue = 500
                   break
-                case "enterprise":
-                case "plan_premium":
-                case "custom":
+                case planName.includes("enterprise") ||
+                  planName.includes("plan_premium") ||
+                  planName.includes("custom"):
                   reviewLimitValue = 0 // unlimited
                   break
                 default:
@@ -230,13 +264,15 @@ export default function ReviewPageFixed() {
               }
             }
 
+            console.log("Review limit set to:", reviewLimitValue)
+
             // Get subscription start date for counting reviews
             const subscriptionStartDate = userData.subscriptionStartDate?.toDate
               ? userData.subscriptionStartDate.toDate()
               : null
 
             // Count actual reviews in current subscription period
-            const currentPeriodReviews = await countCurrentPeriodReviews(matchedDoc.id, subscriptionStartDate)
+            const currentPeriodReviews = await countCurrentPeriodReviews(userId, subscriptionStartDate)
 
             // Check if review limit is reached (only if not unlimited)
             let reviewLimitReached = false
@@ -259,7 +295,7 @@ export default function ReviewPageFixed() {
             setReviewLimit(reviewLimitValue)
 
             // Count link click once per session
-            const clickKey = `linkClicked-${matchedDoc.id}`
+            const clickKey = `linkClicked-${userId}`
             if (!sessionStorage.getItem(clickKey)) {
               try {
                 await updateDoc(userDocRef, {
@@ -277,18 +313,26 @@ export default function ReviewPageFixed() {
               setBusinessName(updatedBusinessName)
             }
 
-            // Get branches and filter only active ones
-            const branchesData = userData.businessInfo?.branches || []
+            // Fetch branches from businessInfo
+            const businessInfo = userData.businessInfo || {}
+            const branchesData = businessInfo.branches || []
+            console.log("Raw branches data from Firebase:", branchesData)
+
+            // Filter and format active branches
             const activeBranches = branchesData
-              .filter((branch: any) => branch.isActive !== false)
-              .map((branch: any) => ({
-                id: branch.id || `branch-${Math.random().toString(36).substr(2, 9)}`,
+              .filter((branch: any) => {
+                if (!branch || typeof branch !== "object") return false
+                return branch.isActive !== false // Include all active branches (undefined is treated as active)
+              })
+              .map((branch: any, index: number) => ({
+                id: branch.id || `branch-${Date.now()}-${index}`,
                 name: branch.name || "Unnamed Branch",
                 location: branch.location || "No location specified",
-                isActive: true,
+                isActive: branch.isActive !== false, // Default to true if undefined
                 googleReviewLink: branch.googleReviewLink || "",
               }))
 
+            console.log("Active branches:", activeBranches)
             setBranches(activeBranches)
 
             // Also get Google review link from user data if not in review_link
@@ -489,7 +533,7 @@ export default function ReviewPageFixed() {
       }
 
       // DON'T save to Firebase when limit is reached or subscription inactive
-      // Just redirect to Google
+      // Just redirect to Google using the selected branch's Google review link
       const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
       console.log("Opening Google review URL (no Firebase save):", reviewUrl)
       window.open(reviewUrl, "_blank")
@@ -537,7 +581,9 @@ export default function ReviewPageFixed() {
         }
       }
 
+      // Use the selected branch's specific Google review link
       const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
+      console.log("Opening branch-specific Google review URL:", reviewUrl)
       window.open(reviewUrl, "_blank")
       setSubmitted(true)
       setSubmissionMessage("Thank you for reviewing us!")
@@ -582,7 +628,7 @@ export default function ReviewPageFixed() {
   }
 
   const handleBranchSelect = (branch: Branch) => {
-    console.log("Branch selected:", branch.name)
+    console.log("Branch selected:", branch.name, "Google link:", branch.googleReviewLink)
     setSelectedBranch(branch)
     setFormData((prev) => ({
       ...prev,
@@ -634,7 +680,9 @@ export default function ReviewPageFixed() {
       }
     }
 
+    // Use the selected branch's specific Google review link
     const reviewUrl = selectedBranch?.googleReviewLink || googleReviewLink || reviewLinkUrl
+    console.log("Opening branch-specific Google review URL for public review:", reviewUrl)
     window.open(reviewUrl, "_blank")
     setSubmitted(true)
     setSubmissionMessage("Thank you for choosing to leave a public review!")
@@ -779,14 +827,16 @@ export default function ReviewPageFixed() {
                 >
                   <Sparkles className="h-5 w-5 lg:h-6 lg:w-6 text-yellow-300" />
                 </motion.div>
-                <h3
-                  className={`font-bold text-white ${isFormActive ? "text-lg lg:text-3xl" : "text-xl lg:text-5xl"} transition-all duration-300`}
-                >
+                <h3 className={`font-bold text-white ${isFormActive ? "text-lg lg:text-3xl" : "text-xl lg:text-5xl"} transition-all duration-300`}>
                   {welcomeTitle || "We value your opinion!"}
                 </h3>
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: 1 }}
+                  transition={{
+                    duration: 2,
+                    repeat: Number.POSITIVE_INFINITY,
+                    delay: 1,
+                  }}
                 >
                   <Heart className="h-5 w-5 lg:h-6 lg:w-6 text-pink-300" />
                 </motion.div>
@@ -1022,7 +1072,7 @@ export default function ReviewPageFixed() {
                             </div>
                           ) : (
                             <p className="text-center text-gray-500 text-xs lg:text-sm">
-                              No branch locations available
+                              No active branch locations available with Google review links
                             </p>
                           )}
                         </div>
