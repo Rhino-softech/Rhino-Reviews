@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Copy, ExternalLink, Clock, Trash2, Plus } from "lucide-react"
-import { doc, setDoc, getDocs, collection, query, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Copy, ExternalLink, Clock, Trash2, Plus } from "lucide-react"
+import { Copy, ExternalLink, Clock, Trash2, Plus } from 'lucide-react'
 import { doc, setDoc, getDocs, collection, query, where, deleteDoc, serverTimestamp } from "firebase/firestore"
+import { db } from "@/firebase/firebase"
+import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { v4 as uuidv4 } from "uuid"
 
@@ -24,14 +24,14 @@ interface SharableLink {
   url: string
 }
 
-export default function SharableLinks({
-  currentUser,
-  baseUrl,
-  businessSlug,
-}: {
-  currentUser: any
-  baseUrl: string
-  businessSlug: string
+export default function SharableLinks({ 
+  currentUser, 
+  baseUrl, 
+  businessSlug
+}: { 
+  currentUser: any; 
+  baseUrl: string;
+  businessSlug: string;
 }) {
   const [links, setLinks] = useState<SharableLink[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,16 +47,18 @@ export default function SharableLinks({
       try {
         const q = query(collection(db, "users", currentUser.uid, "sharable_links"))
         const querySnapshot = await getDocs(q)
+        
         const linksData: SharableLink[] = []
         querySnapshot.forEach((doc) => {
           const data = doc.data()
           linksData.push({
             id: doc.id,
             slug: data.slug,
+            expiresAt: data.expiresAt.toDate(),
             createdAt: data.createdAt.toDate(),
-
+            isActive: data.isActive,
+            // FIX: Use /s/ prefix for sharable links to avoid confusion with business URLs
             url: `${baseUrl}/s/${data.slug}`
-
           })
         })
 
@@ -70,37 +72,39 @@ export default function SharableLinks({
     }
 
     fetchLinks()
-  }, [currentUser, baseUrl, businessSlug])
+  }, [currentUser, baseUrl])
 
   const createNewLink = async () => {
     if (!currentUser) return
     setIsCreating(true)
 
     try {
-      const totalMinutes = newLinkDays * 24 * 60 + newLinkHours * 60 + newLinkMinutes
+      // Calculate total duration in hours, ensuring minutes are properly converted
+      const totalMinutes = (newLinkDays * 24 * 60) + (newLinkHours * 60) + newLinkMinutes
       if (totalMinutes <= 0) {
         toast.error("Duration must be greater than 0")
         return
       }
 
       const expiresAt = new Date()
+      // FIX: Add minutes directly instead of converting to hours
       expiresAt.setMinutes(expiresAt.getMinutes() + totalMinutes)
 
-      const slug = uuidv4().split("-")[0]
+      const slug = uuidv4().split('-')[0]
       const linkData = {
         slug,
         businessSlug,
         expiresAt,
         createdAt: serverTimestamp(),
         isActive: true,
-        userId: currentUser.uid,
-      }
+        userId: currentUser.uid 
+      };
 
-      await setDoc(doc(db, "users", currentUser.uid, "sharable_links", slug), linkData)
+      await setDoc(doc(db, "users", currentUser.uid, "sharable_links", slug), linkData);
       await setDoc(doc(db, "sharable_links", slug), {
         ...linkData,
-        userRef: doc(db, "users", currentUser.uid),
-      })
+        userRef: doc(db, "users", currentUser.uid) 
+      });
 
       const newLink = {
         id: slug,
@@ -108,11 +112,14 @@ export default function SharableLinks({
         expiresAt,
         createdAt: new Date(),
         isActive: true,
-        url: `${baseUrl}/${businessSlug}?sl=${slug}`,
+        // FIX: Use /s/ prefix for sharable links
+        url: `${baseUrl}/s/${slug}`
       }
 
       setLinks([newLink, ...links])
       toast.success("Sharable link created!")
+      
+      // Reset form
       setNewLinkDays(7)
       setNewLinkHours(0)
       setNewLinkMinutes(0)
@@ -126,23 +133,13 @@ export default function SharableLinks({
 
   const toggleLinkStatus = async (linkId: string, currentStatus: boolean) => {
     try {
-      await setDoc(
-        doc(db, "users", currentUser.uid, "sharable_links", linkId),
-        {
-          isActive: !currentStatus,
-        },
-        { merge: true },
-      )
+      await setDoc(doc(db, "users", currentUser.uid, "sharable_links", linkId), {
+        isActive: !currentStatus
+      }, { merge: true })
 
-      await setDoc(
-        doc(db, "sharable_links", linkId),
-        {
-          isActive: !currentStatus,
-        },
-        { merge: true },
-      )
-
-      setLinks(links.map((link) => (link.id === linkId ? { ...link, isActive: !currentStatus } : link)))
+      setLinks(links.map(link => 
+        link.id === linkId ? { ...link, isActive: !currentStatus } : link
+      ))
       toast.success(`Link ${currentStatus ? "deactivated" : "activated"}`)
     } catch (error) {
       console.error("Error toggling link status:", error)
@@ -153,8 +150,7 @@ export default function SharableLinks({
   const deleteLink = async (linkId: string) => {
     try {
       await deleteDoc(doc(db, "users", currentUser.uid, "sharable_links", linkId))
-      await deleteDoc(doc(db, "sharable_links", linkId))
-      setLinks(links.filter((link) => link.id !== linkId))
+      setLinks(links.filter(link => link.id !== linkId))
       toast.success("Link deleted successfully")
     } catch (error) {
       console.error("Error deleting link:", error)
@@ -174,12 +170,15 @@ export default function SharableLinks({
           <ExternalLink className="h-5 w-5 mr-2" />
           Sharable Links
         </CardTitle>
-        <CardDescription>Create time-limited links to collect reviews from specific customers</CardDescription>
+        <CardDescription>
+          Create time-limited links to collect reviews from specific customers
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
           <div className="space-y-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
             <h3 className="font-medium text-gray-800">Create New Link</h3>
+            
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="days">Days</Label>
@@ -220,9 +219,7 @@ export default function SharableLinks({
               disabled={isCreating}
               className="mt-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white"
             >
-              {isCreating ? (
-                "Creating..."
-              ) : (
+              {isCreating ? "Creating..." : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Sharable Link
@@ -233,12 +230,15 @@ export default function SharableLinks({
 
           <div className="space-y-4">
             <h3 className="font-medium text-gray-800">Your Active Links</h3>
+            
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500"></div>
               </div>
             ) : links.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No sharable links created yet</div>
+              <div className="text-center py-8 text-gray-500">
+                No sharable links created yet
+              </div>
             ) : (
               <div className="space-y-3">
                 {links.map((link) => (
@@ -246,9 +246,9 @@ export default function SharableLinks({
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <a
-                            href={link.url}
-                            target="_blank"
+                          <a 
+                            href={link.url} 
+                            target="_blank" 
                             rel="noopener noreferrer"
                             className="font-medium text-rose-600 hover:underline"
                           >
@@ -257,11 +257,15 @@ export default function SharableLinks({
                           <Badge variant={link.isActive ? "default" : "secondary"}>
                             {link.isActive ? "Active" : "Inactive"}
                           </Badge>
-                          {new Date() > link.expiresAt && <Badge variant="destructive">Expired</Badge>}
+                          {new Date() > link.expiresAt && (
+                            <Badge variant="destructive">Expired</Badge>
+                          )}
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
                           <Clock className="h-4 w-4 mr-1" />
-                          <span>Expires {formatDistanceToNow(link.expiresAt, { addSuffix: true })}</span>
+                          <span>
+                            Expires {formatDistanceToNow(link.expiresAt, { addSuffix: true })}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -282,11 +286,13 @@ export default function SharableLinks({
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                        
                         <Switch
                           checked={link.isActive}
                           onCheckedChange={() => toggleLinkStatus(link.id, link.isActive)}
                           disabled={new Date() > link.expiresAt}
                         />
+                        
                         <Button
                           variant="ghost"
                           size="sm"
