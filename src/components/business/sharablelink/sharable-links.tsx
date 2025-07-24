@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Copy, ExternalLink, Clock, Trash2, Plus } from "lucide-react"
 import { doc, setDoc, getDocs, collection, query, deleteDoc, serverTimestamp } from "firebase/firestore"
-import { db } from "@/firebase/firebase"
-import { toast } from "sonner"
-import { formatDistanceToNow } from "date-fns"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Copy, ExternalLink, Clock, Trash2, Plus } from "lucide-react"
+import { doc, setDoc, getDocs, collection, query, where, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { v4 as uuidv4 } from "uuid"
 
@@ -47,17 +47,16 @@ export default function SharableLinks({
       try {
         const q = query(collection(db, "users", currentUser.uid, "sharable_links"))
         const querySnapshot = await getDocs(q)
-
         const linksData: SharableLink[] = []
         querySnapshot.forEach((doc) => {
           const data = doc.data()
           linksData.push({
             id: doc.id,
             slug: data.slug,
-            expiresAt: data.expiresAt.toDate(),
             createdAt: data.createdAt.toDate(),
-            isActive: data.isActive,
-            url: `${baseUrl}/${businessSlug}?sl=${data.slug}`,
+
+            url: `${baseUrl}/s/${data.slug}`
+
           })
         })
 
@@ -114,7 +113,6 @@ export default function SharableLinks({
 
       setLinks([newLink, ...links])
       toast.success("Sharable link created!")
-
       setNewLinkDays(7)
       setNewLinkHours(0)
       setNewLinkMinutes(0)
@@ -182,7 +180,6 @@ export default function SharableLinks({
         <div className="space-y-6">
           <div className="space-y-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
             <h3 className="font-medium text-gray-800">Create New Link</h3>
-
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="days">Days</Label>
@@ -236,7 +233,6 @@ export default function SharableLinks({
 
           <div className="space-y-4">
             <h3 className="font-medium text-gray-800">Your Active Links</h3>
-
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500"></div>
@@ -286,13 +282,11 @@ export default function SharableLinks({
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-
                         <Switch
                           checked={link.isActive}
                           onCheckedChange={() => toggleLinkStatus(link.id, link.isActive)}
                           disabled={new Date() > link.expiresAt}
                         />
-
                         <Button
                           variant="ghost"
                           size="sm"
