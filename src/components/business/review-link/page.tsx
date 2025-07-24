@@ -111,14 +111,12 @@ const hasCustomPlan = (plan: string | undefined) => {
   return normalizedPlan.includes("custom") || normalizedPlan.includes("enterprise")
 }
 
-// FIX: Get proper base URL to avoid localhost issues
+// Get proper base URL to avoid localhost issues
 const getBaseUrl = () => {
   if (typeof window !== "undefined") {
-    // Client-side: use window.location.origin
     return window.location.origin
   }
 
-  // Server-side: check environment variables in order of preference
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
   }
@@ -131,43 +129,37 @@ const getBaseUrl = () => {
     return process.env.NEXT_PUBLIC_APP_URL
   }
 
-  // Development fallback
   return process.env.NODE_ENV === "development" ? "http://localhost:8081" : "https://rhino-review.rhinosoft.in"
 }
 
-// FIX: Check business name uniqueness before saving
+// Check business name uniqueness before saving
 const checkBusinessNameUniqueness = async (businessName: string, currentUserId: string) => {
   try {
-    // Check if any other user has this business name
     const slugToCheck = businessName.toLowerCase().replace(/\s+/g, "-")
 
-    // Query the slug_to_uid collection to see if this slug exists for another user
     const slugDocRef = doc(db, "slug_to_uid", slugToCheck)
     const slugDocSnap = await getDoc(slugDocRef)
 
     if (slugDocSnap.exists()) {
       const existingUid = slugDocSnap.data().uid
-      // If the existing UID is different from current user, name is taken
       if (existingUid !== currentUserId) {
-        return false // Name is taken
+        return false
       }
     }
 
-    // Also check in users collection for business names
     const usersQuery = query(collection(db, "users"), where("businessInfo.businessName", "==", businessName))
     const usersSnapshot = await getDocs(usersQuery)
 
-    // Check if any other user has this business name
     for (const userDoc of usersSnapshot.docs) {
       if (userDoc.id !== currentUserId) {
-        return false // Name is taken by another user
+        return false
       }
     }
 
-    return true // Name is available
+    return true
   } catch (error) {
     console.error("Error checking business name uniqueness:", error)
-    return false // Assume taken on error for safety
+    return false
   }
 }
 
@@ -259,9 +251,8 @@ export default function ReviewLinkPage() {
         const data = doc.data()
         const createdAt = data.createdAt ? data.createdAt.toDate() : null
 
-        // Only include complete reviews, not partial star ratings
         if (data.isComplete === false || data.status === "incomplete") {
-          return // Skip incomplete reviews
+          return
         }
 
         if (!data.branchname || activeBranchNames.includes(data.branchname) || data.status === "published") {
@@ -307,7 +298,6 @@ export default function ReviewLinkPage() {
             setGoogleReviewLink(businessInfoData.googleReviewLink || "")
             businessNameFromInfo = businessInfoData.businessName || ""
 
-            // Set user plan and custom access
             const plan = userData.subscriptionPlan || userData.plan || ""
             setUserPlan(plan)
             setHasCustomAccess(hasCustomPlan(plan))
@@ -349,14 +339,14 @@ export default function ReviewLinkPage() {
             setOldPreviewImageUrl(data.previewImage || null)
             setOldLogoImageUrl(data.logoImage || null)
 
-            // FIX: Use proper base URL instead of hardcoded localhost
             let reviewUrl = data.reviewLinkUrl
             if (!reviewUrl) {
               const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
-              reviewUrl = `${getBaseUrl()}/review/${slug}`
+              reviewUrl = `${getBaseUrl()}/${slug}`
             }
             setReviewLinkUrl(reviewUrl)
-            setTempBusinessSlug(reviewUrl.replace(`${getBaseUrl()}/review/`, ""))
+            const urlParts = reviewUrl.split("/")
+            setTempBusinessSlug(urlParts[urlParts.length - 1] || "your-business")
           } else {
             const docRef = doc(db, "review_link", user.uid)
             const docSnap = await getDoc(docRef)
@@ -377,14 +367,14 @@ export default function ReviewLinkPage() {
               setOldPreviewImageUrl(data.previewImage || null)
               setOldLogoImageUrl(data.logoImage || null)
 
-              // FIX: Use proper base URL instead of hardcoded localhost
               let reviewUrl = data.reviewLinkUrl
               if (!reviewUrl) {
                 const slug = finalBusinessName ? finalBusinessName.toLowerCase().replace(/\s+/g, "-") : "your-business"
                 reviewUrl = `${getBaseUrl()}/${slug}`
               }
               setReviewLinkUrl(reviewUrl)
-              setTempBusinessSlug(reviewUrl.replace(`${getBaseUrl()}/`, ""))
+              const urlParts = reviewUrl.split("/")
+              setTempBusinessSlug(urlParts[urlParts.length - 1] || "your-business")
             } else {
               const slug = businessNameFromInfo
                 ? businessNameFromInfo.toLowerCase().replace(/\s+/g, "-")
@@ -407,7 +397,6 @@ export default function ReviewLinkPage() {
     return () => unsubscribe()
   }, [])
 
-  // FIX: Check business name uniqueness when user types
   const handleBusinessNameChange = async (newName: string) => {
     setTempBusinessName(newName)
     setNameAvailable(null)
@@ -438,7 +427,6 @@ export default function ReviewLinkPage() {
 
     const saveConfig = async () => {
       try {
-        // FIX: Don't save if business name is not available
         if (nameAvailable === false) {
           toast.error("Cannot save: Business name is already taken")
           return
@@ -496,12 +484,10 @@ export default function ReviewLinkPage() {
 
   const handleUrlEdit = async () => {
     if (isEditingUrl) {
-      // FIX: Check uniqueness before saving URL
       if (!currentUser) return
 
       const newSlug = tempBusinessSlug.trim().toLowerCase().replace(/\s+/g, "-")
 
-      // Check if this slug is available
       const slugDocRef = doc(db, "slug_to_uid", newSlug)
       const slugDocSnap = await getDoc(slugDocRef)
 
@@ -530,14 +516,14 @@ export default function ReviewLinkPage() {
         toast.error("Failed to update URL")
       }
     } else {
-      setTempBusinessSlug(reviewLinkUrl.replace(`${getBaseUrl()}/`, ""))
+      const urlParts = reviewLinkUrl.split("/")
+      setTempBusinessSlug(urlParts[urlParts.length - 1] || "your-business")
     }
     setIsEditingUrl(!isEditingUrl)
   }
 
   const handlePreviewEdit = async () => {
     if (isEditingPreview) {
-      // FIX: Check business name uniqueness before saving
       if (tempBusinessName !== businessName && currentUser) {
         const isAvailable = await checkBusinessNameUniqueness(tempBusinessName.trim(), currentUser.uid)
         if (!isAvailable) {
@@ -706,66 +692,65 @@ export default function ReviewLinkPage() {
     return !Object.values(errors).some(Boolean)
   }
 
-  // FIX: Properly save review with user information to prevent "Abandoned User"
-  const saveNegativeReview = async (source: string = "review_form") => {
-  if (!currentUser) return
+  const saveNegativeReview = async (source = "review_form") => {
+    if (!currentUser) return
 
-  try {
-    // Get sharable link ID from URL if present
-    const urlParams = new URLSearchParams(window.location.search)
-    const source = urlParams.get('sl') ? "sharable_link" : "review_form"
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const sharableLinkId = urlParams.get("sl")
+      const reviewSource = sharableLinkId ? "sharable_link" : "review_form"
 
-    const reviewData = {
-      name: formData.name.trim() || "Anonymous User",
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      branchname: formData.branchname.trim(),
-      review: formData.review.trim(),
-      message: formData.review.trim(),
-      rating,
-      businessName,
-      createdAt: serverTimestamp(),
-      status: "pending",
-      userId: currentUser.uid,
-      platform: "internal",
-      reviewType: "internal",
-      isComplete: true,
-      source,
-      sharableLinkId: sharableLinkId || null
+      const reviewData = {
+        name: formData.name.trim() || "Anonymous User",
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        branchname: formData.branchname.trim(),
+        review: formData.review.trim(),
+        message: formData.review.trim(),
+        rating,
+        businessName,
+        createdAt: serverTimestamp(),
+        status: "pending",
+        userId: currentUser.uid,
+        platform: "internal",
+        reviewType: "internal",
+        isComplete: true,
+        source: reviewSource,
+        sharableLinkId: sharableLinkId || null,
+      }
+
+      await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
+
+      setSubmitted(true)
+      setSubmissionMessage("We're sorry to hear about your experience. Thank you for your feedback.")
+    } catch (error) {
+      console.error("Error saving negative review:", error)
+      setSubmissionMessage("There was an error submitting your feedback. Please try again.")
     }
-
-    await addDoc(collection(db, "users", currentUser.uid, "reviews"), reviewData)
-
-    setSubmitted(true)
-    setSubmissionMessage("We're sorry to hear about your experience. Thank you for your feedback.")
-  } catch (error) {
-    console.error("Error saving negative review:", error)
-    setSubmissionMessage("There was an error submitting your feedback. Please try again.")
   }
-}
 
   const handleLeaveReview = async () => {
-  if (rating === 0) return
+    if (rating === 0) return
 
-  if (!isReviewGatingEnabled) {
-    window.open(reviewLinkUrl, "_blank")
-    return
-  }
+    if (!isReviewGatingEnabled) {
+      window.open(reviewLinkUrl, "_blank")
+      return
+    }
 
-  if (rating >= 4) {
-    const url = googleReviewLink || reviewLinkUrl
-    window.open(url, "_blank")
-    return
-  }
+    if (rating >= 4) {
+      const url = googleReviewLink || reviewLinkUrl
+      window.open(url, "_blank")
+      return
+    }
 
-  if (!showForm) {
-    setShowForm(true)
-    return
-  }
+    if (!showForm) {
+      setShowForm(true)
+      return
+    }
 
-  if (!validateForm()) return
+    if (!validateForm()) return
 
-    await saveNegativeReview(source)
+    await saveNegativeReview()
   }
 
   const handleToggleReviewGating = () => {
@@ -1000,18 +985,18 @@ export default function ReviewLinkPage() {
                   )}
                 </div>
               </motion.div>
-              
+
               {/* Sharable links */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.25 }}
               >
-              <SharableLinks 
-                currentUser={currentUser} 
-                baseUrl={getBaseUrl()} 
-                businessSlug={tempBusinessSlug} // Add this prop
-              />              
+                <SharableLinks
+                  currentUser={currentUser}
+                  baseUrl={getBaseUrl()}
+                  businessSlug={tempBusinessSlug || businessName.toLowerCase().replace(/\s+/g, "-")}
+                />
               </motion.div>
 
               {/* QR Code Generator - Only for Custom Plan */}
