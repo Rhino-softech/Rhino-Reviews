@@ -74,12 +74,14 @@ function AppRoutes() {
   useScrollToHash();
   const location = useLocation();
 
-const currentPath = location.pathname;
+  const currentPath = location.pathname;
 
-// Hide navbar for /review, /feedback, or any single-segment slug like /demo123
-const shouldHideNavbar = /^\/[^\/]+$/.test(currentPath) || ["/review", "/feedback"].includes(currentPath);
+  // Hide navbar for /review, /feedback, /s/:slug or any single-segment slug like /demo123
+  const shouldHideNavbar = /^\/[^\/]+$/.test(currentPath) || 
+                         ["/review", "/feedback", "/components/business/sharablelink/SharableRedirect"].includes(currentPath) ||
+                         currentPath.startsWith("/s/");
 
-return (
+  return (
     <>
       {!shouldHideNavbar && <Navbar />}
 
