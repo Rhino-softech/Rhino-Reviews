@@ -1,31 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import {
-  Check,
-  FolderOpen,
-  MailOpen,
-  Star,
-  Trash2,
-  MapPin,
-  Globe,
-  Sparkles,
-  TrendingUp,
-  Calendar,
-  MessageSquare,
-  Send,
-  Plus,
-  Edit,
-  Crown,
-  Clock,
-  Mail,
-  Gift,
-  ShoppingCart,
-  Package,
-  Copy,
-  CreditCard,
-  AlertCircle,
-} from "lucide-react"
+import { Check, FolderOpen, MailOpen, Star, Trash2, MapPin, Globe, Sparkles, TrendingUp, Calendar, MessageSquare, Send, Plus, Edit, Crown, Clock, Mail, Gift, ShoppingCart, Package, Copy, CreditCard, AlertCircle } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -603,7 +579,7 @@ const replaceTemplateVariables = (template: string, businessName: string, custom
 
 export default function BusinessReviews() {
   const router = useNavigate()
-  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviews, setReviews] = useState<Review[]>([]) // This will hold all fetched reviews (Firestore + Google)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [selectedLocation, setSelectedLocation] = useState("All")
   const [filterOption, setFilterOption] = useState("All")
@@ -615,12 +591,12 @@ export default function BusinessReviews() {
   const [trialInfo, setTrialInfo] = useState<any>(null)
   const [reviewsLimit, setReviewsLimit] = useState<number>(50)
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
-  const [reviewsCount, setReviewsCount] = useState(0)
+  const [reviewsCount, setReviewsCount] = useState(0) // Total reviews displayed in the current tab (before limiting)
   const [userPlan, setUserPlan] = useState<any>(null)
   const [activeBranches, setActiveBranches] = useState<string[]>([])
   const [currentSubscriptionReviews, setCurrentSubscriptionReviews] = useState<Review[]>([])
   const [previousSubscriptionReviews, setPreviousSubscriptionReviews] = useState<Review[]>([])
-  const [currentSubscriptionCount, setCurrentSubscriptionCount] = useState(0)
+  const [currentSubscriptionCount, setCurrentSubscriptionCount] = useState(0) // Count of *valid* reviews in current tab
   const [viewMode, setViewMode] = useState<"current" | "previous">("current")
   const [branches, setBranches] = useState<any[]>([])
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
@@ -891,19 +867,19 @@ export default function BusinessReviews() {
 
           reviewsArray.forEach((r: any, i: number) => {
             googleReviews.push({
-              id: `google-${i}`,
+              id: `google-${i}-${r.time}`, // Use time for more unique ID
               name: r.author_name || "Google User",
               email: "",
               phone: "",
-              branchname: branchName,
+              branchname: branchName, // Google reviews don't have explicit branch names in this structure, use first branch
               message: r.text || "",
               rating: r.rating || 0,
-              date: new Date().toLocaleDateString(),
+              date: r.time ? format(new Date(r.time * 1000), "MMM d, yyyy") : "Unknown date", // Convert epoch to Date
               replied: false,
               status: "published",
               platform: "Google",
               reviewType: "Google",
-              createdAt: new Date(),
+              createdAt: r.time ? new Date(r.time * 1000) : new Date(), // Convert epoch to Date object
             })
           })
         }
@@ -911,32 +887,26 @@ export default function BusinessReviews() {
         console.error("Failed to fetch Google reviews:", error)
       }
 
-      // Store Google reviews separately to be merged in fetchReviews
+      // Store Google reviews in the main 'reviews' state initially, they will be categorized in fetchReviews
       setReviews(googleReviews)
     } catch (error) {
       console.error("Error fetching user data:", error)
     }
   }, [])
 
-  // FETCH REVIEWS - EXISTING LOGIC UNCHANGED
+  // FETCH REVIEWS - MODIFIED LOGIC FOR TRIAL AND SUBSCRIPTION PERIODS
   const fetchReviews = useCallback(async () => {
     if (!currentUser || !userPlan) return
 
     try {
       const reviewsQuery = query(collection(db, "users", currentUser.uid, "reviews"), orderBy("createdAt", "desc"))
       const querySnapshot = await getDocs(reviewsQuery)
-      const reviewsData: Review[] = []
-      const currentSubscriptionReviewsData: Review[] = []
-      const previousSubscriptionReviewsData: Review[] = []
-
-      const currentSubscriptionStart = userPlan.subscriptionStartDate?.toDate()
-      const currentSubscriptionEnd = userPlan.subscriptionEndDate?.toDate()
-      const previousSubscriptions = subscriptionHistory || []
+      const allFirestoreReviews: Review[] = [] // All reviews from Firestore
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         const createdAt = data.createdAt ? data.createdAt.toDate() : null
-        const review = {
+        allFirestoreReviews.push({
           id: doc.id,
           name: data.name || "Anonymous",
           email: data.email || "",
@@ -951,83 +921,95 @@ export default function BusinessReviews() {
           reviewType: data.reviewType || "internal",
           createdAt: createdAt || new Date(),
           isComplete: data.isComplete !== false,
+        })
+      })
+
+      // Combine Firestore reviews and the initially fetched Google reviews
+      const allReviewsCombined: Review[] = [...allFirestoreReviews];
+      reviews.forEach(googleReview => { // 'reviews' here holds the Google reviews from fetchUserData
+        if (!allReviewsCombined.some(r => r.id === googleReview.id)) {
+          allReviewsCombined.push(googleReview);
+        }
+      });
+      allReviewsCombined.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort combined by date
+
+      let currentSubReviews: Review[] = []
+      let previousSubReviews: Review[] = []
+
+      const currentSubscriptionStart = userPlan.subscriptionStartDate?.toDate()
+      const currentSubscriptionEnd = userPlan.subscriptionEndDate?.toDate()
+      const trialEndDate = userPlan.trialEndDate?.toDate()
+
+      const hasActivePlan = userPlan.subscriptionPlan && userPlan.subscriptionPlan !== "none" && userPlan.subscriptionPlan !== ""
+      const isTrialActiveNow = userPlan.trialActive // Flag indicating if user is currently in trial
+
+      allReviewsCombined.forEach((review) => {
+        const createdAt = review.createdAt
+        if (!createdAt) {
+          // If no creation date, default to previous for consistency
+          previousSubReviews.push(review)
+          return
         }
 
-        reviewsData.push(review)
-
-        if (createdAt) {
-          // Check if review belongs to current subscription
+        if (isTrialActiveNow) {
+          // Condition: subscription is false and trail is true
+          // Display reviews received *during* the current trial period in "current" tab
+          if (trialEndDate && createdAt <= trialEndDate) {
+            currentSubReviews.push(review)
+          } else {
+            // Reviews received outside of the current trial period go to "previous"
+            previousSubReviews.push(review)
+          }
+        } else if (hasActivePlan) {
+          // Condition: once the subscription is true
+          // Current subscription plan reviews show in "current" tab
           if (
             currentSubscriptionStart &&
             createdAt >= currentSubscriptionStart &&
             (!currentSubscriptionEnd || createdAt <= currentSubscriptionEnd)
           ) {
-            currentSubscriptionReviewsData.push(review)
+            currentSubReviews.push(review)
           } else {
-            // Check if review belongs to any previous subscription
-            let belongsToPreviousSubscription = false
-            for (const prevSub of previousSubscriptions) {
-              const prevStart = prevSub.startDate?.toDate()
-              const prevEnd = prevSub.endDate?.toDate()
-
-              if (prevStart && createdAt >= prevStart && (!prevEnd || createdAt <= prevEnd)) {
-                previousSubscriptionReviewsData.push(review)
-                belongsToPreviousSubscription = true
-                break
-              }
-            }
-
-            // If doesn't belong to any subscription period, add to previous for now
-            if (!belongsToPreviousSubscription && (!currentSubscriptionStart || createdAt < currentSubscriptionStart)) {
-              previousSubscriptionReviewsData.push(review)
-            }
+            // Trial period reviews and previous subscription reviews show in "previous" tab
+            previousSubReviews.push(review)
           }
+        } else {
+          // User has no active trial and no active subscription (e.g., trial expired, or never subscribed)
+          // All reviews fall into "previous" for categorization
+          previousSubReviews.push(review)
         }
       })
 
-      // Sort reviews by creation date
-      currentSubscriptionReviewsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      previousSubscriptionReviewsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      currentSubReviews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      previousSubReviews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
-      // APPLY REVIEW LIMIT TO CURRENT SUBSCRIPTION REVIEWS ONLY
-      let limitedCurrentSubscriptionReviews = currentSubscriptionReviewsData
-      if (reviewsLimit > 0 && currentSubscriptionReviewsData.length > reviewsLimit) {
-        limitedCurrentSubscriptionReviews = currentSubscriptionReviewsData.slice(0, reviewsLimit)
+      // Apply review limit to current subscription reviews
+      let limitedCurrentSubscriptionReviews = currentSubReviews
+      if (reviewsLimit > 0 && currentSubReviews.length > reviewsLimit) {
+        limitedCurrentSubscriptionReviews = currentSubReviews.slice(0, reviewsLimit)
       }
 
-      // Merge Google reviews with Firestore reviews, avoiding duplicates
-      const allReviews = [...reviewsData]
-      reviews.forEach((googleReview) => {
-        if (googleReview.platform === "Google" && !allReviews.some((r) => r.id === googleReview.id)) {
-          allReviews.push(googleReview)
-        }
-      })
-
-      setReviews(allReviews)
       setCurrentSubscriptionReviews(limitedCurrentSubscriptionReviews)
-      setPreviousSubscriptionReviews(previousSubscriptionReviewsData)
+      setPreviousSubscriptionReviews(previousSubReviews)
+      setReviews(allReviewsCombined) // Update global reviews state with all combined reviews
 
-      // Count valid reviews (excluding abandoned/incomplete)
-      const countedReviews = currentSubscriptionReviewsData.filter((r) => {
-        // Google Reviews should always be counted as valid Google Reviews, not abandoned
-        if (r.platform === "Google") {
-          return true
-        }
-        // For internal reviews, apply the existing abandoned logic
+      // Count valid reviews for current subscription (excluding abandoned/incomplete internal reviews)
+      const countedCurrentReviewsForLimit = currentSubReviews.filter((r) => {
+        if (r.platform === "Google") return true // Google Reviews are always valid for counting towards limit if they are in the current tab
         return r.status !== "abandoned" && r.isComplete !== false && !(r.message && r.message.startsWith("Rated"))
       })
 
-      setAbandonedCount(currentSubscriptionReviewsData.length - countedReviews.length)
-      setCurrentSubscriptionCount(countedReviews.length)
-      setReviewsCount(reviewsData.length)
+      setAbandonedCount(currentSubReviews.length - countedCurrentReviewsForLimit.length) // Based on all reviews in current tab, before slice
+      setCurrentSubscriptionCount(countedCurrentReviewsForLimit.length)
+      setReviewsCount(currentSubReviews.length) // Total reviews in the current tab (before limit)
 
-      const limitReached = reviewsLimit > 0 && countedReviews.length >= reviewsLimit
+      const limitReached = reviewsLimit > 0 && countedCurrentReviewsForLimit.length >= reviewsLimit
       setShowUpgradePrompt(limitReached)
       setIsReviewLimitReached(limitReached)
     } catch (error) {
       console.error("Error fetching reviews:", error)
     }
-  }, [currentUser, reviewsLimit, userPlan, subscriptionHistory, reviews])
+  }, [currentUser, reviewsLimit, userPlan, reviews]) // Added 'reviews' to dependencies because it holds initial Google reviews.
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -1044,10 +1026,10 @@ export default function BusinessReviews() {
   }, [fetchUserData, router])
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && userPlan) { // Ensure userPlan is loaded before fetching reviews
       fetchReviews()
     }
-  }, [currentUser, fetchReviews])
+  }, [currentUser, userPlan, fetchReviews]) // Added userPlan to dependencies
 
   // Fetch addon packages
   useEffect(() => {
@@ -1104,20 +1086,13 @@ export default function BusinessReviews() {
 
     try {
       await deleteDoc(doc(db, "users", currentUser.uid, "reviews", reviewToDelete.id))
-      setReviews(reviews.filter((review) => review.id !== reviewToDelete.id))
-      setReviewsCount((prev) => prev - 1)
+      // Update the main 'reviews' state directly by filtering out the deleted review
+      setReviews(prevReviews => prevReviews.filter((review) => review.id !== reviewToDelete.id));
 
-      const reviewBelongsToCurrentSub = currentSubscriptionReviews.some((r) => r.id === reviewToDelete.id)
-      if (reviewBelongsToCurrentSub) {
-        setCurrentSubscriptionCount((prev) => prev - 1)
-        setCurrentSubscriptionReviews(currentSubscriptionReviews.filter((review) => review.id !== reviewToDelete.id))
-        if (reviewsLimit && currentSubscriptionCount - 1 < reviewsLimit) {
-          setShowUpgradePrompt(false)
-          setIsReviewLimitReached(false)
-        }
-      } else {
-        setPreviousSubscriptionReviews(previousSubscriptionReviews.filter((review) => review.id !== reviewToDelete.id))
-      }
+      // Re-run fetchReviews to re-categorize and update counts accurately
+      // This is safer than trying to manually update current/previous arrays and counts
+      await fetchReviews();
+
     } catch (error) {
       console.error("Error deleting review:", error)
     } finally {
@@ -1137,18 +1112,11 @@ export default function BusinessReviews() {
           replied: !review.replied,
         })
 
-        setReviews(reviews.map((review) => (review.id === id ? { ...review, replied: !review.replied } : review)))
+        // Update the main 'reviews' state for consistency
+        setReviews(prevReviews => prevReviews.map((review) => (review.id === id ? { ...review, replied: !review.replied } : review)));
 
-        const reviewBelongsToCurrentSub = currentSubscriptionReviews.some((r) => r.id === id)
-        if (reviewBelongsToCurrentSub) {
-          setCurrentSubscriptionReviews(
-            currentSubscriptionReviews.map((r) => (r.id === id ? { ...r, replied: !r.replied } : r)),
-          )
-        } else {
-          setPreviousSubscriptionReviews(
-            previousSubscriptionReviews.map((r) => (r.id === id ? { ...r, replied: !r.replied } : r)),
-          )
-        }
+        // Re-run fetchReviews to ensure the current/previous tabs are updated correctly
+        await fetchReviews();
       }
     } catch (error) {
       console.error("Error toggling reply status:", error)
@@ -1443,11 +1411,13 @@ export default function BusinessReviews() {
                   <div className="text-slate-600 text-sm font-medium mt-1">
                     {usageText} {excludedText} {bonusText}
                   </div>
-                  {/* ADD-ON CREDITS DISPLAY - ONLY FOR PREVIOUS PLAN REVIEWS */}
-                  {viewMode === "previous" && addonCredits > 0 && (
+                  {/* ADD-ON CREDITS DISPLAY - Only show if there are actual credits available/used */}
+                  {addonCredits > 0 && ( // Show addon credits if user has any, regardless of viewMode
                     <div className="text-sm text-orange-600 mt-2 font-semibold flex items-center gap-1">
                       <Package className="h-4 w-4" />
-                      Add-on Credits: {availableAddonCredits} / {addonCredits} available (Previous Plans Only)
+                      Add-on Credits: {availableAddonCredits} / {addonCredits} available
+                      {viewMode === "previous" && " (For Previous Plans)"}
+                      {viewMode === "current" && " (Only for previous plans after subscription)"}
                     </div>
                   )}
                   {/* FIXED: Only show trial info if actually in trial */}
@@ -1478,8 +1448,8 @@ export default function BusinessReviews() {
                   </select>
                 </div>
 
-                {/* ADD-ON PURCHASE BUTTON - ONLY SHOWN FOR PREVIOUS PLAN REVIEWS */}
-                {viewMode === "previous" && (
+                {/* ADD-ON PURCHASE BUTTON - Only enable for previous plan reviews if add-on credits are needed */}
+                {viewMode === "previous" && availableAddonCredits <= 0 && (
                   <Button
                     onClick={() => setShowAddonDialog(true)}
                     className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm"
@@ -1488,8 +1458,18 @@ export default function BusinessReviews() {
                     Buy Reply Credits
                   </Button>
                 )}
+                {viewMode === "previous" && availableAddonCredits > 0 && (
+                  <Button
+                    disabled
+                    className="bg-gray-400 text-white shadow-lg px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm cursor-not-allowed"
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Credits Available
+                  </Button>
+                )}
 
-                {isCustomUser && hasActivePlan && (
+
+                {isCustomPlan(userPlan?.subscriptionPlan) && hasActivePlan && (
                   <Button
                     onClick={() => setShowCustomTemplateManager(true)}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-semibold text-sm"
