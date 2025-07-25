@@ -10,12 +10,10 @@ import {
   BarChart2,
   MessageSquare,
   ThumbsUp,
-  ThumbsDown,
   TrendingUp,
   Users,
   Award,
   Heart,
-  Calendar,
   ArrowUp,
   Activity,
   Globe,
@@ -26,11 +24,17 @@ import {
   Brain,
   Target,
   Zap,
-  Eye,
   Clock,
-  Filter,
-  LineChart,
+  Shield,
+  Calendar,
+  Eye,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
   TrendingDown,
+  BarChart3,
+  LineChart,
 } from "lucide-react"
 import { auth, db } from "@/firebase/firebase"
 import { collection, query, getDocs, doc, getDoc } from "firebase/firestore"
@@ -46,6 +50,28 @@ interface Review {
   source?: string
   deviceType?: string
   branchname?: string
+  reviewText?: string
+  customerName?: string
+  sentiment?: "positive" | "negative" | "neutral"
+}
+
+interface LoginDetails {
+  timestamp: any // Can be Date or Firestore Timestamp
+  device: {
+    type: string
+    os: string
+    browser: string
+    model?: string
+    userAgent?: string
+  }
+  location?: {
+    ip?: string
+    city?: string
+    region?: string
+    country?: string
+    timezone?: string
+  }
+  loginMethod: "email" | "google"
 }
 
 interface AnalyticsData {
@@ -64,7 +90,10 @@ interface AnalyticsData {
   engagementRate: number
   monthlyData: { month: string; reviews: number; rating: number }[]
   hourlyData: { hour: string; count: number }[]
-  // Custom plan exclusive features
+  loginActivity: LoginDetails[]
+  recentReviews: Review[]
+  topKeywords: { word: string; count: number }[]
+  competitorComparison: { metric: string; us: number; competitor: number }[]
   predictiveAnalytics?: {
     nextMonthForecast: number
     trendDirection: "up" | "down" | "stable"
@@ -87,14 +116,12 @@ interface AnalyticsData {
   }
 }
 
-// Helper function to check if user has custom plan
 const hasCustomPlan = (plan: string | undefined) => {
   if (!plan) return false
   const normalizedPlan = plan.toLowerCase()
   return normalizedPlan.includes("custom") || normalizedPlan.includes("enterprise")
 }
 
-// Helper function to check if user has pro plan
 const hasProPlan = (plan: string | undefined) => {
   if (!plan) return false
   const normalizedPlan = plan.toLowerCase()
@@ -107,13 +134,11 @@ const hasProPlan = (plan: string | undefined) => {
   )
 }
 
-// Helper function to check if user has access to location dropdown
 const hasLocationAccess = (plan: string | undefined, trialActive: boolean) => {
-  if (trialActive) return false // Hide for free trial users
+  if (trialActive) return false
   if (!plan) return false
 
   const normalizedPlan = plan.toLowerCase()
-  // Hide for starter/basic plans, show for professional/premium plans
   return !(
     normalizedPlan.includes("starter") ||
     normalizedPlan.includes("basic") ||
@@ -121,7 +146,6 @@ const hasLocationAccess = (plan: string | undefined, trialActive: boolean) => {
   )
 }
 
-// Animation component for counting numbers
 const AnimatedNumber = ({ value, duration = 2000 }: { value: number; duration?: number }) => {
   const [displayValue, setDisplayValue] = useState(0)
 
@@ -147,7 +171,6 @@ const AnimatedNumber = ({ value, duration = 2000 }: { value: number; duration?: 
   return <span>{displayValue}</span>
 }
 
-// Animated progress bar
 const AnimatedProgress = ({ value, className }: { value: number; className?: string }) => {
   const [progress, setProgress] = useState(0)
 
@@ -159,7 +182,6 @@ const AnimatedProgress = ({ value, className }: { value: number; className?: str
   return <Progress value={progress} className={className} />
 }
 
-// Interactive Chart Component
 const InteractiveChart = ({ data, type = "bar" }: { data: any[]; type?: "bar" | "line" | "pie" }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
@@ -216,13 +238,13 @@ export default function AnalyticPage() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
   const [trialActive, setTrialActive] = useState(false)
   const [selectedTimeRange, setSelectedTimeRange] = useState("30")
+  const [refreshing, setRefreshing] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // Check user's subscription plan
           const userRef = doc(db, "users", user.uid)
           const userDoc = await getDoc(userRef)
 
@@ -234,12 +256,10 @@ export default function AnalyticPage() {
             setUserPlan(plan || "")
             setTrialActive(isTrialActive)
 
-            // Set branches for location dropdown
             const businessInfo = userData.businessInfo || {}
             const branchesData = businessInfo.branches || []
             setBranches(branchesData)
 
-            // Check if user has access to location dropdown
             const hasAccess = hasLocationAccess(plan, isTrialActive)
             setShowLocationDropdown(hasAccess)
 
@@ -267,7 +287,6 @@ export default function AnalyticPage() {
     return () => unsubscribe()
   }, [navigate])
 
-  // Refetch analytics data when location or time range changes
   useEffect(() => {
     if (hasAccess && auth.currentUser) {
       fetchAnalyticsData(auth.currentUser.uid)
@@ -276,22 +295,28 @@ export default function AnalyticPage() {
 
   const fetchAnalyticsData = async (userId: string) => {
     try {
-      // Fetch reviews
+      setRefreshing(true)
+
+      const userRef = doc(db, "users", userId)
+      const userDoc = await getDoc(userRef)
+      const userData = userDoc.data()
+      const loginActivity = userData?.loginHistory || []
+
       const reviewsQuery = query(collection(db, "users", userId, "reviews"))
       const querySnapshot = await getDocs(reviewsQuery)
 
       const reviewsData: Review[] = []
       let totalRating = 0
-      const ratingCounts = [0, 0, 0, 0, 0] // 1-5 stars
+      const ratingCounts = [0, 0, 0, 0, 0]
       const dateCounts: Record<string, { count: number; totalRating: number }> = {}
       const sourceCounts: Record<string, number> = {}
       const deviceCounts = { desktop: 0, mobile: 0, tablet: 0 }
       const hourCounts: Record<string, number> = {}
+      const keywordCounts: Record<string, number> = {}
       let repliedCount = 0
       let positiveCount = 0
       let negativeCount = 0
 
-      // Filter by time range
       const daysBack = Number.parseInt(selectedTimeRange)
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - daysBack)
@@ -300,18 +325,17 @@ export default function AnalyticPage() {
         const data = doc.data()
         const rating = data.rating || 0
         const createdAt = data.createdAt?.toDate() || new Date()
-        const dateKey = createdAt.toISOString().split("T")[0] // YYYY-MM-DD
+        const dateKey = createdAt.toISOString().split("T")[0]
         const hourKey = createdAt.getHours().toString()
         const source = data.source || "Direct"
-        const deviceType = data.deviceType || "desktop"
+        const deviceType = (data.deviceType || "desktop").toLowerCase()
         const branchname = data.branchname || ""
+        const reviewText = data.reviewText || ""
 
-        // Filter by time range
         if (createdAt < cutoffDate) return
 
-        // Filter by location if not "All"
         if (selectedLocation !== "All" && !branchname.toLowerCase().includes(selectedLocation.toLowerCase())) {
-          return // Skip this review if it doesn't match the selected location
+          return
         }
 
         reviewsData.push({
@@ -322,41 +346,70 @@ export default function AnalyticPage() {
           source,
           deviceType,
           branchname,
+          reviewText,
+          customerName: data.customerName || "Anonymous",
+          sentiment: rating >= 4 ? "positive" : rating <= 2 ? "negative" : "neutral",
         })
 
-        // Calculate stats
         totalRating += rating
         if (rating >= 1 && rating <= 5) {
-          ratingCounts[5 - rating]++ // 5-star at index 0, 1-star at index 4
+          ratingCounts[5 - rating]++
         }
 
-        // Count by date
         if (!dateCounts[dateKey]) {
           dateCounts[dateKey] = { count: 0, totalRating: 0 }
         }
         dateCounts[dateKey].count++
         dateCounts[dateKey].totalRating += rating
 
-        // Count by hour
         hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1
-
-        // Count sources
         sourceCounts[source] = (sourceCounts[source] || 0) + 1
 
-        // Count devices
         if (deviceType in deviceCounts) {
           deviceCounts[deviceType as keyof typeof deviceCounts]++
         }
 
-        // Count replies
         if (data.replied) repliedCount++
 
-        // Sentiment analysis (simple version based on rating)
         if (rating >= 4) positiveCount++
         else if (rating <= 2) negativeCount++
+
+        if (reviewText) {
+          const words = reviewText.toLowerCase().match(/\b\w{4,}\b/g) || []
+          words.forEach((word) => {
+            if (
+              ![
+                "this",
+                "that",
+                "with",
+                "have",
+                "will",
+                "been",
+                "from",
+                "they",
+                "know",
+                "want",
+                "been",
+                "good",
+                "just",
+                "like",
+                "time",
+                "very",
+                "when",
+                "come",
+                "here",
+                "how",
+                "also",
+                "its",
+                "our",
+              ].includes(word)
+            ) {
+              keywordCounts[word] = (keywordCounts[word] || 0) + 1
+            }
+          })
+        }
       })
 
-      // Prepare review trend data
       const reviewTrend = []
       for (let i = daysBack - 1; i >= 0; i--) {
         const date = new Date()
@@ -370,12 +423,11 @@ export default function AnalyticPage() {
         })
       }
 
-      // Prepare monthly data (last 6 months)
       const monthlyData = []
       for (let i = 5; i >= 0; i--) {
         const date = new Date()
         date.setMonth(date.getMonth() - i)
-        const monthKey = date.toISOString().slice(0, 7) // YYYY-MM
+        const monthKey = date.toISOString().slice(0, 7)
         const monthReviews = Object.entries(dateCounts)
           .filter(([key]) => key.startsWith(monthKey))
           .reduce((sum, [, data]) => sum + data.count, 0)
@@ -391,7 +443,6 @@ export default function AnalyticPage() {
         })
       }
 
-      // Prepare hourly data
       const hourlyData = []
       for (let i = 0; i < 24; i++) {
         hourlyData.push({
@@ -400,7 +451,6 @@ export default function AnalyticPage() {
         })
       }
 
-      // Calculate weekly stats
       const weeklyStats = []
       const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
       const today = new Date()
@@ -418,7 +468,6 @@ export default function AnalyticPage() {
         })
       }
 
-      // Top sources
       const topSources = Object.entries(sourceCounts)
         .map(([name, count]) => ({
           name,
@@ -428,22 +477,31 @@ export default function AnalyticPage() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5)
 
-      // Calculate monthly growth
+      const topKeywords = Object.entries(keywordCounts)
+        .map(([word, count]) => ({ word, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+
       const currentMonth = reviewTrend.slice(-30).reduce((sum, day) => sum + day.count, 0)
       const previousMonth = reviewTrend.slice(-60, -30).reduce((sum, day) => sum + day.count, 0)
       const monthlyGrowth = previousMonth > 0 ? Math.round(((currentMonth - previousMonth) / previousMonth) * 100) : 0
 
-      // Calculate metrics
       const responseTime = Math.floor(Math.random() * 24) + 1
       const satisfactionScore = Math.round((positiveCount / Math.max(reviewsData.length, 1)) * 100)
       const engagementRate = Math.round((repliedCount / Math.max(reviewsData.length, 1)) * 100)
 
-      // Calculate totals
       const totalReviews = reviewsData.length
       const averageRating = totalReviews > 0 ? Number.parseFloat((totalRating / totalReviews).toFixed(1)) : 0
       const responseRate = totalReviews > 0 ? Math.round((repliedCount / totalReviews) * 100) : 0
 
-      // Custom plan exclusive analytics
+      const recentReviews = reviewsData.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds).slice(0, 5)
+
+      const competitorComparison = [
+        { metric: "Average Rating", us: averageRating, competitor: 4.2 },
+        { metric: "Response Rate", us: responseRate, competitor: 65 },
+        { metric: "Review Volume", us: totalReviews, competitor: Math.floor(totalReviews * 1.2) },
+      ]
+
       let customAnalytics = {}
       if (hasCustomAccess) {
         customAnalytics = {
@@ -485,6 +543,22 @@ export default function AnalyticPage() {
         }
       }
 
+      // Process login activity timestamps
+      const processedLoginActivity = loginActivity.map((login) => {
+        let timestamp = login.timestamp
+        if (typeof timestamp?.toDate === "function") {
+          timestamp = timestamp.toDate()
+        } else if (typeof timestamp === "string") {
+          timestamp = new Date(timestamp)
+        } else if (typeof timestamp?.seconds === "number") {
+          timestamp = new Date(timestamp.seconds * 1000)
+        }
+        return {
+          ...login,
+          timestamp,
+        }
+      })
+
       setAnalyticsData({
         totalReviews,
         averageRating,
@@ -505,10 +579,22 @@ export default function AnalyticPage() {
         engagementRate,
         monthlyData,
         hourlyData,
+        loginActivity: processedLoginActivity,
+        recentReviews,
+        topKeywords,
+        competitorComparison,
         ...customAnalytics,
       })
     } catch (error) {
       console.error("Error fetching analytics data:", error)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    if (auth.currentUser) {
+      fetchAnalyticsData(auth.currentUser.uid)
     }
   }
 
@@ -625,7 +711,7 @@ export default function AnalyticPage() {
 
               <div className="flex flex-wrap items-center gap-3 mt-2 sm:mt-0">
                 {/* Time Range Selector */}
-                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange} className="w-full sm:w-auto">
+                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
                   <SelectTrigger className="w-full sm:w-[150px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-400" />
@@ -640,9 +726,9 @@ export default function AnalyticPage() {
                   </SelectContent>
                 </Select>
 
-                {/* Location Dropdown - Only show for Professional/Premium plans */}
+                {/* Location Dropdown */}
                 {showLocationDropdown && (
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation} className="w-full sm:w-auto">
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
                     <SelectTrigger className="w-full sm:w-[200px] border-gray-200 focus:ring-2 focus:ring-orange-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-gray-400" />
@@ -659,12 +745,173 @@ export default function AnalyticPage() {
                     </SelectContent>
                   </Select>
                 )}
+
+                {/* Refresh Button */}
+                <Button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
               </div>
             </div>
           </div>
 
           {analyticsData ? (
             <div className="space-y-8">
+              {/* Login Activity Section */}
+              <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg border-b border-gray-100">
+                  <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                    <Shield className="h-6 w-6 text-indigo-600" />
+                    Login Activity & Device Management
+                    <span className="text-sm bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full">Security</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {analyticsData.loginActivity && analyticsData.loginActivity.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="text-sm text-gray-600">Recent login sessions and device information</div>
+                        <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                          Total Sessions: {analyticsData.loginActivity.length}
+                        </div>
+                      </div>
+
+                      {analyticsData.loginActivity.slice(0, 8).map((login, index) => {
+                        const loginDate = login.timestamp instanceof Date ? login.timestamp : new Date(login.timestamp)
+                        const isValidDate = !isNaN(loginDate.getTime())
+
+                        // Format login time
+                        const loginTime = isValidDate
+                          ? loginDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : "Unknown time"
+                        const loginDateStr = isValidDate
+                          ? loginDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+                          : "Unknown date"
+
+                        // Determine device info
+                        const deviceModel =
+                          login.device?.model && login.device.model !== "Unknown"
+                            ? login.device.model
+                            : `${login.device?.type || "Unknown"} Device`
+
+                        // Location info
+                        const locationStr =
+                          login.location?.city && login.location?.country
+                            ? `${login.location.city}, ${login.location.country}`
+                            : "Location unavailable"
+
+                        return (
+                          <div
+                            key={`login-session-${index}`}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-xl hover:shadow-md transition-all duration-300 border border-gray-100 space-y-3 sm:space-y-0"
+                          >
+                            <div className="flex items-center gap-4 flex-1">
+                              <div className="p-3 bg-indigo-100 rounded-lg flex-shrink-0">
+                                {login.device?.type?.toLowerCase() === "mobile" ? (
+                                  <Smartphone className="h-5 w-5 text-indigo-600" />
+                                ) : (
+                                  <Monitor className="h-5 w-5 text-indigo-600" />
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="font-semibold text-gray-800 truncate">{deviceModel}</div>
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex-shrink-0">
+                                    {login.device?.type || "Unknown"}
+                                  </span>
+                                </div>
+
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {locationStr}
+                                    </span>
+                                    <span className="text-gray-400">•</span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      Login: {loginTime} on {loginDateStr}
+                                    </span>
+                                  </div>
+
+                                  <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2">
+                                    <span>OS: {login.device?.os || "Unknown"}</span>
+                                    <span className="text-gray-400">•</span>
+                                    <span>Browser: {login.device?.browser || "Unknown"}</span>
+                                    <span className="text-gray-400">•</span>
+                                    <span>Method: {login.loginMethod || "Unknown"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-2 flex-shrink-0">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`w-2 h-2 rounded-full ${index === 0 ? "bg-green-500" : "bg-blue-500"}`}
+                                ></div>
+                                <span
+                                  className={`text-xs font-medium ${index === 0 ? "text-green-600" : "text-blue-600"}`}
+                                >
+                                  {index === 0 ? "Current Session" : "Previous Session"}
+                                </span>
+                              </div>
+
+                              {index === 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
+                                >
+                                  End Session
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {analyticsData.loginActivity.length > 8 && (
+                        <div className="text-center pt-4 border-t border-gray-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 bg-transparent"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View All Login History ({analyticsData.loginActivity.length} total sessions)
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-start gap-3">
+                          <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="font-medium text-blue-800 mb-1">Security Notice</h4>
+                            <p className="text-sm text-blue-700">
+                              We track login activity to help keep your account secure. If you notice any unfamiliar
+                              devices or locations, please contact support immediately.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-700 mb-2">No Login Activity</h3>
+                      <p className="text-gray-500">No login sessions have been recorded yet.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Custom Plan Exclusive: AI Insights Banner */}
               {hasCustomAccess && analyticsData.aiInsights && (
                 <Card className="bg-gradient-to-r from-purple-100 via-pink-50 to-purple-100 border-purple-200 shadow-xl">
@@ -715,7 +962,6 @@ export default function AnalyticPage() {
                         <ul className="space-y-2 text-sm">
                           {analyticsData.aiInsights.riskAlerts.slice(0, 2).map((alert, index) => (
                             <li key={index} className="flex items-start gap-2">
-                              <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
                               <span className="text-red-700">{alert}</span>
                             </li>
                           ))}
@@ -831,104 +1077,310 @@ export default function AnalyticPage() {
                 </Card>
               </div>
 
-              {/* Custom Plan Exclusive: Predictive Analytics */}
-              {hasCustomAccess && analyticsData.predictiveAnalytics && (
-                <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  <Card className="shadow-xl border-0 bg-gradient-to-br from-indigo-50 to-purple-50 animate-fade-in">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-3 text-xl text-indigo-700">
-                        <Eye className="h-6 w-6 text-indigo-600" />
-                        Predictive Forecast
-                        <span className="text-sm bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full">AI</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center">
-                        <div className="text-4xl font-bold text-indigo-800 mb-2">
-                          <AnimatedNumber value={analyticsData.predictiveAnalytics.nextMonthForecast} />
-                        </div>
-                        <p className="text-indigo-600 mb-4">Predicted reviews next month</p>
-                        <div className="flex items-center justify-center gap-2">
-                          {analyticsData.predictiveAnalytics.trendDirection === "up" && (
-                            <TrendingUp className="h-5 w-5 text-green-600" />
-                          )}
-                          {analyticsData.predictiveAnalytics.trendDirection === "down" && (
-                            <TrendingDown className="h-5 w-5 text-red-600" />
-                          )}
-                          {analyticsData.predictiveAnalytics.trendDirection === "stable" && (
-                            <Activity className="h-5 w-5 text-yellow-600" />
-                          )}
-                          <span className="text-sm font-medium text-indigo-700">
-                            {analyticsData.predictiveAnalytics.confidenceScore}% confidence
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Review Trends Chart */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <LineChart className="h-6 w-6 text-blue-600" />
+                      Review Trends
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <InteractiveChart data={analyticsData.reviewTrend} type="bar" />
+                  </CardContent>
+                </Card>
 
-                  <Card className="shadow-xl border-0 bg-gradient-to-br from-green-50 to-emerald-50 animate-fade-in">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-3 text-xl text-green-700">
-                        <Target className="h-6 w-6 text-green-600" />
-                        Market Position
-                        <span className="text-sm bg-green-200 text-green-800 px-2 py-1 rounded-full">Live</span>
+                {/* Rating Distribution */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <BarChart3 className="h-6 w-6 text-green-600" />
+                      Rating Distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {analyticsData.ratingDistribution.map((count, index) => {
+                        const stars = 5 - index
+                        const percentage =
+                          analyticsData.totalReviews > 0 ? Math.round((count / analyticsData.totalReviews) * 100) : 0
+                        return (
+                          <div key={index} className="flex items-center gap-4">
+                            <div className="flex items-center gap-1 w-16">
+                              <span className="text-sm font-medium">{stars}</span>
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="bg-gray-200 rounded-full h-3">
+                                <div
+                                  className="bg-gradient-to-r from-yellow-400 to-orange-400 h-3 rounded-full transition-all duration-1000"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="text-sm font-medium w-12 text-right">{count}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Device & Source Analytics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Device Statistics */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <Smartphone className="h-6 w-6 text-indigo-600" />
+                      Device Statistics
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {Object.entries(analyticsData.deviceStats).map(([device, count]) => {
+                        const percentage =
+                          analyticsData.totalReviews > 0 ? Math.round((count / analyticsData.totalReviews) * 100) : 0
+                        return (
+                          <div key={device} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-indigo-100 rounded-lg">
+                                {device === "mobile" ? (
+                                  <Smartphone className="h-5 w-5 text-indigo-600" />
+                                ) : device === "tablet" ? (
+                                  <Monitor className="h-5 w-5 text-indigo-600" />
+                                ) : (
+                                  <Monitor className="h-5 w-5 text-indigo-600" />
+                                )}
+                              </div>
+                              <span className="font-medium capitalize">{device}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold">{count}</div>
+                              <div className="text-sm text-gray-500">{percentage}%</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Top Sources */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <Globe className="h-6 w-6 text-purple-600" />
+                      Review Sources
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {analyticsData.topSources.map((source, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                              <Globe className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <span className="font-medium">{source.name}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">{source.count}</div>
+                            <div className="text-sm text-gray-500">{source.percentage}%</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sentiment Analysis & Recent Reviews */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Sentiment Analysis */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <ThumbsUp className="h-6 w-6 text-green-600" />
+                      Sentiment Analysis
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="text-2xl font-bold text-green-600">
+                          {analyticsData.sentimentAnalysis.positive}
+                        </div>
+                        <div className="text-sm text-green-700 font-medium">Positive</div>
+                        <CheckCircle className="h-6 w-6 text-green-500 mx-auto mt-2" />
+                      </div>
+                      <div className="text-center p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {analyticsData.sentimentAnalysis.neutral}
+                        </div>
+                        <div className="text-sm text-yellow-700 font-medium">Neutral</div>
+                        <AlertCircle className="h-6 w-6 text-yellow-500 mx-auto mt-2" />
+                      </div>
+                      <div className="text-center p-4 bg-red-50 rounded-xl border border-red-200">
+                        <div className="text-2xl font-bold text-red-600">
+                          {analyticsData.sentimentAnalysis.negative}
+                        </div>
+                        <div className="text-sm text-red-700 font-medium">Negative</div>
+                        <XCircle className="h-6 w-6 text-red-500 mx-auto mt-2" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Recent Reviews */}
+                <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 rounded-t-lg border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                      <MessageSquare className="h-6 w-6 text-orange-600" />
+                      Recent Reviews
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {analyticsData.recentReviews.map((review, index) => (
+                        <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-4 w-4 ${
+                                      i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-sm font-medium">{review.customerName}</span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(review.createdAt.seconds * 1000).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {review.reviewText && (
+                            <p className="text-sm text-gray-700 line-clamp-2">{review.reviewText}</p>
+                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                review.sentiment === "positive"
+                                  ? "bg-green-100 text-green-700"
+                                  : review.sentiment === "negative"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-yellow-100 text-yellow-700"
+                              }`}
+                            >
+                              {review.sentiment}
+                            </span>
+                            {review.replied && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Replied</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Additional Analytics for Custom Plan */}
+              {hasCustomAccess && analyticsData.predictiveAnalytics && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Predictive Analytics */}
+                  <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-xl">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-purple-800">
+                        <TrendingUp className="h-6 w-6" />
+                        Predictive Analytics
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-700">Industry Average</span>
-                          <span className="font-bold text-green-800">
-                            {analyticsData.competitorAnalysis?.industryAverage}★
+                        <div>
+                          <div className="text-2xl font-bold text-purple-800">
+                            {analyticsData.predictiveAnalytics.nextMonthForecast}
+                          </div>
+                          <div className="text-sm text-purple-600">Forecasted Reviews</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {analyticsData.predictiveAnalytics.trendDirection === "up" ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : analyticsData.predictiveAnalytics.trendDirection === "down" ? (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          ) : (
+                            <Activity className="h-4 w-4 text-yellow-600" />
+                          )}
+                          <span className="text-sm capitalize">
+                            {analyticsData.predictiveAnalytics.trendDirection} trend
                           </span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-700">Your Ranking</span>
-                          <span className="font-bold text-green-800">
-                            #{analyticsData.competitorAnalysis?.rankingPosition}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-700">Market Share</span>
-                          <span className="font-bold text-green-800">
-                            {analyticsData.competitorAnalysis?.marketShare}%
-                          </span>
+                        <div className="text-xs text-purple-600">
+                          {analyticsData.predictiveAnalytics.confidenceScore}% confidence
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="shadow-xl border-0 bg-gradient-to-br from-pink-50 to-rose-50 animate-fade-in">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-3 text-xl text-pink-700">
-                        <Users className="h-6 w-6 text-pink-600" />
-                        Customer Journey
-                        <span className="text-sm bg-pink-200 text-pink-800 px-2 py-1 rounded-full">360°</span>
+                  {/* Competitor Analysis */}
+                  <Card className="bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-200 shadow-xl">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-blue-800">
+                        <BarChart2 className="h-6 w-6" />
+                        Market Position
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
-                        {analyticsData.customerJourney?.touchpoints.slice(0, 3).map((touchpoint, index) => (
-                          <div key={index} className="flex items-center justify-between">
-                            <span className="text-sm text-pink-700">{touchpoint.name}</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 bg-pink-200 rounded-full h-2">
-                                <div
-                                  className="bg-pink-500 h-2 rounded-full transition-all duration-1000"
-                                  style={{ width: `${touchpoint.satisfaction}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-pink-600">{touchpoint.satisfaction}%</span>
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-2xl font-bold text-blue-800">
+                            #{analyticsData.competitorAnalysis?.rankingPosition}
+                          </div>
+                          <div className="text-sm text-blue-600">Market Ranking</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-semibold text-blue-800">
+                            {analyticsData.competitorAnalysis?.marketShare}%
+                          </div>
+                          <div className="text-sm text-blue-600">Market Share</div>
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          Industry avg: {analyticsData.competitorAnalysis?.industryAverage}★
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Customer Journey */}
+                  <Card className="bg-gradient-to-br from-green-100 to-emerald-100 border-green-200 shadow-xl">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-green-800">
+                        <Users className="h-6 w-6" />
+                        Customer Journey
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-2xl font-bold text-green-800">
+                            {analyticsData.customerJourney?.conversionRate}%
+                          </div>
+                          <div className="text-sm text-green-600">Conversion Rate</div>
+                        </div>
+                        <div className="space-y-2">
+                          {analyticsData.customerJourney?.touchpoints.slice(0, 3).map((point, index) => (
+                            <div key={index} className="flex justify-between text-sm">
+                              <span className="text-green-700">{point.name}</span>
+                              <span className="text-green-800 font-medium">{point.satisfaction}%</span>
                             </div>
-                          </div>
-                        ))}
-                        <div className="pt-2 border-t border-pink-200">
-                          <div className="flex justify-between items-center">
-                            <span className="text-pink-700 font-medium">Conversion Rate</span>
-                            <span className="font-bold text-pink-800">
-                              {analyticsData.customerJourney?.conversionRate}%
-                            </span>
-                          </div>
+                          ))}
                         </div>
                       </div>
                     </CardContent>
@@ -936,417 +1388,43 @@ export default function AnalyticPage() {
                 </div>
               )}
 
-              {/* Interactive Charts Section */}
-              <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
-                {/* Rating Distribution */}
-                <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
-                      <BarChart2 className="h-6 w-6 text-blue-500" />
-                      Rating Distribution
-                      {selectedLocation !== "All" && (
-                        <span className="text-sm text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {[5, 4, 3, 2, 1].map((rating, index) => (
-                        <div
-                          key={rating}
-                          className="flex items-center gap-4 animate-slide-right hover:bg-gray-50 p-2 rounded-lg transition-all duration-300"
-                          style={{ animationDelay: `${index * 0.1}s` }}
-                        >
-                          <div className="flex items-center gap-2 w-20">
-                            <span className="text-sm font-medium text-gray-700">{rating}</span>
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          </div>
-                          <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
-                            <div
-                              className="bg-gradient-to-r from-blue-400 to-purple-400 h-3 rounded-full transition-all duration-1000 ease-out"
-                              style={{
-                                width: `${
-                                  analyticsData.totalReviews > 0
-                                    ? (analyticsData.ratingDistribution[index] / analyticsData.totalReviews) * 100
-                                    : 0
-                                }%`,
-                                animationDelay: `${index * 0.2}s`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-600 w-16 text-right font-medium">
-                            {analyticsData.ratingDistribution[index]} (
-                            {analyticsData.totalReviews > 0
-                              ? Math.round((analyticsData.ratingDistribution[index] / analyticsData.totalReviews) * 100)
-                              : 0}
-                            %)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Enhanced Sentiment Analysis */}
-                <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
-                      <Heart className="h-6 w-6 text-pink-500" />
-                      Sentiment Analysis
-                      {selectedLocation !== "All" && (
-                        <span className="text-sm text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                      {hasCustomAccess && (
-                        <span className="text-sm bg-purple-200 text-purple-800 px-2 py-1 rounded-full">
-                          AI Enhanced
-                        </span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between animate-slide-left hover:bg-green-50 p-3 rounded-lg transition-all duration-300">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-green-100 rounded-lg">
-                            <ThumbsUp className="h-5 w-5 text-green-600" />
-                          </div>
-                          <span className="font-medium text-gray-700">Positive</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-green-600">
-                            <AnimatedNumber value={analyticsData.sentimentAnalysis.positive} />
-                          </span>
-                          <p className="text-sm text-gray-500">
-                            {analyticsData.totalReviews > 0
-                              ? Math.round(
-                                  (analyticsData.sentimentAnalysis.positive / analyticsData.totalReviews) * 100,
-                                )
-                              : 0}
-                            %
-                          </p>
-                        </div>
-                      </div>
-
-                      <div
-                        className="flex items-center justify-between animate-slide-left hover:bg-red-50 p-3 rounded-lg transition-all duration-300"
-                        style={{ animationDelay: "0.1s" }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-red-100 rounded-lg">
-                            <ThumbsDown className="h-5 w-5 text-red-600" />
-                          </div>
-                          <span className="font-medium text-gray-700">Negative</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-red-600">
-                            <AnimatedNumber value={analyticsData.sentimentAnalysis.negative} />
-                          </span>
-                          <p className="text-sm text-gray-500">
-                            {analyticsData.totalReviews > 0
-                              ? Math.round(
-                                  (analyticsData.sentimentAnalysis.negative / analyticsData.totalReviews) * 100,
-                                )
-                              : 0}
-                            %
-                          </p>
-                        </div>
-                      </div>
-
-                      <div
-                        className="flex items-center justify-between animate-slide-left hover:bg-yellow-50 p-3 rounded-lg transition-all duration-300"
-                        style={{ animationDelay: "0.2s" }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-yellow-100 rounded-lg">
-                            <Activity className="h-5 w-5 text-yellow-600" />
-                          </div>
-                          <span className="font-medium text-gray-700">Neutral</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-yellow-600">
-                            <AnimatedNumber value={analyticsData.sentimentAnalysis.neutral} />
-                          </span>
-                          <p className="text-sm text-gray-500">
-                            {analyticsData.totalReviews > 0
-                              ? Math.round((analyticsData.sentimentAnalysis.neutral / analyticsData.totalReviews) * 100)
-                              : 0}
-                            %
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Interactive Monthly Trend Chart */}
-              <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
-                      <LineChart className="h-6 w-6 text-blue-500" />
-                      Review Trends Over Time
-                      {selectedLocation !== "All" && (
-                        <span className="text-sm text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                      {hasCustomAccess && (
-                        <span className="text-sm bg-blue-200 text-blue-800 px-2 py-1 rounded-full">Interactive</span>
-                      )}
-                    </CardTitle>
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
-                        <span className="text-gray-600">Reviews</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-500 to-emerald-500"></div>
-                        <span className="text-gray-600">Rating</span>
-                      </div>
-                    </div>
-                  </div>
+              {/* Top Keywords */}
+              <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <CardHeader className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-t-lg border-b border-gray-100">
+                  <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                    <Target className="h-6 w-6 text-pink-600" />
+                    Top Keywords in Reviews
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <InteractiveChart data={analyticsData.monthlyData} type="bar" />
+                <CardContent className="p-6">
+                  <div className="flex flex-wrap gap-2">
+                    {analyticsData.topKeywords.map((keyword, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-pink-100 to-purple-100 text-pink-800 border border-pink-200"
+                      >
+                        {keyword.word}
+                        <span className="ml-2 text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">
+                          {keyword.count}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Additional Analytics */}
-              <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {/* Weekly Performance */}
-                <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-3 text-lg text-gray-700">
-                      <Calendar className="h-5 w-5 text-indigo-500" />
-                      Weekly Performance
-                      {selectedLocation !== "All" && (
-                        <span className="text-xs text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {analyticsData.weeklyStats.map((day, index) => (
-                        <div
-                          key={day.day}
-                          className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-lg hover:shadow-md transition-all duration-300 animate-slide-right cursor-pointer"
-                          style={{ animationDelay: `${index * 0.1}s` }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                            <span className="font-medium text-gray-700">{day.day}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold text-indigo-600">{day.reviews} reviews</div>
-                            <div className="text-xs text-gray-500">
-                              {day.avgRating > 0 ? `${day.avgRating.toFixed(1)} ★` : "No ratings"}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Device Analytics */}
-                <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-3 text-lg text-gray-700">
-                      <Monitor className="h-5 w-5 text-purple-500" />
-                      Device Analytics
-                      {selectedLocation !== "All" && (
-                        <span className="text-xs text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between animate-slide-left hover:bg-blue-50 p-3 rounded-lg transition-all duration-300">
-                        <div className="flex items-center gap-3">
-                          <Monitor className="h-5 w-5 text-blue-500" />
-                          <span className="text-gray-700">Desktop</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-blue-600">
-                            <AnimatedNumber value={analyticsData.deviceStats.desktop} />
-                          </span>
-                          <div className="w-20 bg-gray-200 rounded-full h-2 mt-1">
-                            <div
-                              className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-1000"
-                              style={{
-                                width: `${
-                                  analyticsData.totalReviews > 0
-                                    ? (analyticsData.deviceStats.desktop / analyticsData.totalReviews) * 100
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        className="flex items-center justify-between animate-slide-left hover:bg-green-50 p-3 rounded-lg transition-all duration-300"
-                        style={{ animationDelay: "0.1s" }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Smartphone className="h-5 w-5 text-green-500" />
-                          <span className="text-gray-700">Mobile</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-green-600">
-                            <AnimatedNumber value={analyticsData.deviceStats.mobile} />
-                          </span>
-                          <div className="w-20 bg-gray-200 rounded-full h-2 mt-1">
-                            <div
-                              className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-1000"
-                              style={{
-                                width: `${
-                                  analyticsData.totalReviews > 0
-                                    ? (analyticsData.deviceStats.mobile / analyticsData.totalReviews) * 100
-                                    : 0
-                                }%`,
-                                animationDelay: "0.1s",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        className="flex items-center justify-between animate-slide-left hover:bg-purple-50 p-3 rounded-lg transition-all duration-300"
-                        style={{ animationDelay: "0.2s" }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Monitor className="h-5 w-5 text-purple-500" />
-                          <span className="text-gray-700">Tablet</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-purple-600">
-                            <AnimatedNumber value={analyticsData.deviceStats.tablet} />
-                          </span>
-                          <div className="w-20 bg-gray-200 rounded-full h-2 mt-1">
-                            <div
-                              className="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full transition-all duration-1000"
-                              style={{
-                                width: `${
-                                  analyticsData.totalReviews > 0
-                                    ? (analyticsData.deviceStats.tablet / analyticsData.totalReviews) * 100
-                                    : 0
-                                }%`,
-                                animationDelay: "0.2s",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Top Review Sources */}
-                <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm animate-fade-in">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-3 text-lg text-gray-700">
-                      <Globe className="h-5 w-5 text-orange-500" />
-                      Review Sources
-                      {selectedLocation !== "All" && (
-                        <span className="text-xs text-orange-600 font-normal">- {selectedLocation}</span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {analyticsData.topSources.map((source, index) => (
-                        <div
-                          key={source.name}
-                          className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-orange-50 rounded-lg hover:shadow-md transition-all duration-300 animate-slide-left cursor-pointer"
-                          style={{ animationDelay: `${index * 0.1}s` }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                            <span className="font-medium text-gray-700">{source.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold text-orange-600">
-                              <AnimatedNumber value={source.count} />
-                            </div>
-                            <div className="text-xs text-gray-500">{source.percentage}%</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Custom Plan Exclusive: Advanced Insights */}
-              {hasCustomAccess && (
-                <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
-                  <Card className="shadow-xl border-0 bg-gradient-to-br from-violet-50 to-purple-50 animate-fade-in">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-3 text-xl text-violet-700">
-                        <Filter className="h-6 w-6 text-violet-600" />
-                        Advanced Filtering
-                        <span className="text-sm bg-violet-200 text-violet-800 px-2 py-1 rounded-full">Custom</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-violet-800 mb-2">Smart Segmentation</h4>
-                          <p className="text-sm text-violet-700">
-                            Automatically categorize reviews by customer type, purchase value, and engagement level.
-                          </p>
-                        </div>
-                        <div className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-violet-800 mb-2">Behavioral Patterns</h4>
-                          <p className="text-sm text-violet-700">
-                            Identify patterns in customer behavior and review timing to optimize engagement.
-                          </p>
-                        </div>
-                        <div className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-violet-800 mb-2">Predictive Scoring</h4>
-                          <p className="text-sm text-violet-700">
-                            AI-powered likelihood scores for customer satisfaction and review conversion.
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="shadow-xl border-0 bg-gradient-to-br from-emerald-50 to-teal-50 animate-fade-in">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-3 text-xl text-emerald-700">
-                        <Clock className="h-6 w-6 text-emerald-600" />
-                        Real-time Monitoring
-                        <span className="text-sm bg-emerald-200 text-emerald-800 px-2 py-1 rounded-full">Live</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="p-4 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-emerald-800 mb-2">Instant Alerts</h4>
-                          <p className="text-sm text-emerald-700">
-                            Get notified immediately when negative reviews are detected or trends change.
-                          </p>
-                        </div>
-                        <div className="p-4 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-emerald-800 mb-2">Competitor Tracking</h4>
-                          <p className="text-sm text-emerald-700">
-                            Monitor competitor review performance and market positioning in real-time.
-                          </p>
-                        </div>
-                        <div className="p-4 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors duration-300 cursor-pointer">
-                          <h4 className="font-semibold text-emerald-800 mb-2">Trend Detection</h4>
-                          <p className="text-sm text-emerald-700">
-                            AI algorithms detect emerging trends and sentiment shifts before they impact your business.
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* Monthly Performance */}
+              <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg border-b border-gray-100">
+                  <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                    Monthly Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <InteractiveChart data={analyticsData.monthlyData} type="bar" />
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <div className="text-center py-20">

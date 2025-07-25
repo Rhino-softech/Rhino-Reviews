@@ -12,8 +12,9 @@ import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore"
 import { useNavigate } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RocketIcon } from "@radix-ui/react-icons"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from 'lucide-react'
 import Navbar from "./Navbar"
+import { getDeviceInfo, getLocationInfo, generateSessionId } from "../lib/deviceInfo"
 
 interface ThemeSettings {
   primaryColor: string
@@ -21,6 +22,27 @@ interface ThemeSettings {
   accentColor: string
   backgroundColor: string
   textColor: string
+}
+
+interface LoginDetails {
+  sessionId: string
+  timestamp: Date
+  device: {
+    type: string
+    os: string
+    browser: string
+    model: string
+    userAgent: string
+  }
+  location: {
+    ip: string
+    city: string
+    region: string
+    country: string
+    timezone: string
+  }
+  loginMethod: "email" | "google"
+  isActive: boolean
 }
 
 export default function LoginForm() {
@@ -126,6 +148,58 @@ export default function LoginForm() {
     return false
   }
 
+  const createLoginDetails = async (method: "email" | "google"): Promise<LoginDetails> => {
+    const deviceInfo = getDeviceInfo()
+    const locationInfo = await getLocationInfo()
+    const sessionId = generateSessionId()
+
+    console.log("Creating login details with location:", locationInfo) // Debug log
+
+    return {
+      sessionId,
+      timestamp: new Date(),
+      device: {
+        type: deviceInfo.deviceType,
+        os: deviceInfo.os,
+        browser: deviceInfo.browser,
+        model: deviceInfo.deviceModel,
+        userAgent: deviceInfo.userAgent,
+      },
+      location: locationInfo,
+      loginMethod: method,
+      isActive: true,
+    }
+  }
+
+  const updateLoginHistory = async (uid: string, newLoginDetails: LoginDetails) => {
+    const userRef = doc(db, "users", uid)
+    const userSnap = await getDoc(userRef)
+    
+    if (userSnap.exists()) {
+      const existingHistory = userSnap.data()?.loginHistory || []
+      
+      // Mark all previous sessions as inactive
+      const updatedHistory = existingHistory.map((login: LoginDetails) => ({
+        ...login,
+        isActive: false
+      }))
+      
+      // Add new login session
+      const newHistory = [...updatedHistory, newLoginDetails]
+      
+      // Keep last 20 login sessions for better tracking
+      const trimmedHistory = newHistory.slice(-20)
+      
+      await updateDoc(userRef, {
+        lastLogin: newLoginDetails,
+        loginHistory: trimmedHistory,
+        updatedAt: new Date(),
+      })
+      
+      console.log("Updated login history with new session:", newLoginDetails.sessionId)
+    }
+  }
+
   const redirectUser = async (uid: string) => {
     const userRef = doc(db, "users", uid)
     const userSnap = await getDoc(userRef)
@@ -176,6 +250,9 @@ export default function LoginForm() {
         return
       }
 
+      const loginDetails = await createLoginDetails("email")
+      console.log("Email login details created:", loginDetails) // Debug log
+
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
 
@@ -193,7 +270,11 @@ export default function LoginForm() {
           trialEndDate: trialEnd,
           createdAt: now,
           updatedAt: now,
+          lastLogin: loginDetails,
+          loginHistory: [loginDetails],
         })
+      } else {
+        await updateLoginHistory(uid, loginDetails)
       }
 
       const userData = userSnap.exists()
@@ -206,6 +287,7 @@ export default function LoginForm() {
       localStorage.setItem("role", userData.role)
       localStorage.setItem("email", userData.email)
       localStorage.setItem("uid", uid)
+      localStorage.setItem("sessionId", loginDetails.sessionId)
 
       await redirectUser(uid)
     } catch (err: any) {
@@ -243,6 +325,9 @@ export default function LoginForm() {
         return
       }
 
+      const loginDetails = await createLoginDetails("google")
+      console.log("Google login details created:", loginDetails) // Debug log
+
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
 
@@ -260,7 +345,11 @@ export default function LoginForm() {
           trialEndDate: trialEnd,
           createdAt: now,
           updatedAt: now,
+          lastLogin: loginDetails,
+          loginHistory: [loginDetails],
         })
+      } else {
+        await updateLoginHistory(uid, loginDetails)
       }
 
       const userData = userSnap.exists()
@@ -273,6 +362,7 @@ export default function LoginForm() {
       localStorage.setItem("role", userData.role)
       localStorage.setItem("email", userData.email || "")
       localStorage.setItem("uid", uid)
+      localStorage.setItem("sessionId", loginDetails.sessionId)
 
       await redirectUser(uid)
     } catch (err: any) {
@@ -317,7 +407,6 @@ export default function LoginForm() {
             width: `${Math.random() * 6 + 4}px`,
             height: `${Math.random() * 6 + 4}px`,
             backgroundColor: i % 3 === 0 ? theme.primaryColor : i % 3 === 1 ? theme.accentColor : theme.secondaryColor,
-            // animation: `float ${Math.random() * 3 + 4}s ease-in-out infinite`,
             animationDelay: `${Math.random() * 2}s`,
           }}
         />

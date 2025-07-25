@@ -13,6 +13,11 @@ import {
   BarChart3,
   PieChart,
   Activity,
+  Smartphone,
+  Monitor,
+  Shield,
+  MapPin,
+  Clock,
 } from "lucide-react"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
@@ -25,6 +30,42 @@ interface BusinessUser {
     businessType: string
   }
   createdAt: Date
+  lastLogin?: {
+    timestamp: Date
+    device: {
+      type: string
+      os: string
+      browser: string
+      model: string
+      userAgent: string
+    }
+    location: {
+      ip: string
+      city: string
+      region: string
+      country: string
+      timezone: string
+    }
+    loginMethod: "email" | "google"
+  }
+  loginHistory?: Array<{
+    timestamp: Date
+    device: {
+      type: string
+      os: string
+      browser: string
+      model: string
+      userAgent: string
+    }
+    location: {
+      ip: string
+      city: string
+      region: string
+      country: string
+      timezone: string
+    }
+    loginMethod: "email" | "google"
+  }>
 }
 
 interface Review {
@@ -46,6 +87,25 @@ interface CategoryStat {
   avgRating: number
 }
 
+interface DeviceStats {
+  deviceType: string
+  deviceModel: string
+  count: number
+  percentage: number
+}
+
+interface LoginActivity {
+  hour: number
+  logins: number
+}
+
+interface LocationStats {
+  country: string
+  city: string
+  count: number
+  percentage: number
+}
+
 export default function AnalyticsPage() {
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>([])
   const [topCategories, setTopCategories] = useState<CategoryStat[]>([])
@@ -60,8 +120,11 @@ export default function AnalyticsPage() {
     neutral: 0,
     negative: 0,
   })
+  const [deviceStats, setDeviceStats] = useState<DeviceStats[]>([])
+  const [loginActivity, setLoginActivity] = useState<LoginActivity[]>([])
+  const [recentLogins, setRecentLogins] = useState<any[]>([])
+  const [locationStats, setLocationStats] = useState<LocationStats[]>([])
 
-  // Memoize the fetch function to prevent unnecessary recreations
   const fetchAnalyticsData = useCallback(async () => {
     try {
       setRefreshing(true)
@@ -196,6 +259,116 @@ export default function AnalyticsPage() {
         .slice(0, 5)
 
       setTopCategories(topCategoriesData)
+
+      // Calculate device statistics with proper device names and ensure unique devices per business
+      const deviceMap = new Map<string, { count: number; businesses: Set<string> }>()
+      allBusinesses.forEach((business) => {
+        if (business.lastLogin?.device) {
+          const deviceKey =
+            business.lastLogin.device.model !== "Unknown"
+              ? business.lastLogin.device.model
+              : `${business.lastLogin.device.type} Device`
+
+          if (!deviceMap.has(deviceKey)) {
+            deviceMap.set(deviceKey, { count: 0, businesses: new Set() })
+          }
+
+          const entry = deviceMap.get(deviceKey)!
+          if (!entry.businesses.has(business.uid)) {
+            entry.count++
+            entry.businesses.add(business.uid)
+          }
+        }
+      })
+
+      const totalDevices = Array.from(deviceMap.values()).reduce((sum, item) => sum + item.count, 0)
+      const deviceStatsData = Array.from(deviceMap.entries()).map(([deviceModel, data]) => ({
+        deviceType:
+          deviceModel.includes("Samsung") ||
+          deviceModel.includes("OPPO") ||
+          deviceModel.includes("iPhone") ||
+          deviceModel.includes("Xiaomi")
+            ? "Mobile"
+            : "Desktop",
+        deviceModel,
+        count: data.count,
+        percentage: Math.round((data.count / totalDevices) * 100),
+      }))
+
+      setDeviceStats(deviceStatsData)
+
+      // Calculate location statistics with proper city, country display
+      const locationMap = new Map<string, number>()
+      allBusinesses.forEach((business) => {
+        if (business.lastLogin?.location?.country && business.lastLogin?.location?.city) {
+          const locationKey = `${business.lastLogin.location.city}, ${business.lastLogin.location.country}`
+          const current = locationMap.get(locationKey) || 0
+          locationMap.set(locationKey, current + 1)
+        }
+      })
+
+      const totalLocations = Array.from(locationMap.values()).reduce((sum, count) => sum + count, 0)
+      const locationStatsData = Array.from(locationMap.entries())
+        .map(([location, count]) => {
+          const [city, country] = location.split(", ")
+          return {
+            country,
+            city,
+            count,
+            percentage: Math.round((count / totalLocations) * 100),
+          }
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+
+      setLocationStats(locationStatsData)
+
+      // Calculate login activity by hour
+      const loginHours = Array(24)
+        .fill(0)
+        .map((_, i) => ({ hour: i, logins: 0 }))
+      allBusinesses.forEach((business) => {
+        if (business.loginHistory) {
+          business.loginHistory.forEach((login) => {
+            const hour = new Date(login.timestamp).getHours()
+            loginHours[hour].logins++
+          })
+        }
+      })
+      setLoginActivity(loginHours)
+
+      // Get recent logins with enhanced information
+      const allLogins = allBusinesses
+        .flatMap((business) =>
+          (business.loginHistory || []).map((login) => ({
+            ...login,
+            businessName: business.businessInfo?.businessName || "Unknown Business",
+            businessType: business.businessInfo?.businessType || "Unknown",
+            uid: business.uid,
+            // Add logout time if available (next login entry or null)
+            logoutTime: null, // Will be calculated in the next step
+          })),
+        )
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+      // Process login history to determine logout times
+      const businessLoginMap = new Map()
+      allLogins.forEach((login) => {
+        const key = login.uid
+        if (!businessLoginMap.has(key)) {
+          businessLoginMap.set(key, [])
+        }
+        businessLoginMap.get(key).push(login)
+      })
+
+      // For each business, set logout times based on next login
+      businessLoginMap.forEach((logins) => {
+        for (let i = 0; i < logins.length - 1; i++) {
+          logins[i].logoutTime = logins[i + 1].timestamp
+        }
+      })
+
+      setRecentLogins(allLogins.slice(0, 10))
     } catch (error) {
       console.error("Error fetching analytics data:", error)
     } finally {
@@ -225,7 +398,7 @@ export default function AnalyticsPage() {
                   Analytics & Reports
                 </h1>
                 <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base lg:text-lg">
-                  Platform performance and insights
+                  Platform performance and insights with device tracking
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
@@ -342,7 +515,222 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
+          {/* Login Activity Section */}
+          <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="p-1.5 sm:p-2 bg-indigo-100 rounded-lg">
+                  <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
+                    Recent Login Activity
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-gray-600">
+                    Latest login sessions across all businesses
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-4 lg:p-6">
+              {loading ? (
+                <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 sm:space-x-4">
+                        <div className="w-8 sm:w-12 h-8 sm:h-12 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse"></div>
+                        <div className="flex flex-col space-y-1 sm:space-y-2">
+                          <div className="w-32 sm:w-48 h-3 sm:h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                          <div className="w-24 sm:w-36 h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                      <div className="w-16 sm:w-20 h-3 sm:h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                  {recentLogins.map((login, index) => {
+                    // Format timestamps for login and logout
+                    const loginTime = new Date(login.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                    const loginDate = new Date(login.timestamp).toLocaleDateString([], {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-lg hover:shadow-md transition-all duration-300 border border-gray-100 space-y-2 sm:space-y-0"
+                      >
+                        <div className="flex items-center space-x-3 sm:space-x-4">
+                          <div className="p-2 sm:p-3 bg-indigo-100 rounded-lg flex-shrink-0">
+                            {login.device.type === "Mobile" ? (
+                              <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                            ) : (
+                              <Monitor className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-800 text-sm sm:text-base truncate flex items-center">
+                              {login.businessName}
+                              <span className="ml-2 text-xs text-gray-500 font-normal">UID: {login.uid}</span>
+                            </div>
+                            <div className="text-xs sm:text-sm text-gray-600 mt-1">
+                              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {login.location.city !== "Unknown" && login.location.country !== "Unknown"
+                                    ? `${login.location.city}, ${login.location.country}`
+                                    : "Location unavailable"}
+                                </span>
+                                <span className="text-gray-400">•</span>
+                                <span className="flex items-center">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Login: {loginTime} on {loginDate}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
+                                <span>
+                                  {login.device.model !== "Unknown"
+                                    ? login.device.model
+                                    : `${login.device.type} Device`}
+                                </span>
+                                <span className="text-gray-400">•</span>
+                                <span>{login.device.os}</span>
+                                <span className="text-gray-400">•</span>
+                                <span>{login.device.browser}</span>
+                                <span className="text-gray-400">•</span>
+                                <span className="capitalize">{login.loginMethod}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-center">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-green-600 font-medium">Active</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+            {/* Device Statistics */}
+            <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1.5 sm:p-2 bg-indigo-100 rounded-lg">
+                    <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
+                      Device Statistics
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-gray-600">
+                      Devices used to access the platform
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 sm:p-4 lg:p-6">
+                {loading ? (
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <div className="w-24 sm:w-36 h-3 sm:h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                        <div className="w-8 sm:w-12 h-3 sm:h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                    {deviceStats.map((stat, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 sm:w-12 text-xs sm:text-sm font-bold text-indigo-600 bg-indigo-100 rounded-lg p-1.5 sm:p-2 text-center">
+                            {stat.deviceType === "Mobile" ? "📱" : "💻"}
+                          </div>
+                          <div>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">{stat.deviceModel}</span>
+                            <div className="text-xs text-gray-500">{stat.deviceType}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm sm:text-base font-bold text-gray-800">{stat.count}</span>
+                          <div className="text-xs text-gray-500">({stat.percentage}%)</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Location Statistics */}
+            <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
+                    <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
+                      Login Locations
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-gray-600">
+                      Geographic distribution of user logins
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 sm:p-4 lg:p-6">
+                {loading ? (
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <div className="w-32 sm:w-48 h-3 sm:h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                        <div className="w-8 sm:w-12 h-3 sm:h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                    {locationStats.slice(0, 8).map((stat, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 sm:w-12 text-xs sm:text-sm font-bold text-green-600 bg-green-100 rounded-lg p-1.5 sm:p-2 text-center">
+                            🌍
+                          </div>
+                          <div>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">{stat.city}</span>
+                            <div className="text-xs text-gray-500">{stat.country}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm sm:text-base font-bold text-gray-800">{stat.count}</span>
+                          <div className="text-xs text-gray-500">({stat.percentage}%)</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Monthly Growth */}
             <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
