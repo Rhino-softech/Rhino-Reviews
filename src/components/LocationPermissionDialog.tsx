@@ -115,14 +115,14 @@ export function LocationPermissionDialog({
               )}
             </Button>
 
-            <Button 
+            {/* <Button 
               variant="outline" 
               onClick={handleSkip}
               disabled={requesting}
               className="w-full"
             >
               Continue Without Location
-            </Button>
+            </Button> */}
           </div>
 
           <div className="text-xs text-gray-500 text-center">

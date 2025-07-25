@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import type React from "react"
-import { getStorage, ref, deleteObject } from "firebase/storage";
+
 import { SimpleAdminLayout } from "@/components/simple-admin-layout"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -22,7 +22,7 @@ import {
   Calendar,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, writeBatch } from "firebase/firestore"
+import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc } from "firebase/firestore"
 import { db } from "@/firebase/firebase"
 import { format } from "date-fns"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -82,7 +82,6 @@ export default function UsersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserInterface | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [availablePlans, setAvailablePlans] = useState<PlanOption[]>([])
@@ -100,27 +99,6 @@ export default function UsersPage() {
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<UserInterface | null>(null)
-
-  // Helper function to transform user data
-  const transformUserData = (userDoc: any): UserInterface => {
-    const userData = userDoc.data()
-    const createdAt = userData.createdAt?.toDate() || new Date()
-
-    return {
-      uid: userDoc.id,
-      displayName: userData.displayName || "No Name",
-      email: userData.email || "No Email",
-      role: userData.role || "BUSER",
-      status: userData.status || "Active",
-      createdAt,
-      businessName: userData.businessInfo?.businessName,
-      subscriptionPlan: userData.subscriptionPlan,
-      subscriptionStartDate: userData.subscriptionStartDate?.toDate(),
-      subscriptionEndDate: userData.subscriptionEndDate?.toDate(),
-      trialActive: userData.trialActive,
-      trialEndDate: userData.trialEndDate?.toDate(),
-    }
-  }
 
   // Fetch available subscription plans
   useEffect(() => {
@@ -171,7 +149,23 @@ export default function UsersPage() {
         const adminData: UserInterface[] = []
 
         usersSnapshot.forEach((userDoc) => {
-          const userObj = transformUserData(userDoc)
+          const userData = userDoc.data()
+          const createdAt = userData.createdAt?.toDate() || new Date()
+
+          const userObj = {
+            uid: userDoc.id,
+            displayName: userData.displayName || "No Name",
+            email: userData.email || "No Email",
+            role: userData.role || "BUSER",
+            status: userData.status || "Active",
+            createdAt,
+            businessName: userData.businessInfo?.businessName,
+            subscriptionPlan: userData.subscriptionPlan,
+            subscriptionStartDate: userData.subscriptionStartDate?.toDate(),
+            subscriptionEndDate: userData.subscriptionEndDate?.toDate(),
+            trialActive: userData.trialActive,
+            trialEndDate: userData.trialEndDate?.toDate(),
+          }
 
           if (userObj.role === "BUSER") {
             businessData.push(userObj)
@@ -204,7 +198,23 @@ export default function UsersPage() {
         const updatedAdminUsers: UserInterface[] = []
 
         snapshot.forEach((userDoc) => {
-          const userObj = transformUserData(userDoc)
+          const userData = userDoc.data()
+          const createdAt = userData.createdAt?.toDate() || new Date()
+
+          const userObj = {
+            uid: userDoc.id,
+            displayName: userData.displayName || "No Name",
+            email: userData.email || "No Email",
+            role: userData.role || "BUSER",
+            status: userData.status || "Active",
+            createdAt,
+            businessName: userData.businessInfo?.businessName,
+            subscriptionPlan: userData.subscriptionPlan,
+            subscriptionStartDate: userData.subscriptionStartDate?.toDate(),
+            subscriptionEndDate: userData.subscriptionEndDate?.toDate(),
+            trialActive: userData.trialActive,
+            trialEndDate: userData.trialEndDate?.toDate(),
+          }
 
           if (userObj.role === "BUSER") {
             updatedBusinessUsers.push(userObj)
@@ -251,114 +261,36 @@ export default function UsersPage() {
     setDeleteDialogOpen(true)
   }
 
- const handleDeleteUser = async () => {
-  if (!userToDelete) return;
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
 
-  try {
-    setIsDeleting(true);
-    const batch = writeBatch(db);
-    const storage = getStorage();
-    const storageRef = ref(storage);
-
-    // 1. First get the review link config to find logo/background paths
-    const reviewLinkConfigRef = doc(db, "users", userToDelete.uid, "review_link", "config");
-    const reviewLinkConfigSnap = await getDoc(reviewLinkConfigRef);
-    
-    // Array to hold all storage deletion promises
-    const storageDeletions: Promise<void>[] = [];
-
-    // 2. Delete logo and background images if they exist
-    if (reviewLinkConfigSnap.exists()) {
-      const configData = reviewLinkConfigSnap.data();
-      
-      if (configData.logoUrl) {
-        const logoPath = configData.logoUrl.split('/o/')[1].split('?')[0];
-        storageDeletions.push(deleteObject(ref(storageRef, logoPath)).catch(console.error));
-      }
-      
-      if (configData.backgroundUrl) {
-        const bgPath = configData.backgroundUrl.split('/o/')[1].split('?')[0];
-        storageDeletions.push(deleteObject(ref(storageRef, bgPath)).catch(console.error));
-      }
-    }
-
-    // 3. Delete user from Authentication
     try {
-      const user = auth.currentUser;
+      // First delete the user from Firebase Authentication
+      const user = auth.currentUser
       if (user && user.uid === userToDelete.uid) {
-        await deleteUser(user);
+        await deleteUser(user)
       }
-    } catch (authError) {
-      console.error("Error deleting auth user:", authError);
-      // Continue with Firestore deletions even if auth deletion fails
+
+      // Then delete the user document from Firestore
+      const userRef = doc(db, "users", userToDelete.uid)
+      await deleteDoc(userRef)
+
+      toast({
+        title: "User Deleted",
+        description: "User has been permanently deleted.",
+      })
+    } catch (error) {
+      console.error("Error deleting user:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete user.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+      setUserToDelete(null)
     }
-
-    // 4. Delete all related Firestore documents
-    // User document
-    const userRef = doc(db, "users", userToDelete.uid);
-    batch.delete(userRef);
-
-    // Review link config (new location)
-    batch.delete(reviewLinkConfigRef);
-
-    // Old review link doc if it exists
-    const oldReviewLinkRef = doc(db, "review_link", userToDelete.uid);
-    batch.delete(oldReviewLinkRef);
-
-    // Slug to UID mapping
-    if (userToDelete.businessName) {
-      const slug = userToDelete.businessName.toLowerCase().replace(/\s+/g, "-");
-      const slugDocRef = doc(db, "slug_to_uid", slug);
-      batch.delete(slugDocRef);
-    }
-
-    // User's reviews
-    const reviewsRef = collection(db, "users", userToDelete.uid, "reviews");
-    const reviewsSnapshot = await getDocs(reviewsRef);
-    reviewsSnapshot.forEach((reviewDoc) => {
-      batch.delete(reviewDoc.ref);
-    });
-
-    // User's sharable links
-    const sharableLinksRef = collection(db, "users", userToDelete.uid, "sharable_links");
-    const sharableLinksSnapshot = await getDocs(sharableLinksRef);
-    sharableLinksSnapshot.forEach((linkDoc) => {
-      batch.delete(linkDoc.ref);
-    });
-
-    // Global sharable links created by this user
-    const globalLinksRef = collection(db, "sharable_links");
-    const globalLinksSnapshot = await getDocs(globalLinksRef);
-    globalLinksSnapshot.forEach((linkDoc) => {
-      const linkData = linkDoc.data();
-      if (linkData.createdBy === userToDelete.uid) {
-        batch.delete(linkDoc.ref);
-      }
-    });
-
-    // Wait for storage deletions to complete (but don't fail if they error)
-    await Promise.allSettled(storageDeletions);
-    
-    // Execute all Firestore deletions
-    await batch.commit();
-
-    toast({
-      title: "User Deleted",
-      description: "User and all related data have been permanently deleted.",
-    });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    toast({
-      title: "Error",
-      description: "Failed to delete user. Please try again.",
-      variant: "destructive",
-    });
-  } finally {
-    setIsDeleting(false);
-    setDeleteDialogOpen(false);
-    setUserToDelete(null);
   }
-};
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -370,8 +302,8 @@ export default function UsersPage() {
   const filteredBusinessUsers = businessUsers.filter(
     (user) =>
       (user.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.businessName && user.businessName.toLowerCase().includes(searchQuery.toLowerCase()))) &&
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (user.businessName && user.businessName.toLowerCase().includes(searchQuery.toLowerCase()))) &&
       (statusFilter === "all" || user.status === statusFilter),
   )
 
@@ -494,15 +426,6 @@ export default function UsersPage() {
       toast({
         title: "Validation Error",
         description: "Password is required for new users.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (formData.password && formData.password.length < 6) {
-      toast({
-        title: "Validation Error",
-        description: "Password should be at least 6 characters.",
         variant: "destructive",
       })
       return
@@ -632,13 +555,8 @@ export default function UsersPage() {
               <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button 
-                variant="destructive" 
-                onClick={handleDeleteUser} 
-                className="rounded-xl"
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete User"}
+              <Button variant="destructive" onClick={handleDeleteUser} className="rounded-xl">
+                Delete User
               </Button>
             </DialogFooter>
           </DialogContent>

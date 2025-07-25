@@ -45,6 +45,8 @@ interface BusinessUser {
       region: string
       country: string
       timezone: string
+      accuracy?: "high" | "medium" | "low"
+      source?: string
     }
     loginMethod: "email" | "google"
   }
@@ -63,8 +65,12 @@ interface BusinessUser {
       region: string
       country: string
       timezone: string
+      accuracy?: "high" | "medium" | "low"
+      source?: string
     }
     loginMethod: "email" | "google"
+    sessionId?: string
+    isActive?: boolean
   }>
 }
 
@@ -104,6 +110,25 @@ interface LocationStats {
   city: string
   count: number
   percentage: number
+}
+
+// Helper function to format device name properly
+const formatDeviceName = (device: any) => {
+  if (device?.model && device.model !== "Unknown") {
+    return device.model
+  }
+  return `${device?.type || "Unknown"} Device`
+}
+
+// Helper function to format location properly
+const formatLocation = (location: any) => {
+  if (location?.city && location?.country && location.city !== "Unknown" && location.country !== "Unknown") {
+    return `${location.city}, ${location.country}`
+  }
+  if (location?.country && location.country !== "Unknown") {
+    return location.country
+  }
+  return "Location unavailable"
 }
 
 export default function AnalyticsPage() {
@@ -150,6 +175,14 @@ export default function AnalyticsPage() {
         uid: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
+        lastLogin: doc.data().lastLogin ? {
+          ...doc.data().lastLogin,
+          timestamp: doc.data().lastLogin.timestamp?.toDate() || new Date(doc.data().lastLogin.timestamp)
+        } : undefined,
+        loginHistory: doc.data().loginHistory?.map((login: any) => ({
+          ...login,
+          timestamp: login.timestamp?.toDate() || new Date(login.timestamp)
+        })) || []
       })) as BusinessUser[]
 
       setActiveBusinesses(allBusinesses.length)
@@ -260,14 +293,11 @@ export default function AnalyticsPage() {
 
       setTopCategories(topCategoriesData)
 
-      // Calculate device statistics with proper device names and ensure unique devices per business
+      // Calculate device statistics with enhanced device detection and ensure unique devices per business
       const deviceMap = new Map<string, { count: number; businesses: Set<string> }>()
       allBusinesses.forEach((business) => {
         if (business.lastLogin?.device) {
-          const deviceKey =
-            business.lastLogin.device.model !== "Unknown"
-              ? business.lastLogin.device.model
-              : `${business.lastLogin.device.type} Device`
+          const deviceKey = formatDeviceName(business.lastLogin.device)
 
           if (!deviceMap.has(deviceKey)) {
             deviceMap.set(deviceKey, { count: 0, businesses: new Set() })
@@ -287,7 +317,8 @@ export default function AnalyticsPage() {
           deviceModel.includes("Samsung") ||
           deviceModel.includes("OPPO") ||
           deviceModel.includes("iPhone") ||
-          deviceModel.includes("Xiaomi")
+          deviceModel.includes("Xiaomi") ||
+          deviceModel.includes("Mobile")
             ? "Mobile"
             : "Desktop",
         deviceModel,
@@ -297,20 +328,22 @@ export default function AnalyticsPage() {
 
       setDeviceStats(deviceStatsData)
 
-      // Calculate location statistics with proper city, country display
+      // Calculate location statistics with enhanced location display
       const locationMap = new Map<string, number>()
       allBusinesses.forEach((business) => {
-        if (business.lastLogin?.location?.country && business.lastLogin?.location?.city) {
-          const locationKey = `${business.lastLogin.location.city}, ${business.lastLogin.location.country}`
-          const current = locationMap.get(locationKey) || 0
-          locationMap.set(locationKey, current + 1)
+        if (business.lastLogin?.location) {
+          const locationKey = formatLocation(business.lastLogin.location)
+          if (locationKey !== "Location unavailable") {
+            const current = locationMap.get(locationKey) || 0
+            locationMap.set(locationKey, current + 1)
+          }
         }
       })
 
       const totalLocations = Array.from(locationMap.values()).reduce((sum, count) => sum + count, 0)
       const locationStatsData = Array.from(locationMap.entries())
         .map(([location, count]) => {
-          const [city, country] = location.split(", ")
+          const [city, country] = location.includes(", ") ? location.split(", ") : [location, location]
           return {
             country,
             city,
@@ -330,14 +363,14 @@ export default function AnalyticsPage() {
       allBusinesses.forEach((business) => {
         if (business.loginHistory) {
           business.loginHistory.forEach((login) => {
-            const hour = new Date(login.timestamp).getHours()
+            const hour = login.timestamp.getHours()
             loginHours[hour].logins++
           })
         }
       })
       setLoginActivity(loginHours)
 
-      // Get recent logins with enhanced information
+      // Get recent logins with enhanced information and proper device/location formatting
       const allLogins = allBusinesses
         .flatMap((business) =>
           (business.loginHistory || []).map((login) => ({
@@ -345,11 +378,12 @@ export default function AnalyticsPage() {
             businessName: business.businessInfo?.businessName || "Unknown Business",
             businessType: business.businessInfo?.businessType || "Unknown",
             uid: business.uid,
-            // Add logout time if available (next login entry or null)
+            deviceName: formatDeviceName(login.device),
+            locationName: formatLocation(login.location),
             logoutTime: null, // Will be calculated in the next step
           })),
         )
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 
       // Process login history to determine logout times
       const businessLoginMap = new Map()
@@ -398,7 +432,7 @@ export default function AnalyticsPage() {
                   Analytics & Reports
                 </h1>
                 <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base lg:text-lg">
-                  Platform performance and insights with device tracking
+                  Platform performance and insights with enhanced device & location tracking
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
@@ -515,7 +549,7 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          {/* Login Activity Section */}
+          {/* Enhanced Login Activity Section */}
           <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
               <div className="flex items-center space-x-2 sm:space-x-3">
@@ -524,10 +558,10 @@ export default function AnalyticsPage() {
                 </div>
                 <div>
                   <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
-                    Recent Login Activity
+                    Enhanced Login Activity & Device Tracking
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-gray-600">
-                    Latest login sessions across all businesses
+                    Latest login sessions with accurate device detection and location tracking
                   </CardDescription>
                 </div>
               </div>
@@ -552,11 +586,11 @@ export default function AnalyticsPage() {
                 <div className="space-y-3 sm:space-y-4 lg:space-y-6">
                   {recentLogins.map((login, index) => {
                     // Format timestamps for login and logout
-                    const loginTime = new Date(login.timestamp).toLocaleTimeString([], {
+                    const loginTime = login.timestamp.toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })
-                    const loginDate = new Date(login.timestamp).toLocaleDateString([], {
+                    const loginDate = login.timestamp.toLocaleDateString([], {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -565,54 +599,67 @@ export default function AnalyticsPage() {
                     return (
                       <div
                         key={index}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-lg hover:shadow-md transition-all duration-300 border border-gray-100 space-y-2 sm:space-y-0"
+                        className="flex flex-col p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-xl hover:shadow-md transition-all duration-300 border border-gray-100 space-y-3"
                       >
-                        <div className="flex items-center space-x-3 sm:space-x-4">
-                          <div className="p-2 sm:p-3 bg-indigo-100 rounded-lg flex-shrink-0">
-                            {login.device.type === "Mobile" ? (
-                              <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-indigo-100 rounded-lg flex-shrink-0">
+                            {login.device.type === "Mobile" || login.deviceName.includes("iPhone") || login.deviceName.includes("Samsung") ? (
+                              <Smartphone className="h-5 w-5 text-indigo-600" />
                             ) : (
-                              <Monitor className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                              <Monitor className="h-5 w-5 text-indigo-600" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-800 text-sm sm:text-base truncate flex items-center">
+                            <div className="font-semibold text-gray-800 text-base truncate flex items-center">
                               {login.businessName}
                               <span className="ml-2 text-xs text-gray-500 font-normal">UID: {login.uid}</span>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                            <div className="text-sm text-gray-600 mt-1">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
-                                  {login.location.city !== "Unknown" && login.location.country !== "Unknown"
-                                    ? `${login.location.city}, ${login.location.country}`
-                                    : "Location unavailable"}
+                                  {login.locationName}
                                 </span>
+                                {login.location?.accuracy && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                    {login.location.accuracy} accuracy
+                                  </span>
+                                )}
                                 <span className="text-gray-400">•</span>
                                 <span className="flex items-center">
                                   <Clock className="h-3 w-3 mr-1" />
                                   Login: {loginTime} on {loginDate}
                                 </span>
                               </div>
-                              <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
-                                <span>
-                                  {login.device.model !== "Unknown"
-                                    ? login.device.model
-                                    : `${login.device.type} Device`}
-                                </span>
+                              <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                                <span>{login.deviceName}</span>
                                 <span className="text-gray-400">•</span>
                                 <span>{login.device.os}</span>
                                 <span className="text-gray-400">•</span>
                                 <span>{login.device.browser}</span>
                                 <span className="text-gray-400">•</span>
                                 <span className="capitalize">{login.loginMethod}</span>
+                                {login.sessionId && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <span>Session: {login.sessionId.slice(-8)}</span>
+                                  </>
+                                )}
+                                {login.location?.source && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <span>Location via: {login.location.source}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 self-start sm:self-center">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs text-green-600 font-medium">Active</span>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${login.isActive ? "bg-green-500" : "bg-gray-400"}`}></div>
+                          <span className={`text-xs font-medium ${login.isActive ? "text-green-600" : "text-gray-600"}`}>
+                            {login.isActive ? "Active" : "Logged Out"}
+                          </span>
                         </div>
                       </div>
                     )
@@ -623,7 +670,7 @@ export default function AnalyticsPage() {
           </Card>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-            {/* Device Statistics */}
+            {/* Enhanced Device Statistics */}
             <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center space-x-2 sm:space-x-3">
@@ -632,10 +679,10 @@ export default function AnalyticsPage() {
                   </div>
                   <div>
                     <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
-                      Device Statistics
+                      Enhanced Device Statistics
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm text-gray-600">
-                      Devices used to access the platform
+                      Accurate device detection and identification
                     </CardDescription>
                   </div>
                 </div>
@@ -677,7 +724,7 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            {/* Location Statistics */}
+            {/* Enhanced Location Statistics */}
             <Card className="bg-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-t-lg border-b border-gray-100 p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center space-x-2 sm:space-x-3">
@@ -686,10 +733,10 @@ export default function AnalyticsPage() {
                   </div>
                   <div>
                     <CardTitle className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
-                      Login Locations
+                      Enhanced Login Locations
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm text-gray-600">
-                      Geographic distribution of user logins
+                      Accurate geographic distribution with location services
                     </CardDescription>
                   </div>
                 </div>

@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RocketIcon } from "@radix-ui/react-icons"
 import { Eye, EyeOff } from 'lucide-react'
 import Navbar from "./Navbar"
-import { LocationPermissionDialog } from "./LocationPermissionDialog"
+import { LocationPermissionDialog } from "../components/LocationPermissionDialog"
 import { 
   getDeviceInfo, 
   getLocationInfo, 
@@ -173,14 +173,17 @@ export default function LoginForm() {
   }
 
   const createLoginDetails = async (method: "email" | "google"): Promise<LoginDetails> => {
+    console.log("Creating login details with enhanced tracking...")
+    
     const deviceInfo = getDeviceInfo()
+    console.log("Device info detected:", deviceInfo)
+    
     const locationInfo = await getLocationInfo()
+    console.log("Location info detected:", locationInfo)
+    
     const sessionId = generateSessionId()
 
-    console.log("Creating login details with enhanced device detection:", deviceInfo)
-    console.log("Location info with accuracy:", locationInfo)
-
-    return {
+    const loginDetails: LoginDetails = {
       sessionId,
       timestamp: new Date(),
       device: {
@@ -194,36 +197,47 @@ export default function LoginForm() {
       loginMethod: method,
       isActive: true,
     }
+
+    console.log("Complete login details created:", loginDetails)
+    return loginDetails
   }
 
   const updateLoginHistory = async (uid: string, newLoginDetails: LoginDetails) => {
-    const userRef = doc(db, "users", uid)
-    const userSnap = await getDoc(userRef)
+    try {
+      const userRef = doc(db, "users", uid)
+      const userSnap = await getDoc(userRef)
 
-    if (userSnap.exists()) {
-      const existingHistory = userSnap.data()?.loginHistory || []
+      if (userSnap.exists()) {
+        const existingHistory = userSnap.data()?.loginHistory || []
 
-      // Mark all previous sessions as inactive
-      const updatedHistory = existingHistory.map((login: LoginDetails) => ({
-        ...login,
-        isActive: false,
-      }))
+        // Mark all previous sessions as inactive
+        const updatedHistory = existingHistory.map((login: LoginDetails) => ({
+          ...login,
+          isActive: false,
+        }))
 
-      // Add new login session
-      const newHistory = [...updatedHistory, newLoginDetails]
+        // Add new login session
+        const newHistory = [...updatedHistory, newLoginDetails]
 
-      // Keep last 50 login sessions for better tracking
-      const trimmedHistory = newHistory.slice(-50)
+        // Keep last 100 login sessions for better tracking
+        const trimmedHistory = newHistory.slice(-100)
 
-      await updateDoc(userRef, {
-        lastLogin: newLoginDetails,
-        loginHistory: trimmedHistory,
-        updatedAt: new Date(),
-      })
+        await updateDoc(userRef, {
+          lastLogin: newLoginDetails,
+          loginHistory: trimmedHistory,
+          updatedAt: new Date(),
+        })
 
-      console.log("Updated login history with enhanced tracking:", newLoginDetails.sessionId)
-      console.log("Device detected:", newLoginDetails.device)
-      console.log("Location detected:", newLoginDetails.location)
+        console.log("Successfully updated login history:", {
+          sessionId: newLoginDetails.sessionId,
+          device: newLoginDetails.device.model,
+          location: `${newLoginDetails.location.city}, ${newLoginDetails.location.country}`,
+          accuracy: newLoginDetails.location.accuracy,
+          source: newLoginDetails.location.source
+        })
+      }
+    } catch (error) {
+      console.error("Error updating login history:", error)
     }
   }
 
@@ -259,9 +273,9 @@ export default function LoginForm() {
 
   const handleLocationPermissionResult = (granted: boolean) => {
     if (granted) {
-      console.log("Location permission granted")
+      console.log("Location permission granted - will use high accuracy GPS location")
     } else {
-      console.log("Location permission denied, will use IP-based location")
+      console.log("Location permission denied - will use IP-based location as fallback")
     }
   }
 
@@ -286,7 +300,6 @@ export default function LoginForm() {
       }
 
       const loginDetails = await createLoginDetails("email")
-      console.log("Email login details created with enhanced tracking:", loginDetails)
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
@@ -361,7 +374,6 @@ export default function LoginForm() {
       }
 
       const loginDetails = await createLoginDetails("google")
-      console.log("Google login details created with enhanced tracking:", loginDetails)
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)

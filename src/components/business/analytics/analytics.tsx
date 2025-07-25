@@ -5,37 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Star,
-  BarChart2,
-  MessageSquare,
-  ThumbsUp,
-  TrendingUp,
-  Users,
-  Award,
-  Heart,
-  ArrowUp,
-  Activity,
-  Globe,
-  Smartphone,
-  Monitor,
-  ArrowDown,
-  MapPin,
-  Brain,
-  Target,
-  Zap,
-  Clock,
-  Shield,
-  Calendar,
-  Eye,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  TrendingDown,
-  BarChart3,
-  LineChart,
-} from "lucide-react"
+import { Star, BarChart2, MessageSquare, ThumbsUp, TrendingUp, Users, Award, Heart, ArrowUp, Activity, Globe, Smartphone, Monitor, ArrowDown, MapPin, Brain, Target, Zap, Clock, Shield, Calendar, Eye, RefreshCw, AlertCircle, CheckCircle, XCircle, TrendingDown, BarChart3, LineChart } from 'lucide-react'
 import { auth, db } from "@/firebase/firebase"
 import { collection, query, getDocs, doc, getDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
@@ -56,6 +26,7 @@ interface Review {
 }
 
 interface LoginDetails {
+  sessionId?: string
   timestamp: any // Can be Date or Firestore Timestamp
   device: {
     type: string
@@ -70,8 +41,11 @@ interface LoginDetails {
     region?: string
     country?: string
     timezone?: string
+    accuracy?: 'high' | 'medium' | 'low'
+    source?: string
   }
   loginMethod: "email" | "google"
+  isActive?: boolean
 }
 
 interface AnalyticsData {
@@ -225,6 +199,78 @@ const InteractiveChart = ({ data, type = "bar" }: { data: any[]; type?: "bar" | 
   }
 
   return <div className="h-64 flex items-center justify-center text-gray-500">Chart visualization</div>
+}
+
+// Helper function to get unique login sessions per device
+const getUniqueDeviceSessions = (loginHistory: LoginDetails[]) => {
+  const deviceMap = new Map<string, LoginDetails>()
+
+  // Sort by timestamp descending to get latest sessions first
+  const sortedHistory = [...loginHistory].sort((a, b) => {
+    const timeA = a.timestamp?.toDate?.() || new Date(a.timestamp)
+    const timeB = b.timestamp?.toDate?.() || new Date(b.timestamp)
+    return timeB.getTime() - timeA.getTime()
+  })
+
+  // Keep only the latest session per unique device
+  sortedHistory.forEach((login) => {
+    const deviceKey = `${login.device?.model || login.device?.type || "Unknown"}-${login.device?.os || "Unknown"}-${login.device?.browser || "Unknown"}`
+
+    if (!deviceMap.has(deviceKey)) {
+      deviceMap.set(deviceKey, login)
+    }
+  })
+
+  return Array.from(deviceMap.values())
+}
+
+// Helper function to calculate logout time
+const getLogoutTime = (currentLogin: LoginDetails, allLogins: LoginDetails[]) => {
+  const currentTime = currentLogin.timestamp?.toDate?.() || new Date(currentLogin.timestamp)
+  const deviceKey = `${currentLogin.device?.model || currentLogin.device?.type || "Unknown"}-${currentLogin.device?.os || "Unknown"}-${currentLogin.device?.browser || "Unknown"}`
+
+  // Find the next login from the same device
+  const nextLogin = allLogins
+    .filter((login) => {
+      const loginDeviceKey = `${login.device?.model || login.device?.type || "Unknown"}-${login.device?.os || "Unknown"}-${login.device?.browser || "Unknown"}`
+      return loginDeviceKey === deviceKey
+    })
+    .find((login) => {
+      const loginTime = login.timestamp?.toDate?.() || new Date(login.timestamp)
+      return loginTime.getTime() > currentTime.getTime()
+    })
+
+  if (nextLogin) {
+    return nextLogin.timestamp?.toDate?.() || new Date(nextLogin.timestamp)
+  }
+
+  // If no next login found and this is an active session, return null (still active)
+  if (currentLogin.isActive) {
+    return null
+  }
+
+  // Otherwise, assume logged out after 24 hours (or return null for unknown)
+  return null
+}
+
+// Helper function to format device name properly
+const formatDeviceName = (login: LoginDetails) => {
+  if (login.device?.model && login.device.model !== "Unknown") {
+    return login.device.model
+  }
+  return `${login.device?.type || "Unknown"} Device`
+}
+
+// Helper function to format location properly
+const formatLocation = (login: LoginDetails) => {
+  if (login.location?.city && login.location?.country && 
+      login.location.city !== "Unknown" && login.location.country !== "Unknown") {
+    return `${login.location.city}, ${login.location.country}`
+  }
+  if (login.location?.country && login.location.country !== "Unknown") {
+    return login.location.country
+  }
+  return "Location unavailable"
 }
 
 export default function AnalyticPage() {
@@ -543,7 +589,7 @@ export default function AnalyticPage() {
         }
       }
 
-      // Process login activity timestamps
+      // Process login activity timestamps and get unique device sessions
       const processedLoginActivity = loginActivity.map((login) => {
         let timestamp = login.timestamp
         if (typeof timestamp?.toDate === "function") {
@@ -761,157 +807,6 @@ export default function AnalyticPage() {
 
           {analyticsData ? (
             <div className="space-y-8">
-              {/* Login Activity Section */}
-              <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg border-b border-gray-100">
-                  <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
-                    <Shield className="h-6 w-6 text-indigo-600" />
-                    Login Activity & Device Management
-                    <span className="text-sm bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full">Security</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {analyticsData.loginActivity && analyticsData.loginActivity.length > 0 ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="text-sm text-gray-600">Recent login sessions and device information</div>
-                        <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                          Total Sessions: {analyticsData.loginActivity.length}
-                        </div>
-                      </div>
-
-                      {analyticsData.loginActivity.slice(0, 8).map((login, index) => {
-                        const loginDate = login.timestamp instanceof Date ? login.timestamp : new Date(login.timestamp)
-                        const isValidDate = !isNaN(loginDate.getTime())
-
-                        // Format login time
-                        const loginTime = isValidDate
-                          ? loginDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : "Unknown time"
-                        const loginDateStr = isValidDate
-                          ? loginDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
-                          : "Unknown date"
-
-                        // Determine device info
-                        const deviceModel =
-                          login.device?.model && login.device.model !== "Unknown"
-                            ? login.device.model
-                            : `${login.device?.type || "Unknown"} Device`
-
-                        // Location info
-                        const locationStr =
-                          login.location?.city && login.location?.country
-                            ? `${login.location.city}, ${login.location.country}`
-                            : "Location unavailable"
-
-                        return (
-                          <div
-                            key={`login-session-${index}`}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-xl hover:shadow-md transition-all duration-300 border border-gray-100 space-y-3 sm:space-y-0"
-                          >
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className="p-3 bg-indigo-100 rounded-lg flex-shrink-0">
-                                {login.device?.type?.toLowerCase() === "mobile" ? (
-                                  <Smartphone className="h-5 w-5 text-indigo-600" />
-                                ) : (
-                                  <Monitor className="h-5 w-5 text-indigo-600" />
-                                )}
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className="font-semibold text-gray-800 truncate">{deviceModel}</div>
-                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex-shrink-0">
-                                    {login.device?.type || "Unknown"}
-                                  </span>
-                                </div>
-
-                                <div className="text-sm text-gray-600 space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {locationStr}
-                                    </span>
-                                    <span className="text-gray-400">•</span>
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      Login: {loginTime} on {loginDateStr}
-                                    </span>
-                                  </div>
-
-                                  <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2">
-                                    <span>OS: {login.device?.os || "Unknown"}</span>
-                                    <span className="text-gray-400">•</span>
-                                    <span>Browser: {login.device?.browser || "Unknown"}</span>
-                                    <span className="text-gray-400">•</span>
-                                    <span>Method: {login.loginMethod || "Unknown"}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-2 flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`w-2 h-2 rounded-full ${index === 0 ? "bg-green-500" : "bg-blue-500"}`}
-                                ></div>
-                                <span
-                                  className={`text-xs font-medium ${index === 0 ? "text-green-600" : "text-blue-600"}`}
-                                >
-                                  {index === 0 ? "Current Session" : "Previous Session"}
-                                </span>
-                              </div>
-
-                              {index === 0 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
-                                >
-                                  End Session
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-
-                      {analyticsData.loginActivity.length > 8 && (
-                        <div className="text-center pt-4 border-t border-gray-200">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 bg-transparent"
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View All Login History ({analyticsData.loginActivity.length} total sessions)
-                          </Button>
-                        </div>
-                      )}
-
-                      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-start gap-3">
-                          <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <h4 className="font-medium text-blue-800 mb-1">Security Notice</h4>
-                            <p className="text-sm text-blue-700">
-                              We track login activity to help keep your account secure. If you notice any unfamiliar
-                              devices or locations, please contact support immediately.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-700 mb-2">No Login Activity</h3>
-                      <p className="text-gray-500">No login sessions have been recorded yet.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
               {/* Custom Plan Exclusive: AI Insights Banner */}
               {hasCustomAccess && analyticsData.aiInsights && (
                 <Card className="bg-gradient-to-r from-purple-100 via-pink-50 to-purple-100 border-purple-200 shadow-xl">
@@ -1425,12 +1320,185 @@ export default function AnalyticPage() {
                   <InteractiveChart data={analyticsData.monthlyData} type="bar" />
                 </CardContent>
               </Card>
+
+              {/* Login Activity Section - Enhanced with proper device and location display */}
+              <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg border-b border-gray-100">
+                  <CardTitle className="flex items-center gap-3 text-xl text-gray-700">
+                    <Shield className="h-6 w-6 text-indigo-600" />
+                    Enhanced Login Activity & Device Management
+                    <span className="text-sm bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full">Security</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {analyticsData.loginActivity && analyticsData.loginActivity.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="text-sm text-gray-600">Latest login session per unique device with enhanced tracking</div>
+                        <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                          Unique Devices: {getUniqueDeviceSessions(analyticsData.loginActivity).length}
+                        </div>
+                      </div>
+
+                      {getUniqueDeviceSessions(analyticsData.loginActivity)
+                        .slice(0, 8)
+                        .map((login, index) => {
+                          const loginDate = login.timestamp instanceof Date ? login.timestamp : new Date(login.timestamp)
+                          const isValidDate = !isNaN(loginDate.getTime())
+
+                          // Format login time
+                          const loginTime = isValidDate
+                            ? loginDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                            : "Unknown time"
+                          const loginDateStr = isValidDate
+                            ? loginDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+                            : "Unknown date"
+
+                          // Calculate logout time
+                          const logoutTime = getLogoutTime(login, analyticsData.loginActivity)
+                          const logoutTimeStr = logoutTime
+                            ? logoutTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) +
+                              " on " +
+                              logoutTime.toLocaleDateString([], { month: "short", day: "numeric" })
+                            : "Still active"
+
+                          // Enhanced device info with better detection
+                          const deviceModel = formatDeviceName(login)
+                          const locationStr = formatLocation(login)
+                          const locationAccuracy = login.location?.accuracy || 'low'
+                          const locationSource = login.location?.source || 'unknown'
+
+                          return (
+                            <div
+                              key={`login-session-${login.sessionId || index}`}
+                              className="flex flex-col p-4 bg-gradient-to-r from-gray-50 to-indigo-50 rounded-xl hover:shadow-md transition-all duration-300 border border-gray-100 space-y-3"
+                            >
+                              <div className="flex items-start gap-4">
+                                <div className="p-3 bg-indigo-100 rounded-lg flex-shrink-0">
+                                  {login.device?.type?.toLowerCase() === "mobile" ? (
+                                    <Smartphone className="h-5 w-5 text-indigo-600" />
+                                  ) : (
+                                    <Monitor className="h-5 w-5 text-indigo-600" />
+                                  )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="font-semibold text-gray-800 text-base break-words">
+                                      {deviceModel}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                        {login.device?.type || "Unknown"}
+                                      </span>
+                                      {locationAccuracy === "high" && (
+                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                          📍 High Accuracy
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="text-sm text-gray-600 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                                      <span className="break-words">{locationStr}</span>
+                                      {locationAccuracy && (
+                                        <span className="text-xs text-gray-400">
+                                          ({locationAccuracy} accuracy via {locationSource})
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="text-xs text-gray-500 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="h-3 w-3 flex-shrink-0" />
+                                        <span>Login: {loginTime} on {loginDateStr}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="h-3 w-3 flex-shrink-0" />
+                                        <span>Logout: {logoutTimeStr}</span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                                        <span>OS: {login.device?.os || "Unknown"}</span>
+                                        <span className="text-gray-400">•</span>
+                                        <span>Browser: {login.device?.browser || "Unknown"}</span>
+                                        <span className="text-gray-400">•</span>
+                                        <span>Method: {login.loginMethod || "Unknown"}</span>
+                                        {login.sessionId && (
+                                          <>
+                                            <span className="text-gray-400">•</span>
+                                            <span>Session: {login.sessionId.slice(-8)}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-2 h-2 rounded-full ${
+                                      login.isActive || !logoutTime ? "bg-green-500" : "bg-gray-400"
+                                    }`}
+                                  ></div>
+                                  <span
+                                    className={`text-xs font-medium ${
+                                      login.isActive || !logoutTime ? "text-green-600" : "text-gray-600"
+                                    }`}
+                                  >
+                                    {login.isActive || !logoutTime ? "Active" : "Logged Out"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                      {getUniqueDeviceSessions(analyticsData.loginActivity).length > 8 && (
+                        <div className="text-center pt-4 border-t border-gray-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                          >
+                            View All Devices ({getUniqueDeviceSessions(analyticsData.loginActivity).length} total)
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-start gap-3">
+                          <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="font-medium text-blue-800 mb-1">Enhanced Security Information</h4>
+                            <p className="text-sm text-blue-700">
+                              Only the latest session per unique device is shown with enhanced device detection and
+                              location accuracy tracking. Each login session includes precise device model identification,
+                              high-accuracy location services when available, and comprehensive security monitoring.
+                              Location accuracy varies based on device permissions and available services.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-700 mb-2">No Login Activity</h3>
+                      <p className="text-gray-500">No login sessions have been recorded yet.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           ) : (
-            <div className="text-center py-20">
-              <div className="animate-pulse">
-                <BarChart2 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Loading analytics data...</p>
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading analytics data...</p>
               </div>
             </div>
           )}
