@@ -14,7 +14,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RocketIcon } from "@radix-ui/react-icons"
 import { Eye, EyeOff } from 'lucide-react'
 import Navbar from "./Navbar"
-import { getDeviceInfo, getLocationInfo, generateSessionId } from "../lib/deviceInfo"
+import { LocationPermissionDialog } from "./LocationPermissionDialog"
+import { 
+  getDeviceInfo, 
+  getLocationInfo, 
+  generateSessionId, 
+  checkLocationPermission,
+  requestLocationPermission 
+} from "../lib/deviceInfo"
 
 interface ThemeSettings {
   primaryColor: string
@@ -40,6 +47,8 @@ interface LoginDetails {
     region: string
     country: string
     timezone: string
+    accuracy: 'high' | 'medium' | 'low'
+    source: string
   }
   loginMethod: "email" | "google"
   isActive: boolean
@@ -48,7 +57,7 @@ interface LoginDetails {
 export default function LoginForm() {
   const [theme, setTheme] = useState<ThemeSettings>({
     primaryColor: "#ea580c",
-    secondaryColor: "#fed7aa",
+    secondaryColor: "#fed7aa", 
     accentColor: "#fbbf24",
     backgroundColor: "#ffffff",
     textColor: "#111827",
@@ -66,6 +75,8 @@ export default function LoginForm() {
   const [externalError, setExternalError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [subscriptionExpired, setSubscriptionExpired] = useState(false)
+  const [showLocationDialog, setShowLocationDialog] = useState(false)
+  const [locationPermissionChecked, setLocationPermissionChecked] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -85,6 +96,19 @@ export default function LoginForm() {
     localStorage.removeItem("role")
     localStorage.removeItem("email")
     signOut(auth).catch(console.error)
+  }, [])
+
+  // Check location permission on component mount
+  useEffect(() => {
+    const checkPermission = async () => {
+      const permissionStatus = await checkLocationPermission()
+      if (!permissionStatus.granted && permissionStatus.canRequest) {
+        setShowLocationDialog(true)
+      }
+      setLocationPermissionChecked(true)
+    }
+
+    checkPermission()
   }, [])
 
   const checkAccountStatus = async (uid: string) => {
@@ -153,7 +177,8 @@ export default function LoginForm() {
     const locationInfo = await getLocationInfo()
     const sessionId = generateSessionId()
 
-    console.log("Creating login details with location:", locationInfo) // Debug log
+    console.log("Creating login details with enhanced device detection:", deviceInfo)
+    console.log("Location info with accuracy:", locationInfo)
 
     return {
       sessionId,
@@ -174,29 +199,31 @@ export default function LoginForm() {
   const updateLoginHistory = async (uid: string, newLoginDetails: LoginDetails) => {
     const userRef = doc(db, "users", uid)
     const userSnap = await getDoc(userRef)
-    
+
     if (userSnap.exists()) {
       const existingHistory = userSnap.data()?.loginHistory || []
-      
+
       // Mark all previous sessions as inactive
       const updatedHistory = existingHistory.map((login: LoginDetails) => ({
         ...login,
-        isActive: false
+        isActive: false,
       }))
-      
+
       // Add new login session
       const newHistory = [...updatedHistory, newLoginDetails]
-      
-      // Keep last 20 login sessions for better tracking
-      const trimmedHistory = newHistory.slice(-20)
-      
+
+      // Keep last 50 login sessions for better tracking
+      const trimmedHistory = newHistory.slice(-50)
+
       await updateDoc(userRef, {
         lastLogin: newLoginDetails,
         loginHistory: trimmedHistory,
         updatedAt: new Date(),
       })
-      
-      console.log("Updated login history with new session:", newLoginDetails.sessionId)
+
+      console.log("Updated login history with enhanced tracking:", newLoginDetails.sessionId)
+      console.log("Device detected:", newLoginDetails.device)
+      console.log("Location detected:", newLoginDetails.location)
     }
   }
 
@@ -230,6 +257,14 @@ export default function LoginForm() {
     }
   }
 
+  const handleLocationPermissionResult = (granted: boolean) => {
+    if (granted) {
+      console.log("Location permission granted")
+    } else {
+      console.log("Location permission denied, will use IP-based location")
+    }
+  }
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -251,7 +286,7 @@ export default function LoginForm() {
       }
 
       const loginDetails = await createLoginDetails("email")
-      console.log("Email login details created:", loginDetails) // Debug log
+      console.log("Email login details created with enhanced tracking:", loginDetails)
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
@@ -326,7 +361,7 @@ export default function LoginForm() {
       }
 
       const loginDetails = await createLoginDetails("google")
-      console.log("Google login details created:", loginDetails) // Debug log
+      console.log("Google login details created with enhanced tracking:", loginDetails)
 
       const userRef = doc(db, "users", uid)
       const userSnap = await getDoc(userRef)
@@ -806,6 +841,13 @@ export default function LoginForm() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Location Permission Dialog */}
+        <LocationPermissionDialog
+          open={showLocationDialog}
+          onOpenChange={setShowLocationDialog}
+          onPermissionResult={handleLocationPermissionResult}
+        />
       </div>
     </>
   )
